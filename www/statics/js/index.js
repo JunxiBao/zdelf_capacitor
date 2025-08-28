@@ -37,6 +37,9 @@ function hapticImpact(style) {
   }
 }
 
+// Expose haptics globally for subpages
+window.__hapticImpact__ = hapticImpact;
+
 // StatusBar helper
 function getStatusBar() {
   const C = window.Capacitor || {};
