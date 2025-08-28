@@ -1,0 +1,435 @@
+/* =========================================================
+   Base Reset
+========================================================= */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: sans-serif;
+}
+
+html {
+  background: var(--color-surface);
+}
+
+/* =========================================================
+   Theme Tokens (Light) – tweak here if you change brand colors
+========================================================= */
+:root {
+  --color-primary: #6200ea;
+  /* light mode primary */
+  --color-primary-contrast: #ffffff;
+  --color-surface: #ffffff;
+  --color-text-muted: #888;
+  --color-text-dim: #aaa;
+  --shadow-elev-1: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  --shadow-fab: 0 4px 10px rgba(0, 0, 0, 0.2);
+  /* Ripple (light) */
+  --ripple-color: rgba(186, 104, 200, 0.35);
+  /* soft purple */
+}
+
+/* =========================================================
+   Layout
+========================================================= */
+.content {
+  margin-bottom: 100px;
+  min-height: calc(100vh - 80px); /* fill screen above bottom nav */
+  padding: 20px;
+  background: inherit;
+}
+
+/* --- iOS shell layout adjustments --- */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+body {
+  overscroll-behavior: none;
+}
+.content {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--nav-h, 80px) + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* smooth iOS momentum */
+  contain: content;
+}
+/* Fixed nav stays pinned and respects safe area */
+.nav-container {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+/* Ensure modal still covers viewport without enabling body scroll */
+.modal {
+  position: fixed !important;
+  inset: 0 !important;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* =========================================================
+   Bottom Navigation
+========================================================= */
+.nav-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 80px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-elev-1);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  z-index: 10;
+}
+
+/* on-load slide up */
+.nav-container {
+  will-change: transform, opacity;
+  animation: navSlideUp 480ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes navSlideUp {
+  0% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+  80% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.nav-item {
+  flex: 1;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+/* buttons */
+.nav-item > button.icon {
+  background: none;
+  border: none;
+  padding: 8px;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--color-text-dim);
+  transition: color 0.3s;
+}
+
+.nav-item > button.icon:focus {
+  outline: 2px solid #5b9dd9;
+  outline-offset: 2px;
+}
+
+/* active state */
+.nav-item.active button {
+  color: var(--color-primary);
+}
+
+/* labels */
+.nav-label {
+  font-family: "PingFang SC", "Segoe UI", Arial, sans-serif;
+  font-size: 13.5px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+  text-align: center;
+  line-height: 1.2;
+  user-select: none;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  transition: color 0.3s, font-weight 0.3s;
+}
+
+.nav-item.active .nav-label {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* selection indicator */
+.indicator {
+  position: absolute;
+  bottom: 0;
+  height: 4px;
+  width: 25%;
+  left: 0;
+  background: var(--color-primary);
+  border-radius: 4px 4px 0 0;
+  transition: transform 0.3s;
+}
+
+/* center (FAB-like) button */
+.center-button-wrapper {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+}
+
+.center-button {
+  width: 60px;
+  height: 60px;
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  cursor: pointer;
+  transition: transform 0.4s ease, background-color 0.3s ease;
+  box-shadow: var(--shadow-fab);
+  position: relative;
+}
+
+/* one-time ripple on load for FAB */
+.center-button::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: 0 0 0 0 var(--ripple-color);
+  opacity: 0;
+  animation: fabRing 900ms ease-out 120ms both;
+}
+
+@keyframes fabRing {
+  0% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 var(--ripple-color);
+  }
+  60% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    box-shadow: 0 0 0 22px rgba(0, 0, 0, 0);
+  }
+}
+
+.center-button.rotate {
+  transform: translateX(-0%) rotate(360deg);
+}
+
+/* icons */
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.icon:hover {
+  transform: scale(1.2);
+  opacity: 0.8;
+}
+
+.icon .material-symbols-rounded {
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.center-button .material-symbols-rounded {
+  font-size: 28px;
+}
+
+/* =========================================================
+   Modal
+========================================================= */
+.modal {
+  position: fixed;
+  z-index: 999;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  transition: background 0.3s;
+  pointer-events: auto;
+}
+
+@keyframes popSlideUp {
+  0% {
+    transform: translateY(24px) scale(0.985);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(-2px) scale(1.008);
+    opacity: 1;
+  }
+  80% {
+    transform: translateY(0) scale(0.997);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.modal-content {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 100px;
+  bottom: 120px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 18px;
+  padding: 32px 16px 24px 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  animation: popSlideUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  font-family: "Segoe UI", "PingFang SC", Arial, sans-serif;
+  overflow-y: auto;
+  z-index: 1001;
+  pointer-events: auto;
+  width: auto;
+  min-width: unset;
+  max-width: unset;
+}
+
+@media (max-width: 480px) {
+  .modal-content {
+    left: 4px;
+    right: 4px;
+    padding: 16px 4px;
+  }
+}
+
+@keyframes popSlideDown {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  20% {
+    transform: translateY(-1px) scale(0.998);
+    opacity: 0.96;
+  }
+  100% {
+    transform: translateY(24px) scale(0.985);
+    opacity: 0;
+  }
+}
+
+.modal-content.closing {
+  animation: popSlideDown 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+/* =========================================================
+   Dark Mode
+========================================================= */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-primary: #bb86fc;
+    /* dark mode primary */
+    --color-primary-contrast: #18181c;
+    --color-surface: #23232a;
+    --color-text-muted: #888;
+    --color-text-dim: #888;
+    /* Ripple (dark) */
+    --ripple-color: rgba(203, 148, 217, 0.5);
+    /* brighter purple for contrast */
+  }
+
+  html,
+  body,
+  .content,
+  #content {
+    background: #18181c !important;
+    color: #e5e5e5;
+  }
+
+  .nav-container {
+    background: var(
+      --color-surface
+    ) !important; /* restore intended dark mode surface color */
+    box-shadow: none; /* remove darker band above the bar */
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+
+  .nav-item > button.icon {
+    color: var(--color-text-muted);
+  }
+
+  .nav-item.active button {
+    color: var(--color-primary);
+  }
+
+  .indicator {
+    background: var(--color-primary);
+  }
+
+  .center-button {
+    background: var(--color-primary);
+    color: var(--color-primary-contrast);
+  }
+
+  .modal {
+    background: rgba(24, 24, 28, 0.5);
+  }
+
+  .modal-content {
+    background: var(--color-surface);
+    color: #e5e5e5;
+  }
+
+  .nav-label {
+    color: var(--color-text-muted);
+    font-family: "PingFang SC", "Segoe UI", Arial, sans-serif;
+  }
+
+  .nav-item.active .nav-label {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal-content {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  .modal-content.closing {
+    animation-duration: 0.01ms !important;
+  }
+  .nav-container {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  .center-button::after {
+    animation: none !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .modal-content {
+    animation-duration: 0.42s;
+  }
+}
