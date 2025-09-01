@@ -16,6 +16,8 @@
   // Array of teardown callbacks to run when leaving the page
   let cleanupFns = [];
 
+
+
   // Abort controller for in-flight requests
   let fetchController = null;
   function abortInFlight() {
@@ -874,6 +876,8 @@
       cleanupFns.push(() => editBtn.removeEventListener("click", h));
     }
 
+
+
     // 退出登录
     const logoutBtn = root.querySelector("#logoutBtn");
     if (logoutBtn) {
@@ -990,6 +994,9 @@
    */
   function destroyMe() {
     abortInFlight();
+
+
+
     cleanupFns.forEach((fn) => {
       try {
         fn();
