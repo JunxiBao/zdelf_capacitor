@@ -52,7 +52,6 @@
   let pendingDeleteId = null; // 待删除的提醒ID
   let reminderTimeouts = new Map(); // 存储定时器引用
   let currentRoot = null; // 当前的Shadow Root引用
-  let isSettingUpReminders = false; // 防止重复设置提醒
 
   // 存储键名
   const STORAGE_KEY = 'medication_reminders';
@@ -67,14 +66,14 @@
    */
   function getGreeting() {
     const hour = new Date().getHours();
-    if (hour >= 5 && hour < 8) return "🌅 早安，今天不要忘记吃药～"; // Very early morning
-    if (hour >= 8 && hour < 12) return "☀️ 早上好，该吃药啦"; // Morning
-    if (hour >= 12 && hour < 14) return "🌞 中午好，吃药时间到"; // Noon
-    if (hour >= 14 && hour < 17) return "⛅ 下午好，不要忘记吃药哦"; // Afternoon
-    if (hour >= 17 && hour < 19) return "🌆 黄昏好，坚持吃药哦"; // Evening
-    if (hour >= 19 && hour < 22) return "🌙 晚上好，准备前记得吃药哦"; // Night
-    if (hour >= 22 || hour < 2) return "🌃 夜深了，赶紧吃药睡觉哦"; // Late night
-    return "🕐 嘿，时间过得真快，又该吃药啦"; // Default
+    if (hour >= 5 && hour < 8) return "🌅 早安，新的一天开始啦"; // Very early morning
+    if (hour >= 8 && hour < 12) return "☀️ 早上好，精神百倍"; // Morning
+    if (hour >= 12 && hour < 14) return "🌞 中午好，吃饭时间到"; // Noon
+    if (hour >= 14 && hour < 17) return "⛅ 下午好，继续加油"; // Afternoon
+    if (hour >= 17 && hour < 19) return "🌆 黄昏好，放松一下"; // Evening
+    if (hour >= 19 && hour < 22) return "🌙 晚上好，准备休息"; // Night
+    if (hour >= 22 || hour < 2) return "🌃 夜深了，早点休息哦"; // Late night
+    return "🕐 嘿，时间过得真快"; // Default
   }
 
   /**
@@ -644,14 +643,6 @@
    * 设置提醒定时器
    */
   async function setupReminders() {
-    // 防止重复设置提醒
-    if (isSettingUpReminders) {
-      console.log('⚠️ 正在设置提醒，跳过重复调用');
-      return;
-    }
-
-    isSettingUpReminders = true;
-
     try {
       // 清除所有现有定时器
       reminderTimeouts.forEach(timeout => clearTimeout(timeout));
@@ -685,17 +676,31 @@
           const medicationName = reminder.name || '药品';
 
           // 构建有趣的提醒内容 💊✨
-          let notificationBody = `🎉 嘿，${username}！\n⏰ 该吃${medicationName}啦`;
+          let notificationBody = `🎉 嘿，${username}！我是你的紫癜精灵小助手！\n⏰ 该吃${medicationName}啦`;
 
           // 添加计量信息
           if (reminder.dosage) {
             notificationBody += `，记得吃 ${reminder.dosage}`;
           }
 
+          // 添加服用频率信息
+          if (reminder.frequency) {
+            notificationBody += `，${reminder.frequency}`;
+          }
+
+          notificationBody += ` 哦！💪`;
+
+          // 添加备注信息（如果有）
+          if (reminder.notes) {
+            notificationBody += `\n📝 小贴士：${reminder.notes}`;
+          }
+
+          notificationBody += `\n❤️ 健康第一，记得按时服药哦！`;
+
           // 使用个性化通知模板
           notifications.push({
             id: notificationId,
-            title: greeting,
+            title: `${greeting}，${username}`,
             body: notificationBody,
             schedule: {
               at: reminderTime
@@ -756,9 +761,6 @@
       console.error('❌ 设置提醒失败:', error);
       // 如果Capacitor通知失败，回退到setTimeout方式
       setupFallbackReminders();
-    } finally {
-      // 重置设置标志位
-      isSettingUpReminders = false;
     }
   }
 
@@ -821,7 +823,7 @@
 
       const greeting = getGreeting();
       const medicationName = reminder.name || '药品';
-      const notificationTitle = greeting;
+      const notificationTitle = `${greeting}，${username}`;
 
       // 构建有趣的提醒内容 💊✨
       let notificationBody = `🎉 嘿，${username}！我是你的紫癜精灵！\n⏰ 该吃${medicationName}啦`;
@@ -837,6 +839,13 @@
       }
 
       notificationBody += ` 哦！💪`;
+
+      // 添加备注信息（如果有）
+      if (reminder.notes) {
+        notificationBody += `\n📝 小贴士：${reminder.notes}`;
+      }
+
+      notificationBody += `\n❤️ 健康第一，记得按时服药哦！`;
 
       // 优先使用Capacitor本地通知
       if (LocalNotifications) {
@@ -988,21 +997,14 @@
   document.addEventListener("DOMContentLoaded", async function () {
     console.log("💊 用药提醒页面初始化");
 
-    // 检查是否已经在Shadow DOM中运行，避免重复初始化
-    if (window.location.pathname.includes('notification.html')) {
-      console.log("📱 独立页面模式，执行初始化");
+    // 请求通知权限
+    await requestNotificationPermission();
 
-      // 请求通知权限
-      await requestNotificationPermission();
+    // 设置通知监听器
+    setupNotificationListeners();
 
-      // 设置通知监听器
-      setupNotificationListeners();
-
-      // 初始化页面
-      initCase(document);
-    } else {
-      console.log("🎯 Shadow DOM模式，跳过独立初始化");
-    }
+    // 初始化页面
+    initCase(document);
 
     // 添加测试功能（仅在开发环境下）
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {

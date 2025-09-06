@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <link rel="stylesheet" href="../statics/css/notification.css" />
+    <title>用药提醒</title>
+  </head>
+  <body>
+    <!-- 提醒列表容器 -->
+    <div class="reminders-container" id="remindersContainer">
+      <div class="empty-state">
+        <div class="icon">💊</div>
+        <h3>还没有用药提醒</h3>
+        <p>点击右下角的 + 按钮添加您的第一个用药提醒</p>
+      </div>
+    </div>
+
+    <!-- 添加提醒按钮 -->
+    <button class="add-reminder-btn" id="addReminderBtn" title="添加用药提醒">
+      +
+    </button>
+
+    <!-- 添加/编辑提醒模态框 -->
+    <div class="modal" id="reminderModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title" id="modalTitle">添加用药提醒</h2>
+          <button class="modal-close" id="modalClose">&times;</button>
+        </div>
+
+        <form id="reminderForm">
+          <div class="form-group">
+            <label class="form-label" for="medicationName">药品名称 *</label>
+            <input type="text" class="form-input" id="medicationName" placeholder="请输入药品名称" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="reminderTime">提醒时间 *</label>
+            <input type="time" class="form-input" id="reminderTime" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="dosage">剂量</label>
+            <input type="text" class="form-input" id="dosage" placeholder="例如：1片、2ml">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="frequency">服用频率</label>
+            <input type="text" class="form-input" id="frequency" placeholder="例如：每日一次、每6小时一次">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="notes">备注</label>
+            <textarea class="form-input form-textarea" id="notes" placeholder="其他注意事项..."></textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="cancelBtn">取消</button>
+            <button type="submit" class="btn btn-primary" id="saveBtn">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 删除确认弹窗 -->
+    <div class="confirm-modal" id="deleteConfirmModal">
+      <div class="confirm-modal-content">
+        <div class="confirm-modal-header">
+          <h3 class="confirm-modal-title">确认删除</h3>
+        </div>
+
+        <div class="confirm-modal-body">
+          <div class="delete-warning">
+            <div class="warning-icon">⚠️</div>
+            <p class="warning-text">确定要删除这个用药提醒吗？</p>
+            <p class="warning-detail">此操作无法撤销，相关的定时提醒也将被取消。</p>
+          </div>
+        </div>
+
+        <div class="confirm-modal-actions">
+          <button type="button" class="btn btn-secondary" id="deleteCancelBtn">取消</button>
+          <button type="button" class="btn btn-danger" id="deleteConfirmBtn">确认删除</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="../statics/js/notification.js"></script>
+  </body>
+</html>

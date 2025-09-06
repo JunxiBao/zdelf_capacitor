@@ -1,0 +1,17 @@
+{
+	"appId": "com.junxibao.healthapp",
+	"appName": "紫癜精灵",
+	"webDir": "www",
+	"plugins": {
+		"LocalNotifications": {
+			"smallIcon": "ic_stat_icon_config_sample",
+			"iconColor": "#488AFF",
+			"sound": "beep.wav"
+		}
+	},
+	"packageClassList": [
+		"HapticsPlugin",
+		"LocalNotificationsPlugin",
+		"StatusBarPlugin"
+	]
+}
