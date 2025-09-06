@@ -14,6 +14,13 @@
  */
 (function () {
   console.debug("[reminder] notification.js evaluated");
+  if (typeof window !== 'undefined') {
+    if (window.__notification_loaded__) {
+      console.debug('[reminder] notification.js already loaded, skip');
+      return;
+    }
+    window.__notification_loaded__ = true;
+  }
 
   // Capacitor LocalNotifications 插件
   let LocalNotifications = null;
@@ -31,16 +38,11 @@
     if (Capacitor && Capacitor.Plugins && Capacitor.Plugins.LocalNotifications) {
       LocalNotifications = Capacitor.Plugins.LocalNotifications;
       console.log('✅ Capacitor LocalNotifications 插件已加载');
-      console.log('🔍 Capacitor平台信息:', Capacitor.getPlatform());
-      console.log('🔍 Capacitor是否为原生平台:', Capacitor.isNativePlatform());
     } else {
       console.warn('⚠️ Capacitor LocalNotifications 插件未找到，将使用浏览器原生通知');
-      console.log('🔍 Capacitor对象:', Capacitor);
-      console.log('🔍 Capacitor.Plugins:', Capacitor?.Plugins);
     }
   } catch (error) {
     console.warn('⚠️ 无法加载Capacitor插件，将使用浏览器原生通知:', error);
-    console.log('🔍 错误详情:', error.message);
   }
 
   // Array of teardown callbacks to run when leaving the page
@@ -50,9 +52,55 @@
   let reminders = [];
   let editingReminderId = null;
   let pendingDeleteId = null; // 待删除的提醒ID
-  let reminderTimeouts = new Map(); // 存储定时器引用
+  let reminderTimeouts = new Map(); // 存储定时器引用（fallback用）
+  let uiAdvanceTimeouts = new Map(); // 仅用于UI推进的定时器（原生调度时使用）
   let currentRoot = null; // 当前的Shadow Root引用
   let isSettingUpReminders = false; // 防止重复设置提醒
+  let sentNotifications = new Set(); // 防止重复发送通知
+  let lastNotificationTime = new Map(); // 记录最后发送通知的时间
+  let handledNotificationIds = new Set(); // 已处理的本地通知ID，避免重复推进
+
+  // 依据提醒ID生成稳定的数字通知ID，避免重复调度
+  function stableIdFromString(str) {
+    try {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0; // 32位
+      }
+      hash = Math.abs(hash);
+      return hash === 0 ? 1 : hash; // 避免0
+    } catch (_) {
+      return Math.floor(Math.random() * 900000) + 100000;
+    }
+  }
+
+  // 内部硬删除：不弹确认，直接删除指定提醒
+  async function hardDeleteReminder(reminderId) {
+    try {
+      // 清理fallback定时器
+      if (reminderTimeouts.has(reminderId)) {
+        clearTimeout(reminderTimeouts.get(reminderId));
+        reminderTimeouts.delete(reminderId);
+      }
+      // 清理UI推进定时器
+      if (uiAdvanceTimeouts.has(reminderId)) {
+        clearTimeout(uiAdvanceTimeouts.get(reminderId));
+        uiAdvanceTimeouts.delete(reminderId);
+      }
+      // 取消原生通知
+      if (LocalNotifications) {
+        const nid = stableIdFromString(reminderId);
+        try { await LocalNotifications.cancel({ notifications: [{ id: nid }] }); } catch (_) {}
+      }
+      // 移除数据、保存并刷新
+      reminders = reminders.filter(r => r.id !== reminderId);
+      saveReminders();
+      if (currentRoot) renderReminders(currentRoot);
+    } catch (e) {
+      console.error('硬删除提醒失败:', e);
+    }
+  }
 
   // 存储键名
   const STORAGE_KEY = 'medication_reminders';
@@ -77,15 +125,35 @@
     return "🕐 嘿，时间过得真快，又该吃药啦"; // Default
   }
 
+  // 工具函数：Promise化获取用户名
+  async function getUsernameAsync() {
+    return await new Promise((resolve) => {
+      try { getUsername((name) => resolve(name || '访客')); } catch (_) { resolve('访客'); }
+    });
+  }
+
+  // 工具函数：构建通知标题
+  function buildNotificationTitle() {
+    return getGreeting();
+  }
+
+  // 工具函数：构建通知内容
+  function buildNotificationBody(username, reminder) {
+    const medicationName = (reminder && reminder.name) ? reminder.name : '药品';
+    let body = `嘿，${username}！该吃${medicationName}啦`;
+    if (reminder && reminder.dosage) {
+      body += `，记得吃 ${reminder.dosage}`;
+    }
+    return body;
+  }
+
   /**
    * 获取用户名
    */
   function getUsername(callback) {
     const userId = localStorage.getItem('userId');
-    console.log('🧪 获取到的 userId:', userId);
 
     if (!userId || userId === 'undefined' || userId === 'null') {
-      console.warn('⚠️ 未获取到有效 userId，使用默认用户名');
       callback('访客');
       return;
     }
@@ -97,12 +165,10 @@
       body: JSON.stringify({ table_name: 'users', user_id: userId }),
     })
     .then((response) => {
-      console.log('📡 获取用户信息响应，状态码:', response.status);
       if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       return response.json();
     })
     .then((data) => {
-      console.log('📦 用户信息返回数据：', data);
       if (data.success && Array.isArray(data.data) && data.data.length > 0) {
         const username = data.data[0].username || '访客';
         callback(username);
@@ -207,6 +273,9 @@
     // 加载保存的提醒数据
     loadReminders();
 
+    // 先补齐已过期的提醒到下一次
+    catchUpOverdueReminders();
+
     // 绑定事件监听器
     bindEvents(root);
 
@@ -269,6 +338,21 @@
       };
       form.addEventListener('submit', submitHandler);
       cleanupFns.push(() => form.removeEventListener('submit', submitHandler));
+
+      const repeatSelect = root.getElementById('repeatInterval');
+      const repeatGroup = root.getElementById('repeatCustomGroup');
+      const repeatLabel = root.getElementById('repeatCustomLabel');
+      if (repeatSelect && repeatGroup) {
+        const changeHandler = () => {
+          const v = repeatSelect.value;
+          repeatGroup.style.display = (v !== 'none') ? '' : 'none';
+          if (repeatLabel) {
+            repeatLabel.textContent = `自定义间隔（${v === 'hourly' ? '小时' : v === 'daily' ? '天' : v === 'weekly' ? '周' : ''}）`;
+          }
+        };
+        repeatSelect.addEventListener('change', changeHandler);
+        cleanupFns.push(() => repeatSelect.removeEventListener('change', changeHandler));
+      }
     }
 
     // 点击模态框背景关闭
@@ -374,39 +458,59 @@
 
     if (reminders.length === 0) {
       container.innerHTML = `
-        <div class="empty-state">
+        <div class="empty-state" id="emptyAddCard" style="cursor:pointer;">
           <div class="icon">💊</div>
           <h3>还没有用药提醒</h3>
-          <p>点击右下角的 + 按钮添加您的第一个用药提醒</p>
+          <p>点击此方框添加您的第一个药提醒</p>
         </div>
       `;
+      // 绑定点击打开新增提醒
+      const emptyCard = container.querySelector('#emptyAddCard');
+      if (emptyCard) {
+        const emptyClick = () => { hapticFeedback('Light'); openModal(currentRoot || document); };
+        emptyCard.addEventListener('click', emptyClick);
+      }
       return;
     }
 
-    // 按时间排序
+    // 按日期+时间排序
     const sortedReminders = [...reminders].sort((a, b) => {
+      const dateA = a.date || '1970-01-01';
+      const dateB = b.date || '1970-01-01';
       const timeA = a.time || '00:00';
       const timeB = b.time || '00:00';
-      return timeA.localeCompare(timeB);
+      const isoA = `${dateA}T${timeA}:00`;
+      const isoB = `${dateB}T${timeB}:00`;
+      return new Date(isoA) - new Date(isoB);
     });
 
-    container.innerHTML = sortedReminders.map(reminder => `
+    container.innerHTML = sortedReminders.map(reminder => {
+      const intervalText = formatRepeatText(reminder);
+      return `
       <div class="reminder-card" data-id="${reminder.id}">
         <div class="reminder-header">
           <h3 class="medication-name">${reminder.name}</h3>
-          <span class="reminder-time">${formatTime(reminder.time)}</span>
+          <span class="reminder-time">${(reminder.date || '')} ${formatTime(reminder.time)}</span>
         </div>
-        ${reminder.dosage ? `<div class="reminder-details">剂量：${reminder.dosage}</div>` : ''}
-        ${reminder.frequency ? `<div class="reminder-details">频率：${reminder.frequency}</div>` : ''}
-        ${reminder.notes ? `<div class="reminder-details">备注：${reminder.notes}</div>` : ''}
+        ${reminder.dosage ? `<div class=\"reminder-details\">剂量：${reminder.dosage}</div>` : ''}
+        ${intervalText ? `<div class=\"reminder-details\">${intervalText}</div>` : ''}
+        ${reminder.notes ? `<div class=\"reminder-details\">备注：${reminder.notes}</div>` : ''}
         <div class="reminder-actions">
           <button class="btn btn-secondary" data-action="edit" data-id="${reminder.id}">编辑</button>
           <button class="btn btn-danger" data-action="delete" data-id="${reminder.id}">删除</button>
         </div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
 
-    // 绑定卡片内的事件 - 使用事件委托
+    // 添加“新增提醒”虚线卡片
+    const addCardHtml = `
+      <div class="reminder-card add-card" id="addReminderCard">
+        <div class="add-card-inner">增加用药提醒</div>
+      </div>
+    `;
+    container.insertAdjacentHTML('beforeend', addCardHtml);
+
+    // 绑定卡片内事件保持不变
     const handleButtonClick = (e) => {
       const btn = e.target.closest('.btn');
       if (!btn) return;
@@ -422,15 +526,27 @@
       }
     };
 
-    // 移除之前的事件监听器（如果存在）
     const oldHandler = container._buttonClickHandler;
     if (oldHandler) {
       container.removeEventListener('click', oldHandler);
     }
-
-    // 添加新的事件监听器
     container.addEventListener('click', handleButtonClick);
     container._buttonClickHandler = handleButtonClick;
+
+    // 绑定新增卡片点击
+    const addCard = container.querySelector('#addReminderCard');
+    if (addCard) {
+      const addHandler = () => {
+        hapticFeedback('Light');
+        openModal(root);
+      };
+      addCard.addEventListener('click', addHandler);
+      // 记录清理函数
+      if (!container._addCardCleanup) {
+        container._addCardCleanup = [];
+      }
+      container._addCardCleanup.push(() => addCard.removeEventListener('click', addHandler));
+    }
   }
 
   /**
@@ -464,18 +580,40 @@
         title.textContent = '编辑用药提醒';
         root.getElementById('medicationName').value = reminder.name || '';
         root.getElementById('reminderTime').value = reminder.time || '';
+        const dateEl = root.getElementById('reminderDate');
+        if (dateEl) dateEl.value = reminder.date || '';
         root.getElementById('dosage').value = reminder.dosage || '';
-        root.getElementById('frequency').value = reminder.frequency || '';
-        root.getElementById('notes').value = reminder.notes || '';
+        const repeatSelect = root.getElementById('repeatInterval');
+        const repeatValue = root.getElementById('repeatCustomValue');
+        const repeatGroup = root.getElementById('repeatCustomGroup');
+        const repeatLabel = root.getElementById('repeatCustomLabel');
+        if (repeatSelect) repeatSelect.value = reminder.repeatInterval || 'none';
+        if (repeatValue) repeatValue.value = reminder.repeatCustomValue || '';
+        if (repeatGroup) repeatGroup.style.display = (reminder.repeatInterval && reminder.repeatInterval !== 'none') ? '' : 'none';
+        if (repeatLabel && repeatSelect) {
+          repeatLabel.textContent = `自定义间隔（${repeatSelect.value === 'hourly' ? '小时' : repeatSelect.value === 'daily' ? '天' : repeatSelect.value === 'weekly' ? '周' : ''}）`;
+        }
       }
     } else {
       // 添加模式
       title.textContent = '添加用药提醒';
       form.reset();
-      // 设置默认时间为当前时间
+      // 设置默认日期与时间
       const now = new Date();
-      const currentTime = now.toTimeString().slice(0, 5); // HH:MM格式
-      root.getElementById('reminderTime').value = currentTime;
+      const currentTime = now.toTimeString().slice(0, 5); // HH:MM
+      const currentDate = now.toISOString().slice(0, 10); // YYYY-MM-DD
+      const timeEl = root.getElementById('reminderTime');
+      const dateEl = root.getElementById('reminderDate');
+      if (timeEl) timeEl.value = currentTime;
+      if (dateEl) dateEl.value = currentDate;
+      const repeatSelect = root.getElementById('repeatInterval');
+      const repeatValue = root.getElementById('repeatCustomValue');
+      const repeatGroup = root.getElementById('repeatCustomGroup');
+      const repeatLabel = root.getElementById('repeatCustomLabel');
+      if (repeatSelect) repeatSelect.value = 'none';
+      if (repeatValue) repeatValue.value = '';
+      if (repeatGroup) repeatGroup.style.display = 'none';
+      if (repeatLabel) repeatLabel.textContent = '自定义间隔';
     }
 
     modal.classList.add('show');
@@ -498,12 +636,15 @@
   async function saveReminder(root) {
     const name = root.getElementById('medicationName').value.trim();
     const time = root.getElementById('reminderTime').value;
+    const date = (root.getElementById('reminderDate') && root.getElementById('reminderDate').value) || '';
     const dosage = root.getElementById('dosage').value.trim();
-    const frequency = root.getElementById('frequency').value.trim();
     const notes = root.getElementById('notes').value.trim();
+    const repeatInterval = (root.getElementById('repeatInterval') && root.getElementById('repeatInterval').value) || 'none';
+    const repeatCustomValueRaw = (root.getElementById('repeatCustomValue') && root.getElementById('repeatCustomValue').value) || '';
+    const repeatCustomValue = repeatCustomValueRaw ? Math.max(1, parseInt(repeatCustomValueRaw, 10)) : null;
 
-    if (!name || !time) {
-      alert('请填写药品名称和提醒时间');
+    if (!name || !time || !date) {
+      alert('请填写药品名称、提醒日期与时间');
       return;
     }
 
@@ -511,9 +652,11 @@
       id: editingReminderId || generateId(),
       name,
       time,
+      date,
       dosage,
-      frequency,
       notes,
+      repeatInterval,
+      repeatCustomValue,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -596,15 +739,11 @@
         reminderTimeouts.delete(reminderId);
       }
 
-      // 取消Capacitor通知
+      // 取消Capacitor通知（使用稳定ID）
       if (LocalNotifications) {
-        const notificationId = parseInt(reminderId.replace(/\D/g, ''), 10);
-        if (notificationId) {
-          await LocalNotifications.cancel({
-            notifications: [{ id: notificationId }]
-          });
-          console.log('🔔 已取消Capacitor通知:', reminderId);
-        }
+        const notificationId = stableIdFromString(reminderId);
+        try { await LocalNotifications.cancel({ notifications: [{ id: notificationId }] }); } catch (_) {}
+        console.log('🔔 已取消Capacitor通知:', reminderId);
       }
 
       // 从数组中移除提醒
@@ -646,7 +785,6 @@
   async function setupReminders() {
     // 防止重复设置提醒
     if (isSettingUpReminders) {
-      console.log('⚠️ 正在设置提醒，跳过重复调用');
       return;
     }
 
@@ -656,51 +794,55 @@
       // 清除所有现有定时器
       reminderTimeouts.forEach(timeout => clearTimeout(timeout));
       reminderTimeouts.clear();
-
-      const now = new Date();
-
-      // 获取用户名用于通知模板
-      const username = await new Promise((resolve) => {
-        getUsername((name) => resolve(name));
-      });
-      const greeting = getGreeting();
+      uiAdvanceTimeouts.forEach(timeout => clearTimeout(timeout));
+      uiAdvanceTimeouts.clear();
 
       if (LocalNotifications) {
-        // 使用Capacitor本地通知调度
+        // 使用Capacitor本地通知调度（逐条调度，不合并）
         const notifications = [];
+        const cancelList = [];
+
+        // 统一用户名（不阻塞整体，即使失败也有默认值）
+        let username = '访客';
+        try { username = await getUsernameAsync(); } catch(_) {}
 
         reminders.forEach(reminder => {
           if (!reminder.time) return;
 
           const [hours, minutes] = reminder.time.split(':');
-          const reminderTime = new Date();
-          reminderTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+          const baseDate = reminder.date || new Date().toISOString().slice(0,10);
+          const reminderTime = new Date(`${baseDate}T${hours}:${minutes}:00`);
 
-          // 如果提醒时间已经过去，设置为明天
-          if (reminderTime <= now) {
-            reminderTime.setDate(reminderTime.getDate() + 1);
+          // 计算首次触发时间（仅用于调度，不修改存储）
+          const now = new Date();
+          const firstTime = computeNextTime(reminder, reminderTime, now);
+
+          // UI推进（到点后推进/删除）
+          scheduleUiAdvance(reminder.id, firstTime);
+
+          // 稳定ID，调度前取消旧的
+          const notificationId = stableIdFromString(reminder.id);
+          cancelList.push({ id: notificationId });
+
+          const schedule = { at: firstTime };
+          if (reminder.repeatInterval && reminder.repeatInterval !== 'none') {
+            if (reminder.repeatInterval === 'hourly' && (!reminder.repeatCustomValue || reminder.repeatCustomValue === 1)) {
+              schedule.every = 'hour';
+              schedule.repeats = true;
+            } else if (reminder.repeatInterval === 'daily' && (!reminder.repeatCustomValue || reminder.repeatCustomValue === 1)) {
+              schedule.every = 'day';
+              schedule.repeats = true;
+            } else if (reminder.repeatInterval === 'weekly' && (!reminder.repeatCustomValue || reminder.repeatCustomValue === 1)) {
+              schedule.every = 'week';
+              schedule.repeats = true;
+            }
           }
 
-          const notificationId = Math.floor(Math.random() * 900000) + 100000; // 6位随机数，避免冲突
-          const medicationName = reminder.name || '药品';
-
-          // 构建有趣的提醒内容 💊✨
-          let notificationBody = `🎉 嘿，${username}！\n⏰ 该吃${medicationName}啦`;
-
-          // 添加计量信息
-          if (reminder.dosage) {
-            notificationBody += `，记得吃 ${reminder.dosage}`;
-          }
-
-          // 使用个性化通知模板
           notifications.push({
             id: notificationId,
-            title: greeting,
-            body: notificationBody,
-            schedule: {
-              at: reminderTime
-              // 先去掉 repeats 和 every，测试基本功能
-            },
+            title: buildNotificationTitle(),
+            body: buildNotificationBody(username, reminder),
+            schedule,
             sound: 'default',
             actionTypeId: 'medication_reminder',
             extra: {
@@ -708,49 +850,52 @@
               medicationName: reminder.name
             }
           });
-
-          console.log(`📅 为 ${reminder.name} 调度通知:`, reminderTime.toLocaleString());
         });
 
+        // 取消旧的同ID调度
+        if (cancelList.length > 0) {
+          try { await LocalNotifications.cancel({ notifications: cancelList }); } catch (_) {}
+        }
+
         if (notifications.length > 0) {
-          console.log('📱 准备调度的通知列表:', notifications);
           try {
-            const scheduleResult = await LocalNotifications.schedule({ notifications });
-            console.log('⏰ Capacitor已调度', notifications.length, '个提醒通知');
-            console.log('📱 调度结果:', scheduleResult);
+            await LocalNotifications.schedule({ notifications });
+            console.log('⏰ 已调度', notifications.length, '个提醒通知');
           } catch (scheduleError) {
             console.error('❌ Capacitor通知调度失败:', scheduleError);
-            console.error('❌ 调度失败详情:', scheduleError.message);
             throw scheduleError;
           }
         }
       } else {
-        // 回退到setTimeout方式
+        // 回退到setTimeout方式（不修改存储，仅调度）
+        reminderTimeouts.forEach(timeout => clearTimeout(timeout));
+        reminderTimeouts.clear();
+        uiAdvanceTimeouts.forEach(timeout => clearTimeout(timeout));
+        uiAdvanceTimeouts.clear();
+        const now = new Date();
         reminders.forEach(reminder => {
           if (!reminder.time) return;
 
           const [hours, minutes] = reminder.time.split(':');
-          const reminderTime = new Date();
-          reminderTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+          const baseDate = reminder.date || new Date().toISOString().slice(0,10);
+          const baseTime = new Date(`${baseDate}T${hours}:${minutes}:00`);
 
-          // 如果提醒时间已经过去，设置为明天
-          if (reminderTime <= now) {
-            reminderTime.setDate(reminderTime.getDate() + 1);
-          }
+          const firstTime = computeNextTime(reminder, baseTime, now);
 
-          const timeUntilReminder = reminderTime - now;
+          const timeUntilReminder = firstTime - now;
 
-          // 设置定时器
           const timeout = setTimeout(() => {
-            showNotification(reminder);
-            // 设置下一天的提醒
-            setupReminderForTomorrow(reminder);
-          }, timeUntilReminder);
+            if (canSendNotification(reminder.id)) {
+              showNotification(reminder);
+            }
+            // 若设置循环，则继续安排下一次
+            if (reminder.repeatInterval && reminder.repeatInterval !== 'none') {
+              scheduleNextFallback(reminder);
+            }
+          }, Math.max(0, timeUntilReminder));
 
           reminderTimeouts.set(reminder.id, timeout);
         });
-
-        console.log('⏰ 设置了', reminderTimeouts.size, '个提醒定时器');
       }
     } catch (error) {
       console.error('❌ 设置提醒失败:', error);
@@ -768,28 +913,28 @@
   function setupFallbackReminders() {
     reminderTimeouts.forEach(timeout => clearTimeout(timeout));
     reminderTimeouts.clear();
+    uiAdvanceTimeouts.forEach(timeout => clearTimeout(timeout));
+    uiAdvanceTimeouts.clear();
 
     const now = new Date();
     reminders.forEach(reminder => {
       if (!reminder.time) return;
+      if (reminder.repeatInterval === 'none') return; // 不循环则不进入fallback循环
 
       const [hours, minutes] = reminder.time.split(':');
-      const reminderTime = new Date();
-      reminderTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      const reminderTime = new Date(`${(reminder.date || new Date().toISOString().slice(0,10))}T${hours}:${minutes}:00`);
 
-      // 如果提醒时间已经过去，设置为明天
-      if (reminderTime <= now) {
-        reminderTime.setDate(reminderTime.getDate() + 1);
-      }
-
-      const timeUntilReminder = reminderTime - now;
+      // 如果提醒时间已经过去，设置为下一次
+      const firstTime = computeNextTime(reminder, reminderTime, now);
+      const timeUntilReminder = firstTime - now;
 
       // 设置定时器
       const timeout = setTimeout(() => {
-        showNotification(reminder);
-        // 设置下一天的提醒
-        setupReminderForTomorrow(reminder);
-      }, timeUntilReminder);
+        if (canSendNotification(reminder.id)) {
+          showNotification(reminder);
+        }
+        scheduleNextFallback(reminder);
+      }, Math.max(0, timeUntilReminder));
 
       reminderTimeouts.set(reminder.id, timeout);
     });
@@ -797,12 +942,62 @@
     console.log('⏰ 回退模式：设置了', reminderTimeouts.size, '个提醒定时器');
   }
 
+  function computeNextTime(reminder, baseTime, fromTime) {
+    let next = new Date(baseTime.getTime());
+    if (reminder.repeatInterval === 'hourly') {
+      const mult = reminder.repeatCustomValue && reminder.repeatCustomValue > 0 ? reminder.repeatCustomValue : 1;
+      while (next <= fromTime) next = new Date(next.getTime() + mult * 60 * 60 * 1000);
+    } else if (reminder.repeatInterval === 'daily') {
+      const mult = reminder.repeatCustomValue && reminder.repeatCustomValue > 0 ? reminder.repeatCustomValue : 1;
+      while (next <= fromTime) next.setDate(next.getDate() + mult);
+    } else if (reminder.repeatInterval === 'weekly') {
+      const mult = reminder.repeatCustomValue && reminder.repeatCustomValue > 0 ? reminder.repeatCustomValue : 1;
+      while (next <= fromTime) next.setDate(next.getDate() + 7 * mult);
+    } else {
+      if (next <= fromTime) next.setDate(next.getDate() + 1);
+    }
+    return next;
+  }
+
+  function scheduleNextFallback(reminder) {
+    if (reminder.repeatInterval === 'none') return;
+    let intervalMs = 24 * 60 * 60 * 1000; // 默认每天
+    if (reminder.repeatInterval === 'hourly') {
+      const mult = (reminder.repeatCustomValue && reminder.repeatCustomValue > 0) ? reminder.repeatCustomValue : 1;
+      intervalMs = mult * 60 * 60 * 1000;
+    } else if (reminder.repeatInterval === 'daily') {
+      const mult = (reminder.repeatCustomValue && reminder.repeatCustomValue > 0) ? reminder.repeatCustomValue : 1;
+      intervalMs = mult * 24 * 60 * 60 * 1000;
+    } else if (reminder.repeatInterval === 'weekly') {
+      const mult = (reminder.repeatCustomValue && reminder.repeatCustomValue > 0) ? reminder.repeatCustomValue : 1;
+      intervalMs = mult * 7 * 24 * 60 * 60 * 1000;
+    }
+
+    const timeout = setTimeout(() => {
+      if (canSendNotification(reminder.id)) {
+        showNotification(reminder);
+      }
+      scheduleNextFallback(reminder);
+    }, intervalMs);
+
+    reminderTimeouts.set(reminder.id, timeout);
+  }
+
   /**
    * 为明天设置提醒
    */
   function setupReminderForTomorrow(reminder) {
+    // 兼容旧逻辑：保留按天循环，但若配置了其它周期，则走新函数
+    if (reminder.repeatInterval && reminder.repeatInterval !== 'daily' && reminder.repeatInterval !== 'none') {
+      scheduleNextFallback(reminder);
+      return;
+    }
+
     const timeout = setTimeout(() => {
-      showNotification(reminder);
+      // 检查是否可以发送通知（防重复）
+      if (canSendNotification(reminder.id)) {
+        showNotification(reminder);
+      }
       setupReminderForTomorrow(reminder); // 递归设置下一天
     }, 24 * 60 * 60 * 1000); // 24小时
 
@@ -810,38 +1005,40 @@
   }
 
   /**
+   * 检查是否可以发送通知（防重复）
+   */
+  function canSendNotification(reminderId) {
+    const now = Date.now();
+    const lastTime = lastNotificationTime.get(reminderId);
+    const cooldownPeriod = 5 * 60 * 1000; // 5分钟冷却期
+    
+    if (lastTime && (now - lastTime) < cooldownPeriod) {
+      console.log('⏰ 通知冷却中，跳过发送:', reminderId);
+      return false;
+    }
+    
+    return true;
+  }
+
+  /**
    * 显示提醒通知
    */
   async function showNotification(reminder) {
+    // 防重复发送检查
+    if (!canSendNotification(reminder.id)) {
+      return;
+    }
+
     try {
       // 获取用户名
-      const username = await new Promise((resolve) => {
-        getUsername((name) => resolve(name));
-      });
+      const username = await getUsernameAsync();
 
-      const greeting = getGreeting();
-      const medicationName = reminder.name || '药品';
-      const notificationTitle = greeting;
-
-      // 构建有趣的提醒内容 💊✨
-      let notificationBody = ` 嘿，${username}！我是你的紫癜精灵！该吃${medicationName}啦`;
-
-      // 添加计量信息
-      if (reminder.dosage) {
-        notificationBody += `，记得吃 ${reminder.dosage}`;
-      }
-
-      // 添加服用频率信息
-      if (reminder.frequency) {
-        notificationBody += `，${reminder.frequency}`;
-      }
-
-      notificationBody += ` 哦！💪`;
+      const notificationTitle = buildNotificationTitle();
+      const notificationBody = buildNotificationBody(username, reminder);
 
       // 优先使用Capacitor本地通知
       if (LocalNotifications) {
-        console.log('📱 发送即时通知...');
-        const notificationId = Math.floor(Math.random() * 900000) + 100000; // 6位随机数
+        const notificationId = stableIdFromString(reminder.id);
         const notificationData = {
           id: notificationId,
           title: notificationTitle,
@@ -855,19 +1052,13 @@
           }
         };
 
-        console.log('🆔 即时通知ID:', notificationId);
-
-        console.log('📱 通知数据:', notificationData);
-
         try {
-          const result = await LocalNotifications.schedule({
+          await LocalNotifications.schedule({
             notifications: [notificationData]
           });
-          console.log('🔔 Capacitor通知已发送:', reminder.name);
-          console.log('📱 发送结果:', result);
+          console.log('🔔 通知已发送:', reminder.name);
         } catch (error) {
           console.error('❌ Capacitor通知发送失败:', error);
-          console.error('❌ 发送失败详情:', error.message);
           throw error;
         }
       } else {
@@ -881,28 +1072,117 @@
           console.log('🔔 浏览器通知已发送:', reminder.name);
         }
       }
-      return; // 成功发送后直接返回，避免fallback
+
+      // 记录发送时间
+      lastNotificationTime.set(reminder.id, Date.now());
+      sentNotifications.add(reminder.id);
+
+      // 震动反馈
+      hapticFeedback('Heavy');
+
+      // 非循环：发送完成后直接删除该提醒
+      if (!reminder.repeatInterval || reminder.repeatInterval === 'none') {
+        await hardDeleteReminder(reminder.id);
+        return;
+      }
+
+      // 循环：推进到下一次触发时间
+      advanceReminderNextRun(reminder);
+
     } catch (error) {
       console.error('❌ 发送通知失败:', error);
-      // 如果Capacitor通知失败，尝试使用浏览器通知作为备用
-      if ('Notification' in window && Notification.permission === 'granted') {
-        try {
-          new Notification(notificationTitle, {
-            body: notificationBody,
-            icon: '/favicon.ico',
-            tag: `medication-${reminder.id}`
-          });
-          console.log('🔔 备用浏览器通知已发送:', reminder.name);
-        } catch (fallbackError) {
-          console.error('❌ 备用通知也失败:', fallbackError);
-        }
-      }
     }
+  }
 
-    // 震动反馈
-    hapticFeedback('Heavy');
+  function advanceReminderNextRun(reminder) {
+    try {
+      const idx = reminders.findIndex(r => r.id === reminder.id);
+      if (idx === -1) return;
 
-    console.log('🔔 提醒:', reminder.name, 'at', reminder.time);
+      const baseDateStr = reminder.date || new Date().toISOString().slice(0,10);
+      const base = new Date(`${baseDateStr}T${(reminder.time || '00:00')}:00`);
+      let next = new Date(base.getTime());
+
+      if (reminder.repeatInterval === 'hourly') {
+        const mult = (reminder.repeatCustomValue && reminder.repeatCustomValue > 0) ? reminder.repeatCustomValue : 1;
+        next = new Date(base.getTime() + mult * 60 * 60 * 1000);
+      } else if (reminder.repeatInterval === 'daily') {
+        const mult = (reminder.repeatCustomValue && reminder.repeatCustomValue > 0) ? reminder.repeatCustomValue : 1;
+        next.setDate(next.getDate() + mult);
+      } else if (reminder.repeatInterval === 'weekly') {
+        const mult = (reminder.repeatCustomValue && reminder.repeatCustomValue > 0) ? reminder.repeatCustomValue : 1;
+        next.setDate(next.getDate() + 7 * mult);
+      } else {
+        const now = new Date();
+        if (next <= now) next.setDate(next.getDate() + 1);
+      }
+
+      const nextDate = next.toISOString().slice(0,10);
+      const nextTime = next.toTimeString().slice(0,5);
+      reminders[idx] = { ...reminders[idx], date: nextDate, time: nextTime, updatedAt: new Date().toISOString() };
+
+      saveReminders();
+      if (currentRoot) {
+        renderReminders(currentRoot);
+        updateEditingModalIfOpen(currentRoot, reminders[idx]);
+      }
+
+      // 重新设置UI推进定时器
+      scheduleUiAdvance(reminders[idx].id, next);
+
+      // 原生环境下（无内建 repeats 的自定义间隔），我们手动调度下一次
+      if (LocalNotifications) {
+        const needsCustomNative = (reminder.repeatInterval === 'hourly' && reminder.repeatCustomValue && reminder.repeatCustomValue > 1)
+          || (reminder.repeatInterval === 'daily' && reminder.repeatCustomValue && reminder.repeatCustomValue > 1)
+          || (reminder.repeatInterval === 'weekly' && reminder.repeatCustomValue && reminder.repeatCustomValue > 1);
+        if (needsCustomNative) {
+          scheduleNextNative(reminders[idx]);
+        }
+      } else {
+        // 回退模式继续安排
+        scheduleNextFallback(reminders[idx]);
+      }
+    } catch (e) {
+      console.error('推进下次提醒失败:', e);
+    }
+  }
+
+  function scheduleNextNative(reminder) {
+    try {
+      if (!LocalNotifications) return;
+      if (!reminder.date || !reminder.time) return;
+      const [hh, mm] = reminder.time.split(':');
+      const at = new Date(`${reminder.date}T${hh}:${mm}:00`);
+      const notificationId = stableIdFromString(reminder.id);
+      // 先取消同ID，再安排下一次
+      LocalNotifications.cancel({ notifications: [{ id: notificationId }] }).catch(() => {});
+      LocalNotifications.schedule({ notifications: [{
+        id: notificationId,
+        title: buildNotificationTitle(),
+        body: buildNotificationBody('您', reminder),
+        schedule: { at },
+        sound: 'default',
+        actionTypeId: 'medication_reminder',
+        extra: { reminderId: reminder.id, medicationName: reminder.name }
+      }]});
+    } catch (_) {}
+  }
+
+  function updateEditingModalIfOpen(root, updatedReminder) {
+    try {
+      const modal = root.getElementById('reminderModal');
+      if (!modal || !modal.classList.contains('show')) return;
+      if (!editingReminderId || editingReminderId !== updatedReminder.id) return;
+      const dateEl = root.getElementById('reminderDate');
+      const timeEl = root.getElementById('reminderTime');
+      if (dateEl) dateEl.value = updatedReminder.date || '';
+      if (timeEl) timeEl.value = updatedReminder.time || '';
+    } catch (_) {}
+  }
+
+  function advanceReminderNextRunById(reminderId) {
+    const reminder = reminders.find(r => r.id === reminderId);
+    if (reminder) advanceReminderNextRun(reminder);
   }
 
   /**
@@ -910,46 +1190,25 @@
    */
   async function requestNotificationPermission() {
     try {
-      console.log('🔍 开始请求通知权限...');
-      console.log('🔍 LocalNotifications对象:', LocalNotifications);
-      console.log('🔍 Capacitor平台:', Capacitor?.getPlatform());
-
       // 优先使用Capacitor的通知权限
       if (LocalNotifications) {
-        console.log('📱 使用Capacitor请求通知权限...');
         const result = await LocalNotifications.requestPermissions();
-        console.log('📱 Capacitor权限请求结果:', result);
-
         if (result.display === 'granted') {
           console.log('✅ Capacitor通知权限已授予');
           return true;
         } else {
-          console.warn('❌ Capacitor通知权限被拒绝:', result);
+          console.warn('❌ Capacitor通知权限被拒绝');
           return false;
         }
       } else {
-        console.warn('⚠️ Capacitor LocalNotifications 不可用');
         // 回退到浏览器原生通知
         if ('Notification' in window) {
-          console.log('🌐 当前通知权限状态:', Notification.permission);
-
           if (Notification.permission === 'default') {
-            console.log('🌐 请求浏览器通知权限...');
             const permission = await Notification.requestPermission();
-            console.log('🌐 浏览器权限请求结果:', permission);
-
-            if (permission === 'granted') {
-              console.log('✅ 浏览器通知权限已授予');
-              return true;
-            } else {
-              console.warn('❌ 浏览器通知权限被拒绝');
-              return false;
-            }
+            return permission === 'granted';
           } else if (Notification.permission === 'granted') {
-            console.log('✅ 浏览器通知权限已存在');
             return true;
           } else {
-            console.warn('❌ 浏览器通知权限被拒绝');
             return false;
           }
         } else {
@@ -959,8 +1218,6 @@
       }
     } catch (error) {
       console.error('❌ 请求通知权限失败:', error);
-      console.error('❌ 错误详情:', error.message);
-      console.error('❌ 错误堆栈:', error.stack);
       return false;
     }
   }
@@ -973,6 +1230,8 @@
     // 清除所有定时器
     reminderTimeouts.forEach(timeout => clearTimeout(timeout));
     reminderTimeouts.clear();
+    uiAdvanceTimeouts.forEach(timeout => clearTimeout(timeout));
+    uiAdvanceTimeouts.clear();
 
     // 清除当前的root引用
     currentRoot = null;
@@ -981,17 +1240,82 @@
     cleanupFns.forEach(fn => { try { fn(); } catch (_) {} });
     cleanupFns = [];
 
+    // 清理新增卡片事件监听器
+    if (currentRoot) {
+      const addCard = currentRoot.querySelector('#addReminderCard');
+      if (addCard) {
+        const addHandler = () => {
+          hapticFeedback('Light');
+          openModal(currentRoot);
+        };
+        addCard.removeEventListener('click', addHandler);
+      }
+    }
+
     console.log('🧹 destroyCase 清理完成');
+  }
+
+  function catchUpOverdueReminders() {
+    const now = new Date();
+    let changed = false;
+    reminders = reminders.map(reminder => {
+      if (!reminder.time) return reminder;
+      const [hours, minutes] = reminder.time.split(':');
+      const baseDate = reminder.date || new Date().toISOString().slice(0,10);
+      const base = new Date(`${baseDate}T${hours}:${minutes}:00`);
+      const next = computeNextTime(reminder, base, now);
+      if (next.getTime() !== base.getTime()) {
+        changed = true;
+        return { ...reminder, date: next.toISOString().slice(0,10), time: next.toTimeString().slice(0,5), updatedAt: new Date().toISOString() };
+      }
+      return reminder;
+    });
+    if (changed) {
+      saveReminders();
+    }
+  }
+
+  function scheduleUiAdvance(reminderId, atDate) {
+    try {
+      if (uiAdvanceTimeouts.has(reminderId)) {
+        clearTimeout(uiAdvanceTimeouts.get(reminderId));
+        uiAdvanceTimeouts.delete(reminderId);
+      }
+      const now = Date.now();
+      const delay = Math.max(0, atDate.getTime() - now + 500); // 微小偏移，确保在系统展示后推进
+      const timeout = setTimeout(() => {
+        const r = reminders.find(x => x.id === reminderId);
+        if (!r) return;
+        if (!r.repeatInterval || r.repeatInterval === 'none') {
+          // 非循环：到点后直接删除
+          hardDeleteReminder(reminderId);
+        } else {
+          advanceReminderNextRunById(reminderId);
+        }
+      }, delay);
+      uiAdvanceTimeouts.set(reminderId, timeout);
+    } catch (_) {}
+  }
+
+  function formatRepeatText(reminder) {
+    if (!reminder || !reminder.repeatInterval || reminder.repeatInterval === 'none') return '';
+    const n = reminder.repeatCustomValue && reminder.repeatCustomValue > 0 ? reminder.repeatCustomValue : 1;
+    if (reminder.repeatInterval === 'hourly') {
+      return `循环：每${n === 1 ? '' : n}小时`.replace('每小时', '每小时');
+    }
+    if (reminder.repeatInterval === 'daily') {
+      return `循环：每${n === 1 ? '' : n}天`.replace('每天', '每天');
+    }
+    if (reminder.repeatInterval === 'weekly') {
+      return `循环：每${n === 1 ? '' : n}周`;
+    }
+    return '';
   }
 
   // 页面加载时初始化（独立运行模式）
   document.addEventListener("DOMContentLoaded", async function () {
-    console.log("💊 用药提醒页面初始化");
-
     // 检查是否已经在Shadow DOM中运行，避免重复初始化
     if (window.location.pathname.includes('notification.html')) {
-      console.log("📱 独立页面模式，执行初始化");
-
       // 请求通知权限
       await requestNotificationPermission();
 
@@ -1000,15 +1324,11 @@
 
       // 初始化页面
       initCase(document);
-    } else {
-      console.log("🎯 Shadow DOM模式，跳过独立初始化");
     }
 
     // 添加测试功能（仅在开发环境下）
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      console.log('🧪 添加测试功能...');
       window.testNotification = async () => {
-        console.log('🔔 测试通知发送...');
         const testReminder = {
           id: 'test-reminder',
           name: '测试药品',
@@ -1017,7 +1337,6 @@
         };
         await showNotification(testReminder);
       };
-      console.log('✅ 测试功能已添加，运行 testNotification() 来测试通知');
     }
   });
 
@@ -1026,33 +1345,45 @@
    */
   function setupNotificationListeners() {
     if (!LocalNotifications) {
-      console.log('⚠️ Capacitor LocalNotifications 不可用，跳过监听器设置');
       return;
     }
 
     try {
-      // 监听通知接收事件
+      // 监听通知接收事件（前台触达）
       LocalNotifications.addListener('localNotificationReceived', (notification) => {
-        console.log('📱 收到本地通知:', notification);
         hapticFeedback('Heavy');
-      });
-
-      // 监听通知点击事件
-      LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
-        console.log('📱 用户点击了通知:', notificationAction);
-
-        const { notification } = notificationAction;
-        if (notification.extra && notification.extra.reminderId) {
-          const reminderId = notification.extra.reminderId;
-          console.log('🔔 用户点击了提醒通知:', reminderId);
-
-          // 可以在这里添加跳转到特定提醒的逻辑
-          // 例如：高亮显示对应的提醒卡片
-          highlightReminder(reminderId);
+        const id = notification && notification.id;
+        if (id && handledNotificationIds.has(id)) return;
+        if (id) handledNotificationIds.add(id);
+        const rid = notification && notification.extra && notification.extra.reminderId;
+        if (!rid) return;
+        const r = reminders.find(x => x.id === rid);
+        if (!r) return;
+        if (!r.repeatInterval || r.repeatInterval === 'none') {
+          // 非循环：到点后直接删除
+          hardDeleteReminder(rid);
+        } else {
+          advanceReminderNextRunById(rid);
         }
       });
 
-      console.log('✅ 通知监听器已设置');
+      // 监听通知点击事件（用户点开）
+      LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
+        const { notification } = notificationAction;
+        const id = notification && notification.id;
+        if (id && handledNotificationIds.has(id)) return;
+        if (id) handledNotificationIds.add(id);
+        if (!(notification.extra && notification.extra.reminderId)) return;
+        const reminderId = notification.extra.reminderId;
+        const r = reminders.find(x => x.id === reminderId);
+        if (!r) return;
+        if (!r.repeatInterval || r.repeatInterval === 'none') {
+          hardDeleteReminder(reminderId);
+        } else {
+          advanceReminderNextRunById(reminderId);
+          highlightReminder(reminderId);
+        }
+      });
     } catch (error) {
       console.error('❌ 设置通知监听器失败:', error);
     }
@@ -1064,11 +1395,8 @@
   function highlightReminder(reminderId) {
     const reminderCard = document.querySelector(`[data-id="${reminderId}"]`);
     if (reminderCard) {
-      // 添加高亮动画
       reminderCard.style.animation = 'highlight 2s ease-out';
       reminderCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-      // 移除动画
       setTimeout(() => {
         reminderCard.style.animation = '';
       }, 2000);
@@ -1076,7 +1404,6 @@
   }
 
   // Expose lifecycle functions to global scope for loader
-  console.debug("[reminder] exposing lifecycle: initNotification/destroyNotification");
   window.initNotification = initCase;
   window.destroyNotification = destroyCase;
 

@@ -15,15 +15,13 @@
       <div class="empty-state">
         <div class="icon">💊</div>
         <h3>还没有用药提醒</h3>
-        <p>点击右下角的 + 按钮添加您的第一个用药提醒</p>
+        <p>点击此方框添加您的第一个药提醒</p>
       </div>
     </div>
 
     <!-- 添加提醒按钮 -->
-    <button class="add-reminder-btn" id="addReminderBtn" title="添加用药提醒">
-      +
-    </button>
-
+    <!-- 已移除浮动按钮，改为列表底部添加卡片 -->
+    
     <!-- 添加/编辑提醒模态框 -->
     <div class="modal" id="reminderModal">
       <div class="modal-content">
@@ -39,6 +37,11 @@
           </div>
 
           <div class="form-group">
+            <label class="form-label" for="reminderDate">提醒日期 *</label>
+            <input type="date" class="form-input" id="reminderDate" required>
+          </div>
+
+          <div class="form-group">
             <label class="form-label" for="reminderTime">提醒时间 *</label>
             <input type="time" class="form-input" id="reminderTime" required>
           </div>
@@ -49,8 +52,18 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="frequency">服用频率</label>
-            <input type="text" class="form-input" id="frequency" placeholder="例如：每日一次、每6小时一次">
+            <label class="form-label" for="repeatInterval">循环频率</label>
+            <select class="form-input" id="repeatInterval">
+              <option value="none">不循环</option>
+              <option value="hourly">每小时</option>
+              <option value="daily">每天</option>
+              <option value="weekly">每周</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="repeatCustomGroup" style="display:none;">
+            <label class="form-label" id="repeatCustomLabel" for="repeatCustomValue">自定义间隔</label>
+            <input type="number" min="1" step="1" class="form-input" id="repeatCustomValue" placeholder="例如：6">
           </div>
 
           <div class="form-group">
