@@ -1,0 +1,1060 @@
+/* 用药提醒页面样式 */
+
+/* 全局样式 */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Segoe UI", "PingFang SC", Arial, sans-serif;
+  background: #fff;
+  color: #222;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+/* 确保在Shadow DOM中也能正常工作 */
+:host {
+  font-family: "Segoe UI", "PingFang SC", Arial, sans-serif;
+}
+
+/* 焦点样式优化 */
+*:focus-visible {
+  outline: 2px solid #6200ea;
+  outline-offset: 2px;
+}
+
+/* 减少动画对于偏好减少动画的用户 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #121212;
+    color: #eee;
+  }
+}
+
+
+/* 添加提醒按钮 */
+.add-reminder-btn {
+  position: fixed;
+  bottom: 100px;
+  right: 20px;
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #6200ea 0%, #7c3aed 100%);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(98, 0, 234, 0.4);
+  z-index: 1000;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.add-reminder-btn:hover {
+  transform: scale(1.1) translateY(-2px);
+  box-shadow: 0 6px 20px rgba(98, 0, 234, 0.6);
+}
+
+.add-reminder-btn:active {
+  transform: scale(0.95) translateY(0);
+}
+
+/* 提醒列表容器 */
+.reminders-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 20px;
+  padding-bottom: 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 提醒卡片 */
+.reminder-card {
+  background: #fff;
+  border: 2px solid #e0e0e0;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.reminder-card:hover {
+  border-color: #6200ea;
+  background: #faf7ff;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(98, 0, 234, 0.15);
+}
+
+.reminder-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.medication-name {
+  font-size: 1.2em;
+  font-weight: 600;
+  color: #6200ea;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.medication-name::before {
+  content: "💊";
+  font-size: 1.2em;
+}
+
+.reminder-time {
+  font-size: 0.95em;
+  color: #555;
+  margin: 0;
+  font-weight: 500;
+  background: rgba(98, 0, 234, 0.1);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(98, 0, 234, 0.2);
+}
+
+.reminder-details {
+  font-size: 0.9em;
+  color: #666;
+  margin: 6px 0;
+  line-height: 1.5;
+}
+
+.reminder-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+
+/* 按钮样式 */
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #6200ea 0%, #7c3aed 100%);
+  color: white;
+  box-shadow: 0 2px 4px rgba(98, 0, 234, 0.2);
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: white;
+  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);
+}
+
+.btn-secondary {
+  background: rgba(98, 0, 234, 0.1);
+  color: #6200ea;
+  border: 1px solid rgba(98, 0, 234, 0.3);
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(98, 0, 234, 0.3);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+/* 空状态 */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #666;
+  background: #fff;
+  border: 2px dashed #e0e0e0;
+  border-radius: 16px;
+  margin: 20px 0;
+}
+
+.empty-state .icon {
+  font-size: 4em;
+  margin-bottom: 20px;
+  opacity: 0.7;
+}
+
+.empty-state h3 {
+  margin: 0 0 12px 0;
+  font-size: 1.4em;
+  font-weight: 600;
+  color: #6200ea;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 1em;
+  line-height: 1.6;
+  color: #888;
+}
+
+/* 删除确认弹窗样式 */
+.confirm-modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  z-index: 3000;
+  align-items: center;
+  justify-content: center;
+  animation: modalFadeIn 0.3s ease;
+}
+
+.confirm-modal.show {
+  display: flex;
+}
+
+.confirm-modal-content {
+  background: #fff;
+  border-radius: 16px;
+  padding: 0;
+  width: 90%;
+  max-width: 360px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(98, 0, 234, 0.1);
+  animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.confirm-modal-header {
+  padding: 20px 20px 0 20px;
+  text-align: center;
+}
+
+.confirm-modal-title {
+  font-size: 1.3em;
+  font-weight: 600;
+  margin: 0;
+  color: #6200ea;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.confirm-modal-title::before {
+  content: "🗑️";
+  font-size: 1.2em;
+}
+
+.confirm-modal-body {
+  padding: 16px 20px;
+}
+
+.delete-warning {
+  text-align: center;
+}
+
+.warning-icon {
+  font-size: 2.5em;
+  margin-bottom: 12px;
+}
+
+.warning-text {
+  font-size: 1em;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 8px 0;
+}
+
+.warning-detail {
+  font-size: 0.85em;
+  color: #666;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.confirm-modal-actions {
+  display: flex;
+  gap: 12px;
+  padding: 0 20px 20px 20px;
+}
+
+.confirm-modal-actions .btn {
+  flex: 1;
+  padding: 10px 16px;
+  font-size: 0.95em;
+  font-weight: 600;
+}
+
+/* 浏览器限制提示样式 */
+.browser-restriction {
+  text-align: center;
+  padding: 40px 20px;
+  background: #fff;
+  border-radius: 16px;
+  border: 2px dashed #e0e0e0;
+  margin: 20px 0;
+  max-width: 500px;
+  margin: 20px auto;
+}
+
+.restriction-icon {
+  font-size: 4em;
+  margin-bottom: 20px;
+  opacity: 0.8;
+}
+
+.restriction-title {
+  font-size: 1.6em;
+  font-weight: 700;
+  color: #6200ea;
+  margin: 0 0 16px 0;
+}
+
+.restriction-message {
+  font-size: 1.1em;
+  color: #666;
+  line-height: 1.6;
+  margin: 0 0 30px 0;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.restriction-details {
+  display: grid;
+  gap: 20px;
+  margin-bottom: 30px;
+  text-align: left;
+}
+
+.detail-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  border: 1px solid #e9ecef;
+}
+
+.detail-icon {
+  font-size: 2em;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.detail-text {
+  flex: 1;
+  line-height: 1.5;
+}
+
+.detail-text strong {
+  color: #6200ea;
+  font-weight: 600;
+}
+
+.restriction-footer {
+  padding-top: 20px;
+  border-top: 1px solid #e9ecef;
+}
+
+.restriction-footer p {
+  font-size: 0.95em;
+  color: #888;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* 模态框样式 */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+  animation: modalFadeIn 0.3s ease;
+}
+
+.modal.show {
+  display: flex;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(8px);
+  }
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  width: 90%;
+  max-width: 420px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(98, 0, 234, 0.1);
+  animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.modal-title {
+  font-size: 1.3em;
+  font-weight: 600;
+  margin: 0;
+  color: #6200ea;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-title::before {
+  content: "⏰";
+  font-size: 1.2em;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+  background: rgba(98, 0, 234, 0.1);
+  color: #6200ea;
+  transform: scale(1.1);
+}
+
+/* 表单样式 */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  font-size: 0.95em;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-label::before {
+  content: "•";
+  color: #6200ea;
+  font-weight: bold;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1em;
+  font-family: inherit;
+  background: #fafaff;
+  color: #222;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.form-input:focus {
+  border-color: #6200ea;
+  background: #fff;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(98, 0, 234, 0.1);
+}
+
+.form-input::placeholder {
+  color: #999;
+}
+
+/* iOS time输入框特殊样式 */
+.form-input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #fff;
+  font-family: inherit;
+  font-size: 1em;
+  line-height: 1.5;
+  height: auto;
+  min-height: 20px;
+}
+
+/* iOS Safari time输入框样式覆盖 */
+.form-input[type="time"]::-webkit-datetime-edit-fields-wrapper,
+.form-input[type="time"]::-webkit-datetime-edit-text,
+.form-input[type="time"]::-webkit-datetime-edit-minute,
+.form-input[type="time"]::-webkit-datetime-edit-hour-field,
+.form-input[type="time"]::-webkit-datetime-edit-ampm-field,
+.form-input[type="time"]::-webkit-inner-spin-button,
+.form-input[type="time"]::-webkit-calendar-picker-indicator {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* 确保time输入框在iOS上显示正常 */
+.form-input[type="time"]::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+/* iOS time输入框容器样式 */
+.form-input[type="time"]::-webkit-datetime-edit {
+  padding: 0;
+  margin: 0;
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 100px;
+  line-height: 1.5;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.modal-actions .btn {
+  flex: 1;
+  padding: 12px;
+  font-size: 1em;
+  font-weight: 600;
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #121212;
+    color: #eee;
+  }
+
+
+  .reminder-card {
+    background: #1e1f22;
+    border-color: rgba(255,255,255,0.08);
+    color: #eee;
+  }
+
+  .reminder-card:hover {
+    background: #252529;
+    border-color: #6200ea;
+  }
+
+  .medication-name {
+    color: #b794f6;
+  }
+
+  .reminder-time {
+    color: #aaa;
+    background: rgba(98, 0, 234, 0.2);
+    border-color: rgba(98, 0, 234, 0.3);
+  }
+
+  .reminder-details {
+    color: #bbb;
+  }
+
+  .btn-secondary {
+    background: rgba(98, 0, 234, 0.2);
+    color: #b794f6;
+    border-color: rgba(98, 0, 234, 0.4);
+  }
+
+  .empty-state {
+    background: #1e1f22;
+    border-color: rgba(255,255,255,0.08);
+    color: #bbb;
+  }
+
+  .empty-state h3 {
+    color: #b794f6;
+  }
+
+  .empty-state p {
+    color: #888;
+  }
+
+  .modal-content {
+    background: #1e1f22;
+    border-color: rgba(98, 0, 234, 0.2);
+  }
+
+  .modal-title {
+    color: #b794f6;
+  }
+
+  .form-label {
+    color: #eee;
+  }
+
+  .form-input {
+    background: #232428;
+    border-color: rgba(255,255,255,0.12);
+    color: #eee;
+  }
+
+  .form-input:focus {
+    background: #1e1f22;
+  }
+
+  .form-input[type="time"] {
+    background: #232428;
+  }
+
+  .form-input[type="time"]:focus {
+    background: #1e1f22;
+  }
+
+  .modal-header {
+    border-color: rgba(255,255,255,0.08);
+  }
+
+  .confirm-modal-content {
+    background: #1e1f22;
+    border-color: rgba(98, 0, 234, 0.2);
+  }
+
+  .confirm-modal-title {
+    color: #b794f6;
+  }
+
+  .warning-text {
+    color: #eee;
+  }
+
+  .warning-detail {
+    color: #bbb;
+  }
+
+  .browser-restriction {
+    background: #1e1f22;
+    border-color: rgba(98, 0, 234, 0.2);
+  }
+
+  .restriction-title {
+    color: #b794f6;
+  }
+
+  .restriction-message {
+    color: #bbb;
+  }
+
+  .detail-item {
+    background: #2a2b2e;
+    border-color: #404040;
+  }
+
+  .detail-text strong {
+    color: #b794f6;
+  }
+
+  .restriction-footer p {
+    color: #888;
+  }
+
+  .restriction-footer {
+    border-color: #404040;
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+
+  .reminders-container {
+    padding: 0 15px;
+  }
+
+  .reminder-card {
+    padding: 16px;
+  }
+
+  .medication-name {
+    font-size: 1.1em;
+  }
+
+  .reminder-time {
+    font-size: 0.9em;
+    padding: 3px 6px;
+  }
+
+  .modal-content {
+    width: 95%;
+    max-width: 400px;
+    padding: 20px;
+    margin: 10px;
+  }
+
+  .modal-title {
+    font-size: 1.2em;
+  }
+
+  .form-group {
+    margin-bottom: 18px;
+  }
+
+  .form-label {
+    font-size: 0.9em;
+    margin-bottom: 6px;
+  }
+
+  .form-input {
+    padding: 14px 16px;
+    font-size: 1em;
+  }
+
+  .form-input[type="time"] {
+    padding: 14px 16px;
+  }
+
+  .add-reminder-btn {
+    bottom: 90px;
+    right: 15px;
+    width: 56px;
+    height: 56px;
+    font-size: 20px;
+  }
+
+  .confirm-modal-content {
+    width: 95%;
+    margin: 10px;
+  }
+
+  .confirm-modal-title {
+    font-size: 1.2em;
+  }
+
+  .browser-restriction {
+    padding: 30px 15px;
+  }
+
+  .restriction-title {
+    font-size: 1.4em;
+  }
+
+  .restriction-message {
+    font-size: 1em;
+  }
+
+  .restriction-details {
+    gap: 15px;
+  }
+
+  .detail-item {
+    flex-direction: column;
+    text-align: center;
+    gap: 12px;
+  }
+
+  .detail-icon {
+    font-size: 1.8em;
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 480px) {
+
+  .reminders-container {
+    padding: 0 10px;
+  }
+
+  .reminder-card {
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+
+  .medication-name {
+    font-size: 1em;
+  }
+
+  .reminder-details {
+    font-size: 0.85em;
+  }
+
+  .reminder-actions {
+    gap: 8px;
+  }
+
+  .btn {
+    padding: 6px 12px;
+    font-size: 0.85em;
+  }
+
+  .modal-content {
+    width: 98%;
+    max-width: 380px;
+    padding: 16px;
+    margin: 5px;
+  }
+
+  .modal-title {
+    font-size: 1.1em;
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .form-label {
+    font-size: 0.85em;
+    margin-bottom: 4px;
+  }
+
+  .form-input {
+    padding: 12px 14px;
+    font-size: 0.95em;
+  }
+
+  .form-input[type="time"] {
+    padding: 12px 14px;
+  }
+
+  .form-textarea {
+    min-height: 80px;
+  }
+
+  .add-reminder-btn {
+    bottom: 85px;
+    right: 12px;
+    width: 52px;
+    height: 52px;
+    font-size: 18px;
+  }
+
+  .confirm-modal-content {
+    width: 98%;
+    margin: 5px;
+  }
+
+  .confirm-modal-title {
+    font-size: 1.1em;
+  }
+
+  .warning-icon {
+    font-size: 2em;
+  }
+
+  .browser-restriction {
+    padding: 20px 10px;
+  }
+
+  .restriction-title {
+    font-size: 1.2em;
+  }
+
+  .restriction-message {
+    font-size: 0.9em;
+  }
+
+  .restriction-details {
+    gap: 12px;
+  }
+
+  .detail-item {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .detail-icon {
+    font-size: 1.5em;
+  }
+}
+
+/* iOS设备特殊优化 */
+@supports (-webkit-touch-callout: none) {
+  .form-input[type="time"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: #fff;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 1em;
+    font-family: inherit;
+    color: #222;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .form-input[type="time"]:focus {
+    border-color: #6200ea;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(98, 0, 234, 0.1);
+  }
+
+  /* 深色模式iOS */
+  @media (prefers-color-scheme: dark) {
+    .form-input[type="time"] {
+      background: #232428;
+      border-color: rgba(255,255,255,0.12);
+      color: #eee;
+    }
+
+    .form-input[type="time"]:focus {
+      background: #1e1f22;
+    }
+  }
+}
+
+/* 平板适配 */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .reminders-container {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .reminder-card {
+    padding: 18px;
+  }
+}
+
+/* 动画增强 */
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes highlight {
+  0% {
+    background: #faf7ff;
+    border-color: #6200ea;
+    box-shadow: 0 8px 24px rgba(98, 0, 234, 0.15);
+  }
+  50% {
+    background: #f0f8ff;
+    border-color: #3b82f6;
+    box-shadow: 0 12px 32px rgba(59, 130, 246, 0.25);
+  }
+  100% {
+    background: #faf7ff;
+    border-color: #6200ea;
+    box-shadow: 0 8px 24px rgba(98, 0, 234, 0.15);
+  }
+}
+
+.reminder-card {
+  animation: slideInUp 0.4s ease-out;
+}
+
+.reminder-card:nth-child(1) { animation-delay: 0.05s; }
+.reminder-card:nth-child(2) { animation-delay: 0.1s; }
+.reminder-card:nth-child(3) { animation-delay: 0.15s; }
+.reminder-card:nth-child(4) { animation-delay: 0.2s; }
+.reminder-card:nth-child(5) { animation-delay: 0.25s; }
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(98, 0, 234, 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(98, 0, 234, 0.5);
+}
+
+/* 深色模式滚动条 */
+@media (prefers-color-scheme: dark) {
+  ::-webkit-scrollbar-track {
+    background: #2a2a2a;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(183, 148, 246, 0.3);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(183, 148, 246, 0.5);
+  }
+}

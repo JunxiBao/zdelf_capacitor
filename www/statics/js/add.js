@@ -1,8 +1,88 @@
-function autoGrow(element) {
-  element.style.height = "auto";
-  element.style.height = element.scrollHeight + "px";
+// 全局变量存储选中的心情
+let selectedMood = null;
+let flatpickrInstance = null;
+let isInitialized = false;
+
+// 清理函数：重置所有状态
+function cleanupAddPage() {
+  try {
+    console.log("add.js: 开始清理");
+
+    // 重置全局变量
+    selectedMood = null;
+    isInitialized = false;
+
+    // 销毁 Flatpickr 实例
+    if (flatpickrInstance) {
+      try {
+        // 在销毁前清理主题监听器
+        if (flatpickrInstance._themeChangeHandler && flatpickrInstance._mediaQuery) {
+          if (flatpickrInstance._mediaQuery.removeEventListener) {
+            flatpickrInstance._mediaQuery.removeEventListener("change", flatpickrInstance._themeChangeHandler);
+          } else if (flatpickrInstance._mediaQuery.removeListener) {
+            flatpickrInstance._mediaQuery.removeListener(flatpickrInstance._themeChangeHandler);
+          }
+        }
+
+        flatpickrInstance.destroy();
+        console.log("add.js: Flatpickr实例已销毁");
+      } catch (error) {
+        console.warn("add.js: 销毁Flatpickr实例时出错", error);
+      }
+      flatpickrInstance = null;
+    }
+
+    // 移除所有心情按钮的选中状态和事件绑定标记
+    const moodBtns = document.querySelectorAll('.mood-btn');
+    moodBtns.forEach(btn => {
+      if (btn) {
+        btn.classList.remove('selected');
+        btn.removeAttribute('data-mood-listener-bound');
+      }
+    });
+
+    // 清除保存按钮的事件绑定标记
+    const saveBtn = document.querySelector('.record-btn');
+    if (saveBtn) {
+      saveBtn.removeAttribute('data-save-listener-bound');
+    }
+
+    console.log("add.js: 清理完成");
+  } catch (error) {
+    console.error("add.js: 清理过程中出现错误", error);
+  }
 }
-document.querySelectorAll(".record-textarea").forEach(autoGrow);
+
+// 心情选择处理函数
+function handleMoodSelection() {
+  const moodBtns = document.querySelectorAll('.mood-btn');
+
+  moodBtns.forEach(btn => {
+    // 检查是否已经绑定了事件监听器，避免重复绑定
+    if (!btn.hasAttribute('data-mood-listener-bound')) {
+      btn.addEventListener('click', function() {
+        // 移除其他按钮的选中状态
+        moodBtns.forEach(b => b.classList.remove('selected'));
+
+        // 添加选中状态到当前按钮
+        this.classList.add('selected');
+
+        // 存储选中的心情
+        selectedMood = {
+          mood: this.dataset.mood
+        };
+
+        console.log("add.js: 选择了心情", selectedMood.mood);
+
+        // 触觉反馈
+        try { window.__hapticImpact__ && window.__hapticImpact__('Light'); } catch(_) {}
+      });
+
+      // 标记已绑定事件监听器
+      btn.setAttribute('data-mood-listener-bound', 'true');
+    }
+  });
+}
 
 // Backend API base: absolute by default; can be overridden via window.__API_BASE__
 const __API_BASE_DEFAULT__ = (typeof window !== "undefined" && window.__API_BASE__) || "https://app.zdelf.cn";
@@ -45,213 +125,182 @@ function attachButtonRipple(btn) {
   });
 }
 
-async function handleRecordSave() {
-  const textarea = document.querySelector(".record-textarea");
-  const content = textarea.value.trim();
+function handleRecordSave() {
   const date = document.getElementById("record-date").value;
+  const moodSelector = document.querySelector(".mood-selector");
 
-  const spinner = document.getElementById("spinner");
-  const saveBtn = document.querySelector(".record-btn");
-
-  if (!content) {
+  if (!selectedMood) {
     // 用轻微抖动替代弹窗告警
     try { window.__hapticImpact__ && window.__hapticImpact__('Medium'); } catch(_) {}
-    textarea.classList.remove("shake");
-    void textarea.offsetWidth; // 触发重绘
-    textarea.classList.add("shake");
-    textarea.focus();
+    moodSelector.classList.remove("shake");
+    void moodSelector.offsetWidth; // 触发重绘
+    moodSelector.classList.add("shake");
     return;
   }
 
-  // UI: 禁用交互 + 遮罩 + 按钮文案
-  const overlay = ensureOverlay();
-  overlay.classList.add("show");
-  spinner.classList.add("show");
-  saveBtn.disabled = true;
-  const prevText = saveBtn.textContent;
-  saveBtn.textContent = "保存中…";
+  // 保存心情数据到本地存储
+  const recordData = {
+    date: date,
+    mood: selectedMood.mood
+  };
+  localStorage.setItem('health_record_data', JSON.stringify(recordData));
 
-  try {
-    const response = await fetch(
-      __API_BASE__ + "/deepseek/structured",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: `日期：${date}\n${content}`,
-        }),
+  // 直接跳转到选项页面
+  window.location.href = 'src/options.html';
+}
+
+// 检查DOM元素是否准备就绪的函数
+function waitForElements(callback, maxAttempts = 20) {
+  let attempts = 0;
+
+  const checkElements = () => {
+    attempts++;
+    try {
+      const dateInput = document.getElementById("record-date");
+      const moodBtns = document.querySelectorAll('.mood-btn');
+      const saveBtn = document.querySelector('.record-btn');
+
+      console.log(`add.js: 检查DOM元素 (尝试 ${attempts}/${maxAttempts}) - 日期输入: ${!!dateInput}, 心情按钮: ${moodBtns.length}, 保存按钮: ${!!saveBtn}`);
+
+      // 检查必要的元素是否存在
+      if (dateInput && moodBtns.length > 0 && saveBtn) {
+        console.log("add.js: 所有DOM元素已准备就绪");
+        callback();
+      } else if (attempts < maxAttempts) {
+        // 继续等待
+        setTimeout(checkElements, 50); // 减少等待时间
+      } else {
+        console.warn("add.js: 等待DOM元素超时，尝试强制初始化");
+        // 即使元素不完整也尝试初始化，避免页面卡死
+        callback();
       }
-    );
-
-    const data = await response.json();
-    const prettyJSON = JSON.stringify(data, null, 2);
-
-    // 半透明遮罩 + 面板
-    const modal = document.createElement("div");
-    modal.style.cssText = `position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.25); backdrop-filter: blur(2px); opacity: 0; transition: opacity .2s ease;`;
-
-    const panel = document.createElement("div");
-    panel.style.cssText = `transform: scale(.96); opacity: 0; transition: transform .2s ease, opacity .2s ease; background: #fff; color: #000; border: 1px solid #ccc; padding: 20px; max-width: 80vw; max-height: 80vh; overflow: auto; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.2);`;
-
-    if (
-      window.matchMedia &&
-      window.matchMedia("(prefers-color-scheme: dark)").matches
-    ) {
-      panel.style.background = "#1e1e1e";
-      panel.style.color = "#ddd";
-      panel.style.border = "1px solid #444";
+    } catch (error) {
+      console.error("add.js: 检查DOM元素时出错", error);
+      // 发生错误时也尝试初始化
+      callback();
     }
+  };
 
-    panel.innerHTML = `
-      <h3 style="margin: 0 0 12px; color: var(--ai-panel-heading-color, #222);">AI分析结果</h3>
-      <textarea
-        id="aiResultEditor"
-        style="
-          width: 70vw;
-          max-width: 900px;
-          height: 50vh;
-          min-height: 260px;
-          resize: vertical;
-          padding: 10px;
-          border: 1px solid #ccc;
-          font-size: 14px;
-          background: var(--ai-panel-textarea-bg, #f5f5f5);
-          color: var(--ai-panel-textarea-color, #222);
-        "
-      ></textarea>
-      <div style="display:flex; gap:12px; justify-content:center; margin-top: 16px;">
-        <button id="copyBtn" class="record-btn" style="max-width:220px; padding: 10px 18px;">复制到剪贴板</button>
-        <button id="closeModalBtn" class="record-btn" style="max-width:220px; padding: 10px 18px;">确定</button>
-      </div>`;
-
-    // Dark mode adaptation
-    if (
-      window.matchMedia &&
-      window.matchMedia("(prefers-color-scheme: dark)").matches
-    ) {
-      const textareaEl = panel.querySelector("#aiResultEditor");
-      textareaEl.style.background = "#2b2b2b";
-      textareaEl.style.color = "#ddd";
-      textareaEl.style.border = "1px solid #444";
-      const heading = panel.querySelector("h3");
-      if (heading) heading.style.color = "#ddd";
-      panel.querySelectorAll(".record-btn").forEach((btn) => {
-        btn.style.background = "#6a5acd";
-        btn.style.color = "#fff";
-        btn.style.border = "1px solid #836fff";
-      });
-    }
-
-    modal.appendChild(panel);
-    document.body.appendChild(modal);
-
-    // 填充文本，避免 innerHTML 转义问题
-    panel.querySelector("#aiResultEditor").value = prettyJSON;
-
-    // 入场动画
-    requestAnimationFrame(() => {
-      modal.style.opacity = "1";
-      panel.style.transform = "scale(1)";
-      panel.style.opacity = "1";
-    });
-
-    // 关闭逻辑
-    function closeModal() {
-      modal.style.opacity = "0";
-      panel.style.transform = "scale(.96)";
-      panel.style.opacity = "0";
-      setTimeout(() => modal.remove(), 180);
-    }
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) closeModal();
-    });
-    panel.querySelector("#closeModalBtn").addEventListener("click", closeModal);
-    document.addEventListener("keydown", function escClose(ev) {
-      if (ev.key === "Escape") {
-        closeModal();
-        document.removeEventListener("keydown", escClose);
-      }
-    });
-
-    // 复制功能
-    panel.querySelector("#copyBtn").addEventListener("click", async () => {
-      try {
-        try { window.__hapticImpact__ && window.__hapticImpact__('Light'); } catch(_) {}
-        await navigator.clipboard.writeText(
-          panel.querySelector("#aiResultEditor").value
-        );
-        showPopup();
-      } catch (_) {}
-    });
-  } catch (error) {
-    console.error("❌ 请求错误", error);
-    textarea.classList.remove("shake");
-    void textarea.offsetWidth;
-    textarea.classList.add("shake");
-  } finally {
-    spinner.classList.remove("show");
-    overlay.classList.remove("show");
-    saveBtn.disabled = false;
-    saveBtn.textContent = prevText;
-    showPopup();
-  }
+  checkElements();
 }
 
 function initAdd() {
-  flatpickr("#record-date", {
-    dateFormat: "Y-m-d",
-    defaultDate: "today",
-    altInput: true,
-    altFormat: "F j, Y",
-    allowInput: true,
-    clickOpens: true,
-    onReady: function (selectedDates, dateStr, instance) {
-      if (
-        window.matchMedia &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches
-      ) {
-        instance.element._flatpickr.calendarContainer.classList.add(
-          "flatpickr-dark"
-        );
+  console.log("add.js: 开始初始化");
+
+  // 等待DOM元素准备就绪
+  waitForElements(() => {
+    try {
+      console.log("add.js: DOM元素准备就绪，开始清理和初始化");
+
+      // 清理之前的状态
+      cleanupAddPage();
+
+      // 创建新的 Flatpickr 实例
+      const dateInput = document.getElementById("record-date");
+      if (dateInput && typeof flatpickr !== 'undefined') {
+        try {
+          // 检查当前是否为深色模式
+          const isDarkMode = window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+          flatpickrInstance = flatpickr("#record-date", {
+            dateFormat: "Y-m-d",
+            defaultDate: "today",
+            altInput: true,
+            altFormat: "F j, Y",
+            allowInput: true,
+            clickOpens: true,
+            theme: isDarkMode ? "dark" : "light",
+            onReady: function (selectedDates, dateStr, instance) {
+              // 应用深色模式样式
+              if (isDarkMode) {
+                instance.calendarContainer.classList.add("flatpickr-dark");
+                instance.calendarContainer.classList.add("health-dark-theme");
+              }
+
+              // 监听主题变化
+              const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+              const handleThemeChange = (e) => {
+                if (e.matches) {
+                  instance.calendarContainer.classList.add("flatpickr-dark");
+                  instance.calendarContainer.classList.add("health-dark-theme");
+                } else {
+                  instance.calendarContainer.classList.remove("flatpickr-dark");
+                  instance.calendarContainer.classList.remove("health-dark-theme");
+                }
+              };
+
+              // 现代浏览器支持
+              if (mediaQuery.addEventListener) {
+                mediaQuery.addEventListener("change", handleThemeChange);
+              } else if (mediaQuery.addListener) {
+                // 兼容性支持
+                mediaQuery.addListener(handleThemeChange);
+              }
+
+              // 存储监听器引用以便后续清理
+              instance._themeChangeHandler = handleThemeChange;
+              instance._mediaQuery = mediaQuery;
+            },
+            onDestroy: function(instance) {
+              // 清理主题变化监听器
+              if (instance._themeChangeHandler && instance._mediaQuery) {
+                if (instance._mediaQuery.removeEventListener) {
+                  instance._mediaQuery.removeEventListener("change", instance._themeChangeHandler);
+                } else if (instance._mediaQuery.removeListener) {
+                  instance._mediaQuery.removeListener(instance._themeChangeHandler);
+                }
+              }
+            }
+          });
+          console.log("add.js: Flatpickr 初始化成功");
+        } catch (error) {
+          console.error("add.js: Flatpickr 初始化失败", error);
+        }
+      } else {
+        console.warn("add.js: Flatpickr库未找到或日期输入框不存在");
       }
-    },
+
+      // 初始化心情选择器
+      handleMoodSelection();
+
+      // 绑定保存按钮事件
+      const saveBtn = document.querySelector('.record-btn');
+      if (saveBtn && !saveBtn.hasAttribute('data-save-listener-bound')) {
+        saveBtn.addEventListener('click', handleRecordSave);
+        attachButtonRipple(saveBtn);
+        saveBtn.setAttribute('data-save-listener-bound', 'true');
+        console.log("add.js: 保存按钮事件已绑定");
+      }
+
+      isInitialized = true;
+      console.log("add.js: 初始化完成");
+    } catch (error) {
+      console.error("add.js: 初始化过程中出现错误", error);
+    }
   });
 }
 
-if (document.getElementById("record-date")) {
-  initAdd();
-}
-
-function openModal() {
+// 检查是否在模态框环境中
+function isInModal() {
   const modal = document.getElementById("modal");
   const modalContent = document.getElementById("modalContent");
-
-  // 清空内容，确保每次都是全新加载
-  modalContent.innerHTML = "";
-
-  // 动态加载 HTML 内容（你可以根据实际路径调整此地址）
-  fetch("src/add.html")
-    .then((res) => res.text())
-    .then((html) => {
-      modalContent.innerHTML = html;
-
-      // 动态插入 add.js 脚本
-      const script = document.createElement("script");
-      script.src = "statics/js/add.js";
-      script.async = false;
-      document.body.appendChild(script);
-
-      modal.style.display = "block";
-    })
-    .catch((err) => {
-      console.error("加载 add.html 失败：", err);
-    });
+  return modal && modalContent && modalContent.contains(document.getElementById("record-date"));
 }
 
+// 只在模态框场景下初始化，避免主页面加载时的重复初始化
 document.addEventListener("DOMContentLoaded", () => {
-  const saveBtn = document.querySelector(".record-btn");
-  if (saveBtn) {
-    saveBtn.addEventListener("click", handleRecordSave);
-    attachButtonRipple(saveBtn);
-  }
+  setTimeout(() => {
+    const dateInput = document.getElementById("record-date");
+    if (!isInitialized && dateInput && isInModal()) {
+      console.log("add.js: 在模态框环境中检测到add页面元素，开始初始化");
+      initAdd();
+    } else if (dateInput && !isInModal()) {
+      console.log("add.js: 在主页面中检测到add元素，跳过初始化（避免重复）");
+    }
+  }, 100);
 });
+
+// 暴露初始化和清理函数供外部调用
+window.initAddPage = initAdd;
+window.cleanupAddPage = cleanupAddPage;

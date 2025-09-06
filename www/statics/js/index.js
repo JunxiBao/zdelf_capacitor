@@ -87,7 +87,7 @@ if (document.fonts && document.fonts.ready) {
 // Subpage paths by tab index (HTML fragments or full HTML docs)
 const pageMap = [
   "../../src/daily.html",
-  "../../src/case.html",
+  "../../src/notification.html",
   "../../src/square.html",
   "../../src/me.html",
 ];
@@ -210,7 +210,7 @@ function loadPage(index) {
       // Load the corresponding page script with cache-busting
       const scriptMap = [
         "../../statics/js/daily.js",
-        "../../statics/js/case.js",
+        "../../statics/js/notification.js",
         "../../statics/js/square.js",
         "../../statics/js/me.js",
       ];
@@ -299,9 +299,31 @@ function openModal() {
     .then((res) => res.text())
     .then((html) => {
       modalContent.innerHTML = html;
-      // Dynamically load add.js
+
+      // 移除之前加载的 add.js 脚本（如果存在）
+      const existingScript = document.querySelector('script[data-add-script]');
+      if (existingScript) {
+        existingScript.remove();
+      }
+
+      // 动态加载 add.js，每次都使用新的时间戳来避免缓存问题
       const script = document.createElement("script");
-      script.src = "../../statics/js/add.js";
+      script.src = "../../statics/js/add.js?t=" + Date.now();
+      script.setAttribute("data-add-script", "true");
+
+      // 在脚本加载完成后初始化页面
+      script.onload = () => {
+        console.log("index.js: add.js脚本加载完成，准备初始化");
+        // 给一点额外时间确保DOM完全渲染
+        setTimeout(() => {
+          if (window.initAddPage) {
+            window.initAddPage();
+          } else {
+            console.warn("index.js: initAddPage函数未找到");
+          }
+        }, 100);
+      };
+
       modalContent.appendChild(script);
     })
     .catch(() => {
@@ -317,6 +339,22 @@ function closeModal() {
     modal.style.display = "none";
     modalContent.classList.remove("closing");
     modalContent.innerHTML = "";
+
+    // 清理 add.js 中的全局状态（在移除脚本之前）
+    if (window.cleanupAddPage && typeof window.cleanupAddPage === 'function') {
+      try {
+        window.cleanupAddPage();
+      } catch (error) {
+        console.warn("清理add.js状态时出错:", error);
+      }
+    }
+
+    // 清理可能残留的 add.js 脚本
+    const existingScript = document.querySelector('script[data-add-script]');
+    if (existingScript) {
+      existingScript.remove();
+    }
+
     modalContent.removeEventListener("animationend", handler);
   });
 }

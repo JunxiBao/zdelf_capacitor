@@ -446,8 +446,393 @@ body {
   box-shadow: 0 6px 20px rgba(98, 0, 234, 0.12);
 }
 
+/* ===== Flatpickr 深色模式样式 ===== */
+.flatpickr-calendar.health-dark-theme,
+.flatpickr-calendar.flatpickr-dark {
+    background: #1e1e1e !important;
+    border: 1px solid #444 !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-months,
+.flatpickr-calendar.flatpickr-dark .flatpickr-months {
+    background: #1e1e1e !important;
+    border-bottom: 1px solid #444 !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-month,
+.flatpickr-calendar.flatpickr-dark .flatpickr-month {
+    background: #1e1e1e !important;
+    color: #eee !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-current-month,
+.flatpickr-calendar.flatpickr-dark .flatpickr-current-month {
+    color: #eee !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-current-month .flatpickr-monthDropdown-months,
+.flatpickr-calendar.flatpickr-dark .flatpickr-current-month .flatpickr-monthDropdown-months {
+    background: #2b2b2b !important;
+    color: #eee !important;
+    border: 1px solid #444 !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-monthDropdown-months:hover,
+.flatpickr-calendar.flatpickr-dark .flatpickr-monthDropdown-months:hover {
+    background: #333 !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-next-month,
+.flatpickr-calendar.health-dark-theme .flatpickr-prev-month,
+.flatpickr-calendar.flatpickr-dark .flatpickr-next-month,
+.flatpickr-calendar.flatpickr-dark .flatpickr-prev-month {
+    color: #eee !important;
+    background: #2b2b2b !important;
+    border: none !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-next-month:hover,
+.flatpickr-calendar.health-dark-theme .flatpickr-prev-month:hover,
+.flatpickr-calendar.flatpickr-dark .flatpickr-next-month:hover,
+.flatpickr-calendar.flatpickr-dark .flatpickr-prev-month:hover {
+    background: #333 !important;
+    color: #fff !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-weekdays,
+.flatpickr-calendar.flatpickr-dark .flatpickr-weekdays {
+    background: #1e1e1e !important;
+    color: #ccc !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-weekday,
+.flatpickr-calendar.flatpickr-dark .flatpickr-weekday {
+    color: #ccc !important;
+    background: #1e1e1e !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-days,
+.flatpickr-calendar.flatpickr-dark .flatpickr-days {
+    background: #1e1e1e !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-day,
+.flatpickr-calendar.flatpickr-dark .flatpickr-day {
+    color: #eee !important;
+    background: #1e1e1e !important;
+    border: none !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-day:hover,
+.flatpickr-calendar.flatpickr-dark .flatpickr-day:hover {
+    background: #333 !important;
+    color: #fff !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-day.selected,
+.flatpickr-calendar.flatpickr-dark .flatpickr-day.selected {
+    background: #6200ea !important;
+    color: #fff !important;
+    border-color: #6200ea !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-day.selected:hover,
+.flatpickr-calendar.flatpickr-dark .flatpickr-day.selected:hover {
+    background: #4b00b5 !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-day.today,
+.flatpickr-calendar.flatpickr-dark .flatpickr-day.today {
+    background: #333 !important;
+    color: #fff !important;
+    border-color: #6200ea !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-day.today:hover,
+.flatpickr-calendar.flatpickr-dark .flatpickr-day.today:hover {
+    background: #4b00b5 !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-day.prevMonthDay,
+.flatpickr-calendar.health-dark-theme .flatpickr-day.nextMonthDay,
+.flatpickr-calendar.flatpickr-dark .flatpickr-day.prevMonthDay,
+.flatpickr-calendar.flatpickr-dark .flatpickr-day.nextMonthDay {
+    color: #666 !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-time,
+.flatpickr-calendar.flatpickr-dark .flatpickr-time {
+    background: #1e1e1e !important;
+    border-top: 1px solid #444 !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-time input,
+.flatpickr-calendar.flatpickr-dark .flatpickr-time input {
+    background: #2b2b2b !important;
+    color: #eee !important;
+    border: 1px solid #444 !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-time input:hover,
+.flatpickr-calendar.flatpickr-dark .flatpickr-time input:hover {
+    background: #333 !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-time .flatpickr-am-pm,
+.flatpickr-calendar.flatpickr-dark .flatpickr-time .flatpickr-am-pm {
+    color: #eee !important;
+    background: #2b2b2b !important;
+}
+
+.flatpickr-calendar.health-dark-theme .flatpickr-time .flatpickr-am-pm:hover,
+.flatpickr-calendar.flatpickr-dark .flatpickr-time .flatpickr-am-pm:hover {
+    background: #333 !important;
+}
+
 @media (max-width: 600px) {
-  .record-btn {
-    box-shadow: 0 6px 16px rgba(98, 0, 234, 0.16);
+    .record-btn {
+        box-shadow: 0 6px 16px rgba(98, 0, 234, 0.16);
+    }
+}
+
+/* ===== 心情选择器样式 ===== */
+.mood-selector {
+  margin-bottom: 18px;
+  padding: 20px;
+  background: #fafaff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(98, 0, 234, 0.04);
+  border: 1px solid #e0e0e0;
+}
+
+.mood-title {
+  font-size: 1.1em;
+  font-weight: 600;
+  color: #6200ea;
+  margin-bottom: 16px;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
+.mood-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.mood-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 16px 12px;
+  background: #fff;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  min-height: 100px;
+  position: relative;
+  overflow: hidden;
+}
+
+.mood-btn:hover {
+  border-color: #6200ea;
+  background: #f8f8ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(98, 0, 234, 0.12);
+}
+
+.mood-btn.selected {
+  border-color: #6200ea;
+  background: #6200ea;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(98, 0, 234, 0.2);
+  transform: scale(1.02);
+}
+
+
+
+.mood-text {
+  font-size: 0.9em;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+.mood-btn.selected .mood-text {
+  color: #fff;
+}
+
+/* 心情按钮的涟漪效果 */
+.mood-btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width 0.3s ease, height 0.3s ease;
+  pointer-events: none;
+}
+
+.mood-btn:active::before {
+  width: 120px;
+  height: 120px;
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: dark) {
+  .mood-selector {
+    background: #1e1e1e;
+    border: 1px solid #444;
   }
+
+  .mood-title {
+    color: #bb86fc;
+  }
+
+  .mood-btn {
+    background: #2b2b2b;
+    border-color: #444;
+    color: #eee;
+  }
+
+  .mood-btn:hover {
+    border-color: #bb86fc;
+    background: #333;
+  }
+
+  .mood-btn.selected {
+    border-color: #bb86fc;
+    background: #bb86fc;
+    color: #000;
+  }
+
+  .mood-btn.selected .mood-text {
+    color: #000;
+  }
+
+  .mood-image-placeholder {
+    border-color: #555 !important;
+    background: #4a3a5a !important;
+  }
+
+  .mood-image-content {
+    color: #ccc;
+  }
+
+  .mood-btn:hover .mood-image-placeholder {
+    border-color: #bb86fc !important;
+    background: #5a4a6a !important;
+  }
+
+  .mood-btn.selected .mood-image-placeholder {
+    border-color: #bb86fc;
+    background: rgba(187, 134, 252, 0.1);
+  }
+
+
+}
+
+/* 移动端适配 */
+@media (max-width: 600px) {
+  .mood-options {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+    .mood-btn {
+    padding: 14px 10px;
+    min-height: 90px;
+  }
+
+  .mood-image-placeholder {
+    width: 50px;
+    height: 50px;
+  }
+
+  .mood-image-content {
+    font-size: 0.7em;
+  }
+
+
+
+  .mood-text {
+    font-size: 0.8em;
+  }
+
+
+
+
+}
+
+/* 动作按钮容器样式 */
+.action-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 20px 0;
+  flex-direction: column;
+  gap: 12px;
+}
+
+
+
+/* 图片占位空间样式 */
+.mood-image-placeholder {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  background: #faf7ff;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.mood-image {
+  width: 50%;
+  height: 50%;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.mood-image-content {
+  font-size: 1.5em;
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mood-btn:hover .mood-image-placeholder {
+  border-color: #6200ea;
+  background: #f4efff;
+}
+
+.mood-btn.selected .mood-image-placeholder {
+  border-color: #6200ea;
+  background: rgba(98, 0, 234, 0.1);
+}
+
+
+
+.mood-text {
+  font-size: 0.9em;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+/* 心情选择器的抖动动画 */
+.mood-selector.shake {
+  animation: shake 0.3s ease both;
 }
