@@ -824,7 +824,7 @@
       const notificationTitle = greeting;
 
       // 构建有趣的提醒内容 💊✨
-      let notificationBody = `🎉 嘿，${username}！我是你的紫癜精灵！\n⏰ 该吃${medicationName}啦`;
+      let notificationBody = ` 嘿，${username}！我是你的紫癜精灵！该吃${medicationName}啦`;
 
       // 添加计量信息
       if (reminder.dosage) {
