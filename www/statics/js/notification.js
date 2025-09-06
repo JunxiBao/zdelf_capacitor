@@ -19,6 +19,12 @@
   let LocalNotifications = null;
   let Capacitor = null;
 
+  // Backend API base: absolute by default; can be overridden via window.__API_BASE__
+  const __API_BASE_DEFAULT__ = (typeof window !== 'undefined' && window.__API_BASE__) || 'https://app.zdelf.cn';
+  const __API_BASE__ = __API_BASE_DEFAULT__ && __API_BASE_DEFAULT__.endsWith('/')
+    ? __API_BASE_DEFAULT__.slice(0, -1)
+    : __API_BASE_DEFAULT__;
+
   // 尝试导入Capacitor插件
   try {
     Capacitor = window.Capacitor;
@@ -53,6 +59,60 @@
   // 震动反馈函数
   function hapticFeedback(style = 'Light') {
     try { window.__hapticImpact__ && window.__hapticImpact__(style); } catch(_) {}
+  }
+
+  /**
+   * 根据当前时间返回有趣的问候语
+   */
+  function getGreeting() {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 8) return "🌅 早安，新的一天开始啦"; // Very early morning
+    if (hour >= 8 && hour < 12) return "☀️ 早上好，精神百倍"; // Morning
+    if (hour >= 12 && hour < 14) return "🌞 中午好，吃饭时间到"; // Noon
+    if (hour >= 14 && hour < 17) return "⛅ 下午好，继续加油"; // Afternoon
+    if (hour >= 17 && hour < 19) return "🌆 黄昏好，放松一下"; // Evening
+    if (hour >= 19 && hour < 22) return "🌙 晚上好，准备休息"; // Night
+    if (hour >= 22 || hour < 2) return "🌃 夜深了，早点休息哦"; // Late night
+    return "🕐 嘿，时间过得真快"; // Default
+  }
+
+  /**
+   * 获取用户名
+   */
+  function getUsername(callback) {
+    const userId = localStorage.getItem('userId');
+    console.log('🧪 获取到的 userId:', userId);
+
+    if (!userId || userId === 'undefined' || userId === 'null') {
+      console.warn('⚠️ 未获取到有效 userId，使用默认用户名');
+      callback('访客');
+      return;
+    }
+
+    // 请求后端获取用户信息
+    fetch(__API_BASE__ + '/readdata', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ table_name: 'users', user_id: userId }),
+    })
+    .then((response) => {
+      console.log('📡 获取用户信息响应，状态码:', response.status);
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      return response.json();
+    })
+    .then((data) => {
+      console.log('📦 用户信息返回数据：', data);
+      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+        const username = data.data[0].username || '访客';
+        callback(username);
+      } else {
+        callback('访客');
+      }
+    })
+    .catch((error) => {
+      console.error('❌ 获取用户信息失败:', error);
+      callback('访客');
+    });
   }
 
   /**
@@ -411,6 +471,10 @@
       // 添加模式
       title.textContent = '添加用药提醒';
       form.reset();
+      // 设置默认时间为当前时间
+      const now = new Date();
+      const currentTime = now.toTimeString().slice(0, 5); // HH:MM格式
+      root.getElementById('reminderTime').value = currentTime;
     }
 
     modal.classList.add('show');
@@ -586,6 +650,12 @@
 
       const now = new Date();
 
+      // 获取用户名用于通知模板
+      const username = await new Promise((resolve) => {
+        getUsername((name) => resolve(name));
+      });
+      const greeting = getGreeting();
+
       if (LocalNotifications) {
         // 使用Capacitor本地通知调度
         const notifications = [];
@@ -603,12 +673,35 @@
           }
 
           const notificationId = Math.floor(Math.random() * 900000) + 100000; // 6位随机数，避免冲突
+          const medicationName = reminder.name || '药品';
 
-          // 暂时使用非重复通知来测试基本功能
+          // 构建有趣的提醒内容 💊✨
+          let notificationBody = `🎉 嘿，${username}！我是你的紫癜精灵小助手！\n⏰ 该吃${medicationName}啦`;
+
+          // 添加计量信息
+          if (reminder.dosage) {
+            notificationBody += `，记得吃 ${reminder.dosage}`;
+          }
+
+          // 添加服用频率信息
+          if (reminder.frequency) {
+            notificationBody += `，${reminder.frequency}`;
+          }
+
+          notificationBody += ` 哦！💪`;
+
+          // 添加备注信息（如果有）
+          if (reminder.notes) {
+            notificationBody += `\n📝 小贴士：${reminder.notes}`;
+          }
+
+          notificationBody += `\n❤️ 健康第一，记得按时服药哦！`;
+
+          // 使用个性化通知模板
           notifications.push({
             id: notificationId,
-            title: `用药提醒: ${reminder.name}`,
-            body: `该服用 ${reminder.dosage || '药品'} 了`,
+            title: `${greeting}，${username}`,
+            body: notificationBody,
             schedule: {
               at: reminderTime
               // 先去掉 repeats 和 every，测试基本功能
@@ -723,14 +816,45 @@
    */
   async function showNotification(reminder) {
     try {
+      // 获取用户名
+      const username = await new Promise((resolve) => {
+        getUsername((name) => resolve(name));
+      });
+
+      const greeting = getGreeting();
+      const medicationName = reminder.name || '药品';
+      const notificationTitle = `${greeting}，${username}`;
+
+      // 构建有趣的提醒内容 💊✨
+      let notificationBody = `🎉 嘿，${username}！我是你的紫癜精灵！\n⏰ 该吃${medicationName}啦`;
+
+      // 添加计量信息
+      if (reminder.dosage) {
+        notificationBody += `，记得吃 ${reminder.dosage}`;
+      }
+
+      // 添加服用频率信息
+      if (reminder.frequency) {
+        notificationBody += `，${reminder.frequency}`;
+      }
+
+      notificationBody += ` 哦！💪`;
+
+      // 添加备注信息（如果有）
+      if (reminder.notes) {
+        notificationBody += `\n📝 小贴士：${reminder.notes}`;
+      }
+
+      notificationBody += `\n❤️ 健康第一，记得按时服药哦！`;
+
       // 优先使用Capacitor本地通知
       if (LocalNotifications) {
         console.log('📱 发送即时通知...');
         const notificationId = Math.floor(Math.random() * 900000) + 100000; // 6位随机数
         const notificationData = {
           id: notificationId,
-          title: `用药提醒: ${reminder.name}`,
-          body: `该服用 ${reminder.dosage || '药品'} 了`,
+          title: notificationTitle,
+          body: notificationBody,
           schedule: { at: new Date() },
           sound: 'default',
           actionTypeId: 'medication_reminder',
@@ -758,21 +882,22 @@
       } else {
         // 回退到浏览器原生通知
         if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification(`用药提醒: ${reminder.name}`, {
-            body: `该服用 ${reminder.dosage || '药品'} 了`,
+          new Notification(notificationTitle, {
+            body: notificationBody,
             icon: '/favicon.ico',
             tag: `medication-${reminder.id}`
           });
           console.log('🔔 浏览器通知已发送:', reminder.name);
         }
       }
+      return; // 成功发送后直接返回，避免fallback
     } catch (error) {
       console.error('❌ 发送通知失败:', error);
       // 如果Capacitor通知失败，尝试使用浏览器通知作为备用
       if ('Notification' in window && Notification.permission === 'granted') {
         try {
-          new Notification(`用药提醒: ${reminder.name}`, {
-            body: `该服用 ${reminder.dosage || '药品'} 了`,
+          new Notification(notificationTitle, {
+            body: notificationBody,
             icon: '/favicon.ico',
             tag: `medication-${reminder.id}`
           });
