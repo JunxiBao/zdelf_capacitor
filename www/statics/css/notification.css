@@ -167,28 +167,66 @@ body {
 .btn-primary {
   background: linear-gradient(135deg, #6200ea 0%, #7c3aed 100%);
   color: white;
-  box-shadow: 0 2px 4px rgba(98, 0, 234, 0.2);
+  box-shadow: 0 4px 12px rgba(98, 0, 234, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover::before {
+  width: 300px;
+  height: 300px;
 }
 
 .btn-danger {
-  background: #dc3545;
+  background: linear-gradient(135deg, #dc3545 0%, #e74c3c 100%);
   color: white;
-  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+  position: relative;
+  overflow: hidden;
 }
 
 .btn-secondary {
   background: rgba(98, 0, 234, 0.1);
   color: #6200ea;
-  border: 1px solid rgba(98, 0, 234, 0.3);
+  border: 2px solid rgba(98, 0, 234, 0.3);
+  position: relative;
+  overflow: hidden;
 }
 
 .btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(98, 0, 234, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(98, 0, 234, 0.4);
 }
 
 .btn:active {
   transform: translateY(0);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 6px 20px rgba(98, 0, 234, 0.4);
+}
+
+.btn-danger:hover {
+  box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+}
+
+.btn-secondary:hover {
+  background: rgba(98, 0, 234, 0.15);
+  border-color: rgba(98, 0, 234, 0.5);
+  box-shadow: 0 6px 20px rgba(98, 0, 234, 0.2);
 }
 
 /* 空状态 */
@@ -232,7 +270,7 @@ body {
   height: 100%;
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(8px);
-  z-index: 3000;
+  z-index: 11000;
   align-items: center;
   justify-content: center;
   animation: modalFadeIn 0.3s ease;
@@ -405,7 +443,7 @@ body {
   height: 100%;
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(8px);
-  z-index: 2000;
+  z-index: 10000;
   align-items: center;
   justify-content: center;
   animation: modalFadeIn 0.3s ease;
@@ -428,21 +466,27 @@ body {
 
 .modal-content {
   background: #fff;
-  border-radius: 16px;
-  padding: 24px;
-  width: 90%;
-  max-width: 420px;
-  max-height: 90vh;
+  border-radius: 20px;
+  padding: 28px;
+  width: 92%;
+  max-width: 450px;
+  max-height: 85vh;
   overflow-y: auto;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
-  border: 1px solid rgba(98, 0, 234, 0.1);
-  animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(98, 0, 234, 0.15);
+  animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  margin: 20px;
 }
 
 @keyframes modalSlideIn {
   from {
     opacity: 0;
-    transform: translateY(20px) scale(0.95);
+    transform: translateY(30px) scale(0.9);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translateY(-5px) scale(1.02);
   }
   to {
     opacity: 1;
@@ -454,44 +498,88 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #e0e0e0;
+  margin-bottom: 28px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid rgba(98, 0, 234, 0.1);
+  position: relative;
+}
+
+.modal-header::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(90deg, #6200ea, #7c3aed);
+  border-radius: 1px;
 }
 
 .modal-title {
-  font-size: 1.3em;
-  font-weight: 600;
+  font-size: 1.4em;
+  font-weight: 700;
   margin: 0;
   color: #6200ea;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  letter-spacing: 0.5px;
 }
 
 .modal-title::before {
-  content: "⏰";
-  font-size: 1.2em;
+  content: "💊";
+  font-size: 1.3em;
+  background: linear-gradient(135deg, #6200ea, #7c3aed);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .modal-close {
-  background: none;
+  background: rgba(98, 0, 234, 0.08);
   border: none;
-  font-size: 24px;
+  font-size: 20px;
   cursor: pointer;
   color: #666;
-  padding: 8px;
+  padding: 10px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 40px;
+  height: 40px;
+  position: relative;
+  overflow: hidden;
+}
+
+.modal-close::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: rgba(98, 0, 234, 0.1);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: all 0.3s ease;
 }
 
 .modal-close:hover {
-  background: rgba(98, 0, 234, 0.1);
+  background: rgba(98, 0, 234, 0.15);
   color: #6200ea;
-  transform: scale(1.1);
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(98, 0, 234, 0.2);
+}
+
+.modal-close:hover::before {
+  width: 100%;
+  height: 100%;
+}
+
+.modal-close:active {
+  transform: scale(0.95);
 }
 
 /* 表单样式 */
@@ -518,22 +606,29 @@ body {
 
 .form-input {
   width: 100%;
-  padding: 12px 16px;
+  padding: 14px 18px;
   border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  border-radius: 12px;
   font-size: 1em;
   font-family: inherit;
   background: #fafaff;
   color: #222;
   box-sizing: border-box;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
 }
 
 .form-input:focus {
   border-color: #6200ea;
   background: #fff;
   outline: none;
-  box-shadow: 0 0 0 3px rgba(98, 0, 234, 0.1);
+  box-shadow: 0 0 0 4px rgba(98, 0, 234, 0.1), 0 4px 12px rgba(98, 0, 234, 0.15);
+  transform: translateY(-1px);
+}
+
+.form-input:hover:not(:focus) {
+  border-color: #b49eff;
+  background: #f8f8ff;
 }
 
 .form-input::placeholder {
@@ -695,10 +790,15 @@ body {
   .modal-content {
     background: #1e1f22;
     border-color: rgba(98, 0, 234, 0.2);
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4);
   }
 
   .modal-title {
     color: #b794f6;
+  }
+
+  .modal-header::after {
+    background: linear-gradient(90deg, #b794f6, #9c66d6);
   }
 
   .form-label {
@@ -777,9 +877,9 @@ body {
 
 /* 响应式设计 */
 @media (max-width: 768px) {
-
   .reminders-container {
     padding: 0 15px;
+    padding-bottom: 120px; /* 增加底部间距，避免与导航栏重叠 */
   }
 
   .reminder-card {
@@ -798,12 +898,13 @@ body {
   .modal-content {
     width: 95%;
     max-width: 400px;
-    padding: 20px;
-    margin: 10px;
+    padding: 24px;
+    margin: 15px;
+    max-height: 80vh; /* 确保在移动端有足够空间 */
   }
 
   .modal-title {
-    font-size: 1.2em;
+    font-size: 1.3em;
   }
 
   .form-group {
@@ -834,7 +935,7 @@ body {
 
   .confirm-modal-content {
     width: 95%;
-    margin: 10px;
+    margin: 15px;
   }
 
   .confirm-modal-title {
@@ -870,9 +971,9 @@ body {
 }
 
 @media (max-width: 480px) {
-
   .reminders-container {
     padding: 0 10px;
+    padding-bottom: 130px; /* 进一步增加底部间距 */
   }
 
   .reminder-card {
@@ -893,19 +994,20 @@ body {
   }
 
   .btn {
-    padding: 6px 12px;
-    font-size: 0.85em;
+    padding: 8px 14px;
+    font-size: 0.9em;
   }
 
   .modal-content {
-    width: 98%;
-    max-width: 380px;
-    padding: 16px;
-    margin: 5px;
+    width: 96%;
+    max-width: 360px;
+    padding: 20px;
+    margin: 10px;
+    max-height: 75vh; /* 小屏幕下进一步减少高度 */
   }
 
   .modal-title {
-    font-size: 1.1em;
+    font-size: 1.2em;
   }
 
   .form-group {
@@ -913,8 +1015,8 @@ body {
   }
 
   .form-label {
-    font-size: 0.85em;
-    margin-bottom: 4px;
+    font-size: 0.9em;
+    margin-bottom: 6px;
   }
 
   .form-input {
@@ -939,12 +1041,12 @@ body {
   }
 
   .confirm-modal-content {
-    width: 98%;
-    margin: 5px;
+    width: 96%;
+    margin: 10px;
   }
 
   .confirm-modal-title {
-    font-size: 1.1em;
+    font-size: 1.2em;
   }
 
   .warning-icon {

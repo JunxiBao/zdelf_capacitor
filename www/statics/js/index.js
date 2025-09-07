@@ -365,10 +365,10 @@ centerBtn.addEventListener("click", () => {
 
   if (isOpen) {
     closeModal();
-    centerBtn.classList.remove("rotate");
+    centerBtn.classList.remove("pulse");
   } else {
     openModal();
-    centerBtn.classList.add("rotate");
+    centerBtn.classList.add("pulse");
   }
   hapticImpact("Medium");
 });
@@ -377,7 +377,7 @@ centerBtn.addEventListener("click", () => {
 modal.addEventListener("click", (e) => {
   if (e.target === modal) {
     closeModal();
-    centerBtn.classList.remove("rotate");
+    centerBtn.classList.remove("pulse");
     hapticImpact("Light");
   }
 });
