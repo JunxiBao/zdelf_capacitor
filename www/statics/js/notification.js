@@ -80,20 +80,36 @@
   // 内部硬删除：不弹确认，直接删除指定提醒
   async function hardDeleteReminder(reminderId) {
     try {
+      // 定位当前提醒
+      const target = reminders.find(r => r.id === reminderId);
       // 清理fallback定时器
-      if (reminderTimeouts.has(reminderId)) {
-        clearTimeout(reminderTimeouts.get(reminderId));
-        reminderTimeouts.delete(reminderId);
-      }
+      if (reminderTimeouts.has(reminderId)) { clearTimeout(reminderTimeouts.get(reminderId)); reminderTimeouts.delete(reminderId); }
+      // 清理所有该提醒相关的“按时间点”定时器
+      [...reminderTimeouts.keys()].forEach(key => {
+        if (typeof key === 'string' && key.startsWith(reminderId + '|')) {
+          clearTimeout(reminderTimeouts.get(key));
+          reminderTimeouts.delete(key);
+        }
+      });
       // 清理UI推进定时器
       if (uiAdvanceTimeouts.has(reminderId)) {
         clearTimeout(uiAdvanceTimeouts.get(reminderId));
         uiAdvanceTimeouts.delete(reminderId);
       }
+      // 清理允许窗口
+      if (allowedFireAt.has(reminderId)) allowedFireAt.delete(reminderId);
       // 取消原生通知
       if (LocalNotifications) {
-        const nid = stableIdFromString(reminderId);
-        try { await LocalNotifications.cancel({ notifications: [{ id: nid }] }); } catch (_) {}
+        const cancelIds = [];
+        // 取消旧的通用ID
+        cancelIds.push({ id: stableIdFromString(reminderId) });
+        // 取消每个时间点的ID
+        if (target && Array.isArray(target.dailyTimes)) {
+          target.dailyTimes.filter(Boolean).forEach(t => {
+            cancelIds.push({ id: stableIdFromString(reminderId + '|' + t) });
+          });
+        }
+        try { await LocalNotifications.cancel({ notifications: cancelIds }); } catch (_) {}
       }
       // 移除数据、保存并刷新
       reminders = reminders.filter(r => r.id !== reminderId);
@@ -110,6 +126,17 @@
   // 震动反馈函数
   function hapticFeedback(style = 'Light') {
     try { window.__hapticImpact__ && window.__hapticImpact__(style); } catch(_) {}
+  }
+
+  // 判断某个具体时间点是否启用（向后兼容：未设置映射时默认启用）
+  function isTimeEnabled(reminder, timeHHMM) {
+    if (!reminder) return false;
+    const map = reminder.dailyTimeEnabled;
+    if (!map || typeof map !== 'object') return true;
+    if (Object.prototype.hasOwnProperty.call(map, timeHHMM)) {
+      return !!map[timeHHMM];
+    }
+    return true;
   }
 
   /**
@@ -297,7 +324,8 @@
     }
     if (endDateInput) {
       endDateInput.min = today;
-      console.log('📅 设置结束日期最小值为今天:', today);
+      endDateInput.value = today; // 设置默认值为今天
+      console.log('📅 设置结束日期默认值和最小值为今天:', today);
     }
 
     // 绑定事件监听器
@@ -428,16 +456,22 @@
           if (idx >= 0) {
             values.splice(idx, 1);
             const n = Math.max(0, (parseInt(dailyCountEl.value || '0', 10) || 0) - 1);
-            dailyCountEl.value = String(n);
+            if (n === 0) {
+              dailyCountEl.value = '';
+            } else {
+              dailyCountEl.value = String(n);
+            }
             renderDailyTimesEditor(root, values);
             dailyGroup.style.display = n > 0 ? '' : 'none';
           }
         };
         dailyCountEl.addEventListener('input', onCountChange);
+        dailyCountEl.addEventListener('change', onCountChange);
         addDailyBtn.addEventListener('click', onAddRow);
         dailyList.addEventListener('click', onListClick);
         cleanupFns.push(() => {
           dailyCountEl.removeEventListener('input', onCountChange);
+          dailyCountEl.removeEventListener('change', onCountChange);
           addDailyBtn.removeEventListener('click', onAddRow);
           dailyList.removeEventListener('click', onListClick);
         });
@@ -587,25 +621,13 @@
 
     container.innerHTML = sortedReminders.map(reminder => {
       const intervalText = formatRepeatText(reminder);
-      const timesText = (reminder.dailyCount > 0 && Array.isArray(reminder.dailyTimes) && reminder.dailyTimes.length)
-        ? `每日${reminder.dailyCount}次：${reminder.dailyTimes.join('、')}`
+      const hasTimes = reminder.dailyCount > 0 && Array.isArray(reminder.dailyTimes) && reminder.dailyTimes.length > 0;
+      const timesHtml = hasTimes
+        ? `<div class=\"reminder-details\"><div style=\"margin-bottom:6px;\">每日${reminder.dailyCount}次</div><div class=\"reminder-times\" style=\"display:flex;flex-wrap:wrap;gap:8px;\">${reminder.dailyTimes.map(t => t ? `<label class=\"time-item\" style=\"display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid #ddd;border-radius:6px;\"><input type=\"checkbox\" class=\"time-toggle\" data-id=\"${reminder.id}\" data-time=\"${t}\" ${isTimeEnabled(reminder, t) ? 'checked' : ''}/> <span>${t}</span></label>` : '').join('')}</div></div>`
         : '';
       const rangeText = `${reminder.startDate || ''}${reminder.endDate ? ' ~ ' + reminder.endDate : ''}`;
       return `
-      <div class="reminder-card" data-id="${reminder.id}">
-        <div class="reminder-header">
-          <h3 class="medication-name">${reminder.name}</h3>
-          <span class="reminder-time">${rangeText}</span>
-        </div>
-        ${reminder.dosage ? `<div class=\"reminder-details\">剂量：${reminder.dosage}</div>` : ''}
-        ${intervalText ? `<div class=\"reminder-details\">${intervalText}</div>` : ''}
-        ${timesText ? `<div class=\"reminder-details\">${timesText}</div>` : ''}
-        ${reminder.notes ? `<div class=\"reminder-details\">备注：${reminder.notes}</div>` : ''}
-        <div class="reminder-actions">
-          <button class="btn btn-secondary" data-action="edit" data-id="${reminder.id}">编辑</button>
-          <button class="btn btn-danger" data-action="delete" data-id="${reminder.id}">删除</button>
-        </div>
-      </div>`;
+      <div class=\"reminder-card\" data-id=\"${reminder.id}\">\n        <div class=\"reminder-header\">\n          <h3 class=\"medication-name\">${reminder.name}</h3>\n          <span class=\"reminder-time\">${rangeText}</span>\n        </div>\n        ${reminder.dosage ? `<div class=\\\"reminder-details\\\">剂量：${reminder.dosage}</div>` : ''}\n        ${intervalText ? `<div class=\\\"reminder-details\\\">${intervalText}</div>` : ''}\n        ${timesHtml}\n        ${reminder.notes ? `<div class=\\\"reminder-details\\\">备注：${reminder.notes}</div>` : ''}\n        <div class=\"reminder-actions\">\n          <button class=\"btn btn-secondary\" data-action=\"edit\" data-id=\"${reminder.id}\">编辑</button>\n          <button class=\"btn btn-danger\" data-action=\"delete\" data-id=\"${reminder.id}\">删除</button>\n        </div>\n      </div>`;
     }).join('');
 
     // 添加“新增提醒”虚线卡片
@@ -638,6 +660,31 @@
     }
     container.addEventListener('click', handleButtonClick);
     container._buttonClickHandler = handleButtonClick;
+
+    // 勾选/取消某个时间点的启用开关
+    const handleToggleChange = async (e) => {
+      const chk = e.target.closest && e.target.closest('.time-toggle');
+      if (!chk) return;
+      const reminderId = chk.getAttribute('data-id');
+      const time = chk.getAttribute('data-time');
+      const rIdx = reminders.findIndex(r => r.id === reminderId);
+      if (rIdx === -1) return;
+      if (!reminders[rIdx].dailyTimeEnabled || typeof reminders[rIdx].dailyTimeEnabled !== 'object') {
+        reminders[rIdx].dailyTimeEnabled = {};
+      }
+      reminders[rIdx].dailyTimeEnabled[time] = !!chk.checked;
+      reminders[rIdx].updatedAt = new Date().toISOString();
+      saveReminders();
+      hapticFeedback('Light');
+      // 重新设置调度
+      await setupReminders();
+    };
+    const prevToggle = container._timeToggleHandler;
+    if (prevToggle) {
+      container.removeEventListener('change', prevToggle);
+    }
+    container.addEventListener('change', handleToggleChange);
+    container._timeToggleHandler = handleToggleChange;
 
     // 绑定新增卡片点击
     const addCard = container.querySelector('#addReminderCard');
@@ -706,7 +753,11 @@
         const dailyGroup = root.getElementById('dailyTimesGroup');
         if (dailyCountEl) dailyCountEl.value = reminder.dailyCount || '';
         if (dailyGroup) dailyGroup.style.display = reminder.dailyCount > 0 ? '' : 'none';
-        renderDailyTimesEditor(root, reminder.dailyTimes || []);
+        // 确保编辑模式下时间输入数量与次数一致（不足则补空）
+        const timesInit = Array.isArray(reminder.dailyTimes) ? [...reminder.dailyTimes] : [];
+        const need = Math.max(0, (reminder.dailyCount || 0) - timesInit.length);
+        for (let i = 0; i < need; i++) timesInit.push('');
+        renderDailyTimesEditor(root, timesInit);
       }
     } else {
       // 添加模式
@@ -718,7 +769,10 @@
       const sEl = root.getElementById('startDate');
       if (sEl) sEl.value = currentDate;
       const eEl = root.getElementById('endDate');
-      if (sEl && eEl) { eEl.min = sEl.value; }
+      if (sEl && eEl) {
+        eEl.min = sEl.value;
+        eEl.value = sEl.value; // 默认结束日期与开始日期相同
+      }
       const repeatSelect = root.getElementById('repeatInterval');
       const repeatValue = root.getElementById('repeatCustomValue');
       const repeatGroup = root.getElementById('repeatCustomGroup');
@@ -755,7 +809,8 @@
   async function saveReminder(root) {
     const name = root.getElementById('medicationName').value.trim();
     const startDate = (root.getElementById('startDate') && root.getElementById('startDate').value) || '';
-    const endDate = (root.getElementById('endDate') && root.getElementById('endDate').value) || '';
+    const endDateEl = root.getElementById('endDate');
+    const endDate = (endDateEl && endDateEl.value) || '';
     const dosage = root.getElementById('dosage').value.trim();
     const notes = root.getElementById('notes').value.trim();
     const repeatInterval = (root.getElementById('repeatInterval') && root.getElementById('repeatInterval').value) || 'none';
@@ -782,15 +837,77 @@
       return;
     }
     
+    if (!endDate) {
+      alert('请填写结束日期');
+      if (endDateEl && typeof endDateEl.scrollIntoView === 'function') endDateEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (endDateEl && typeof endDateEl.focus === 'function') endDateEl.focus();
+      return;
+    }
     if (endDate && endDate < startDate) {
       alert('结束日期必须大于或等于开始日期');
+      if (endDateEl && typeof endDateEl.scrollIntoView === 'function') endDateEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (endDateEl && typeof endDateEl.focus === 'function') endDateEl.focus();
       return;
     }
     
     // 检查结束日期不能是过去的日期
     if (endDate && endDate < today) {
       alert('结束日期不能是过去的日期');
+      if (endDateEl && typeof endDateEl.scrollIntoView === 'function') endDateEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (endDateEl && typeof endDateEl.focus === 'function') endDateEl.focus();
       return;
+    }
+
+    // 校验：每日提醒次数与每日提醒时间为必填
+    const dailyCountEl = root.getElementById('dailyCount');
+    const dailyTimesGroup = root.getElementById('dailyTimesGroup');
+    if (!dailyCount || dailyCount < 1) {
+      alert('请填写每日提醒次数（至少为1次）');
+      if (dailyCountEl && typeof dailyCountEl.scrollIntoView === 'function') dailyCountEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (dailyCountEl && typeof dailyCountEl.focus === 'function') dailyCountEl.focus();
+      return;
+    }
+    if (!Array.isArray(dailyTimes) || dailyTimes.length !== dailyCount) {
+      alert('请填写与次数相同数量的提醒时间');
+      if (dailyTimesGroup && typeof dailyTimesGroup.scrollIntoView === 'function') dailyTimesGroup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const firstEmpty = dailyList && [...dailyList.querySelectorAll('input[type="time"]')].find(i => !i.value);
+      if (firstEmpty && typeof firstEmpty.focus === 'function') firstEmpty.focus();
+      return;
+    }
+
+    // 校验：每天提醒时间不得在同一分钟重复
+    const timeSet = new Set();
+    let duplicateValue = null;
+    for (const t of dailyTimes) {
+      if (timeSet.has(t)) { duplicateValue = t; break; }
+      timeSet.add(t);
+    }
+    if (duplicateValue) {
+      alert('每天提醒时间不能相同，请修改重复的时间：' + duplicateValue);
+      if (dailyTimesGroup && typeof dailyTimesGroup.scrollIntoView === 'function') dailyTimesGroup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const dupInput = dailyList && [...dailyList.querySelectorAll('input[type="time"]')].find(i => i.value === duplicateValue);
+      if (dupInput && typeof dupInput.focus === 'function') dupInput.focus();
+      return;
+    }
+
+    // 生成/合并每日时间启用状态映射
+    let dailyTimeEnabled = {};
+    if (editingReminderId) {
+      const existing = reminders.find(r => r.id === editingReminderId);
+      if (existing && existing.dailyTimeEnabled && typeof existing.dailyTimeEnabled === 'object') {
+        // 保留已有状态
+        dailyTimes.forEach(t => {
+          if (Object.prototype.hasOwnProperty.call(existing.dailyTimeEnabled, t)) {
+            dailyTimeEnabled[t] = !!existing.dailyTimeEnabled[t];
+          } else {
+            dailyTimeEnabled[t] = true; // 新增时间默认启用
+          }
+        });
+      } else {
+        dailyTimes.forEach(t => { dailyTimeEnabled[t] = true; });
+      }
+    } else {
+      dailyTimes.forEach(t => { dailyTimeEnabled[t] = true; });
     }
 
     const reminder = {
@@ -804,6 +921,7 @@
       repeatCustomValue,
       dailyCount,
       dailyTimes,
+      dailyTimeEnabled,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -881,15 +999,25 @@
 
     try {
       // 清除相关的定时器
-      if (reminderTimeouts.has(reminderId)) {
-        clearTimeout(reminderTimeouts.get(reminderId));
-        reminderTimeouts.delete(reminderId);
-      }
+      const target = reminders.find(r => r.id === reminderId);
+      if (reminderTimeouts.has(reminderId)) { clearTimeout(reminderTimeouts.get(reminderId)); reminderTimeouts.delete(reminderId); }
+      [...reminderTimeouts.keys()].forEach(key => {
+        if (typeof key === 'string' && key.startsWith(reminderId + '|')) {
+          clearTimeout(reminderTimeouts.get(key));
+          reminderTimeouts.delete(key);
+        }
+      });
 
       // 取消Capacitor通知（使用稳定ID）
       if (LocalNotifications) {
-        const notificationId = stableIdFromString(reminderId);
-        try { await LocalNotifications.cancel({ notifications: [{ id: notificationId }] }); } catch (_) {}
+        const cancelIds = [];
+        cancelIds.push({ id: stableIdFromString(reminderId) });
+        if (target && Array.isArray(target.dailyTimes)) {
+          target.dailyTimes.filter(Boolean).forEach(t => {
+            cancelIds.push({ id: stableIdFromString(reminderId + '|' + t) });
+          });
+        }
+        try { await LocalNotifications.cancel({ notifications: cancelIds }); } catch (_) {}
         console.log('🔔 已取消Capacitor通知:', reminderId);
       }
 
@@ -960,11 +1088,19 @@
           // 必须有 dailyTimes
           if (!(reminder.dailyCount > 0 && Array.isArray(reminder.dailyTimes) && reminder.dailyTimes.length > 0)) return;
 
-          const times = [...reminder.dailyTimes].filter(Boolean).sort();
+          const timesAll = [...reminder.dailyTimes].filter(Boolean).sort();
+          const timesEnabled = timesAll.filter(t => isTimeEnabled(reminder, t));
           const now = new Date();
           let nextAtForUi = null;
 
-          times.forEach((t) => {
+          // 先取消所有该提醒下（所有时间点）的既有原生通知
+          timesAll.forEach((t) => {
+            const notificationId = stableIdFromString(reminder.id + '|' + t);
+            cancelList.push({ id: notificationId });
+          });
+
+          // 仅为启用的时间点调度
+          timesEnabled.forEach((t) => {
             const baseDate = reminder.startDate || new Date().toISOString().slice(0,10);
             const baseTime = new Date(`${baseDate}T${t}:00`);
             
@@ -990,8 +1126,6 @@
             if (!nextAtForUi || firstTime < nextAtForUi) nextAtForUi = firstTime;
 
             const notificationId = stableIdFromString(reminder.id + '|' + t);
-            cancelList.push({ id: notificationId });
-
             const schedule = { at: firstTime };
             // 不再使用 repeats/every，避免原生立即触发或时间漂移，由应用层手动重调度
 
@@ -1026,7 +1160,7 @@
         const now = new Date();
         reminders.forEach(reminder => {
           if (!(reminder.dailyCount > 0 && Array.isArray(reminder.dailyTimes) && reminder.dailyTimes.length > 0)) return;
-          const times = [...reminder.dailyTimes].filter(Boolean).sort();
+          const times = [...reminder.dailyTimes].filter(Boolean).filter(t => isTimeEnabled(reminder, t)).sort();
           times.forEach((t) => {
             const baseDate = reminder.startDate || new Date().toISOString().slice(0,10);
             const baseTime = new Date(`${baseDate}T${t}:00`);
@@ -1087,7 +1221,7 @@
       if (!(reminder.dailyCount > 0 && Array.isArray(reminder.dailyTimes) && reminder.dailyTimes.length > 0)) return;
       if (reminder.repeatInterval === 'none') return; // 不循环则不进入fallback循环
 
-      const times = [...reminder.dailyTimes].filter(Boolean).sort();
+      const times = [...reminder.dailyTimes].filter(Boolean).filter(t => isTimeEnabled(reminder, t)).sort();
       times.forEach((t) => {
         const baseDate = reminder.startDate || new Date().toISOString().slice(0,10);
         const baseTime = new Date(`${baseDate}T${t}:00`);
@@ -1128,7 +1262,7 @@
   function computeNextTime(reminder, baseTime, fromTime) {
     // 若配置了每日多个时间，优先使用它们（每日重复）
     if (reminder.dailyCount > 0 && Array.isArray(reminder.dailyTimes) && reminder.dailyTimes.length > 0) {
-      const times = [...reminder.dailyTimes].filter(Boolean).sort(); // "HH:MM"
+      const times = [...reminder.dailyTimes].filter(Boolean).filter(t => isTimeEnabled(reminder, t)).sort(); // "HH:MM"
       const from = new Date(fromTime);
       const fromDateStr = from.toISOString().slice(0,10);
       const fromHhmm = from.toTimeString().slice(0,5);
@@ -1348,7 +1482,7 @@
         return;
       }
 
-      // 使用 dailyTimes 推进到下一次最近时间
+      // 使用 dailyTimes 推进到下一次最近时间（仅考虑启用的时间）
       if (reminder.dailyCount > 0 && Array.isArray(reminder.dailyTimes) && reminder.dailyTimes.length > 0) {
         const now = new Date();
         const next = computeNextTime(reminder, new Date(`${reminder.startDate || now.toISOString().slice(0,10)}T00:00:00`), now);
@@ -1396,12 +1530,15 @@
         } else {
           // 如果今天没有剩余时间，跳到下一天
           const baseDate = (reminder.startDate || now.toISOString().slice(0,10));
-          const baseTime = new Date(`${baseDate}T${(reminder.dailyTimes[0] || '00:00')}:00`);
+          // 选择下一个启用的第一个时间
+          const enabledTimes = [...reminder.dailyTimes].filter(Boolean).filter(t => isTimeEnabled(reminder, t)).sort();
+          const firstEnabled = enabledTimes[0] || reminder.dailyTimes[0] || '00:00';
+          const baseTime = new Date(`${baseDate}T${firstEnabled}:00`);
           if (baseTime <= now) {
             // 如果基础时间已过，跳到下一天
             const nextDay = new Date(baseTime);
             nextDay.setDate(nextDay.getDate() + 1);
-            nextAt = new Date(`${nextDay.toISOString().slice(0,10)}T${reminder.dailyTimes[0]}:00`);
+            nextAt = new Date(`${nextDay.toISOString().slice(0,10)}T${firstEnabled}:00`);
           } else {
             nextAt = baseTime;
           }
@@ -1421,9 +1558,15 @@
       if (atMs < nowMs) atMs = nowMs + 500;
       const at = new Date(atMs);
 
-      const notificationId = stableIdFromString(reminder.id);
-      // 先取消同ID，再按 at 调度，不使用 repeats
-      LocalNotifications.cancel({ notifications: [{ id: notificationId }] }).catch(() => {});
+      // 对于按多个时间点调度，按“明确定点时间”的ID来调度，以便与启用状态对齐
+      const enabledTimes = [...(reminder.dailyTimes || [])].filter(Boolean).filter(t => isTimeEnabled(reminder, t)).sort();
+      const nextTimeHHMM = nextAt.toTimeString().slice(0,5);
+      const idKey = enabledTimes.includes(nextTimeHHMM) ? (reminder.id + '|' + nextTimeHHMM) : reminder.id;
+      const notificationId = stableIdFromString(idKey);
+      // 先取消相关ID，再按 at 调度，不使用 repeats
+      const cancelIds = [{ id: stableIdFromString(reminder.id) }];
+      enabledTimes.forEach(t => cancelIds.push({ id: stableIdFromString(reminder.id + '|' + t) }));
+      LocalNotifications.cancel({ notifications: cancelIds }).catch(() => {});
       LocalNotifications.schedule({ notifications: [{
         id: notificationId,
         title: buildNotificationTitle(),
@@ -1630,7 +1773,7 @@
   // 计算“今天内”的下一次时间（仅针对 dailyTimes），若没有则返回 null
   function getNextTimeToday(reminder, fromDate) {
     if (!(reminder && reminder.dailyCount > 0 && Array.isArray(reminder.dailyTimes) && reminder.dailyTimes.length > 0)) return null;
-    const times = [...reminder.dailyTimes].filter(Boolean).sort();
+    const times = [...reminder.dailyTimes].filter(Boolean).filter(t => isTimeEnabled(reminder, t)).sort();
     const from = fromDate ? new Date(fromDate) : new Date();
     const dateStr = from.toISOString().slice(0,10);
     const hhmm = from.toTimeString().slice(0,5);
