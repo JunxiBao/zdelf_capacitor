@@ -33,6 +33,12 @@ function initMetricsPage() {
         });
     }
 
+    // 初始化出血点选择功能
+    initBleedingPointSelection();
+
+    // 初始化自我评分滑块功能
+    initSelfRatingSlider();
+
     console.log('健康指标页面初始化完成');
 }
 
@@ -70,7 +76,7 @@ function saveAllMetrics() {
         let hasValidData = false;
 
         // 收集所有指标数据
-        const metricTypes = ['symptoms', 'temperature', 'urinalysis', 'proteinuria', 'blood-test'];
+        const metricTypes = ['symptoms', 'temperature', 'urinalysis', 'proteinuria', 'blood-test', 'bleeding-point', 'self-rating'];
 
         for (const metricType of metricTypes) {
             let data = {};
@@ -133,6 +139,30 @@ function saveAllMetrics() {
                     if (Object.keys(bloodData).length > 0) {
                         data = bloodData;
                         hasValidData = true;
+                    }
+                    break;
+
+                case 'bleeding-point':
+                    const bleedingPoint = document.getElementById('bleeding-point-select').value;
+                    const otherBleedingText = document.getElementById('other-bleeding-text').value.trim();
+                    
+                    if (bleedingPoint) {
+                        data = { bleedingPoint };
+                        if (bleedingPoint === 'other' && otherBleedingText) {
+                            data.otherDescription = otherBleedingText;
+                        }
+                        hasValidData = true;
+                    }
+                    break;
+
+                case 'self-rating':
+                    const rating = document.getElementById('self-rating-slider').value;
+                    if (rating && !isNaN(parseInt(rating))) {
+                        const ratingValue = parseInt(rating);
+                        if (ratingValue >= 0 && ratingValue <= 10) {
+                            data = { selfRating: ratingValue };
+                            hasValidData = true;
+                        }
                     }
                     break;
             }
@@ -236,9 +266,254 @@ function fillFormData(type, data) {
                 if (data.hb !== null) document.getElementById('hb-input').value = data.hb;
                 if (data.plt !== null) document.getElementById('plt-input').value = data.plt;
                 break;
+
+            case 'bleeding-point':
+                if (data.bleedingPoint) {
+                    document.getElementById('bleeding-point-select').value = data.bleedingPoint;
+                    // 如果选择的是"其他"，显示其他输入框并填充内容
+                    if (data.bleedingPoint === 'other') {
+                        const otherInput = document.getElementById('other-bleeding-input');
+                        otherInput.style.display = 'block';
+                        if (data.otherDescription) {
+                            document.getElementById('other-bleeding-text').value = data.otherDescription;
+                        }
+                    }
+                }
+                break;
+
+            case 'self-rating':
+                if (data.selfRating !== null && data.selfRating !== undefined) {
+                    const slider = document.getElementById('self-rating-slider');
+                    const ratingValue = document.getElementById('rating-value');
+                    slider.value = data.selfRating;
+                    ratingValue.textContent = data.selfRating;
+                    updateSliderFill(data.selfRating);
+                }
+                break;
         }
     } catch (error) {
         console.error(`填充${type}表单数据失败:`, error);
+    }
+}
+
+// 初始化出血点选择功能
+function initBleedingPointSelection() {
+    const bleedingSelect = document.getElementById('bleeding-point-select');
+    const otherInput = document.getElementById('other-bleeding-input');
+    
+    if (bleedingSelect && otherInput) {
+        // 选择器变化时的震动反馈
+        bleedingSelect.addEventListener('change', function() {
+            // 添加震动反馈
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Medium');
+            } catch(_) {}
+            
+            if (this.value === 'other') {
+                otherInput.style.display = 'block';
+                // 聚焦到其他输入框
+                const otherTextInput = document.getElementById('other-bleeding-text');
+                if (otherTextInput) {
+                    otherTextInput.focus();
+                }
+            } else {
+                otherInput.style.display = 'none';
+                // 清空其他输入框的内容
+                const otherTextInput = document.getElementById('other-bleeding-text');
+                if (otherTextInput) {
+                    otherTextInput.value = '';
+                }
+            }
+        });
+
+        // 选择器聚焦时的轻微震动
+        bleedingSelect.addEventListener('focus', function() {
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Light');
+            } catch(_) {}
+        });
+
+        // 其他输入框的震动反馈
+        const otherTextInput = document.getElementById('other-bleeding-text');
+        if (otherTextInput) {
+            otherTextInput.addEventListener('focus', function() {
+                try {
+                    window.__hapticImpact__ && window.__hapticImpact__('Light');
+                } catch(_) {}
+            });
+
+            otherTextInput.addEventListener('input', function() {
+                // 输入时的轻微震动（防抖处理）
+                if (this._inputTimer) {
+                    clearTimeout(this._inputTimer);
+                }
+                this._inputTimer = setTimeout(() => {
+                    try {
+                        window.__hapticImpact__ && window.__hapticImpact__('Light');
+                    } catch(_) {}
+                }, 300);
+            });
+        }
+    }
+}
+
+// 初始化自我评分滑块功能
+function initSelfRatingSlider() {
+    const slider = document.getElementById('self-rating-slider');
+    const ratingValue = document.getElementById('rating-value');
+    
+    if (slider && ratingValue) {
+        // 初始化滑块填充
+        updateSliderFill(parseInt(slider.value));
+        
+        let lastValue = parseInt(slider.value);
+        let isDragging = false;
+        let dragStartTime = 0;
+        
+        // 滑块开始拖动
+        slider.addEventListener('mousedown', function() {
+            isDragging = true;
+            dragStartTime = Date.now();
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Light');
+            } catch(_) {}
+        });
+        
+        slider.addEventListener('touchstart', function() {
+            isDragging = true;
+            dragStartTime = Date.now();
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Light');
+            } catch(_) {}
+        });
+        
+        // 滑块拖动过程中
+        slider.addEventListener('input', function() {
+            const value = parseInt(this.value);
+            ratingValue.textContent = value;
+            updateSliderFill(value);
+            
+            // 根据评分值提供不同的震动反馈
+            if (value !== lastValue) {
+                let hapticType = 'Light';
+                
+                // 根据评分范围选择震动强度
+                if (value <= 2) {
+                    hapticType = 'Heavy'; // 低分用强震动
+                } else if (value <= 4) {
+                    hapticType = 'Medium'; // 中低分用中等震动
+                } else if (value <= 6) {
+                    hapticType = 'Light'; // 中等分用轻微震动
+                } else if (value <= 8) {
+                    hapticType = 'Medium'; // 中高分用中等震动
+                } else {
+                    hapticType = 'Heavy'; // 高分用强震动
+                }
+                
+                // 防抖处理，避免过于频繁的震动
+                if (this._hapticTimer) {
+                    clearTimeout(this._hapticTimer);
+                }
+                this._hapticTimer = setTimeout(() => {
+                    try {
+                        window.__hapticImpact__ && window.__hapticImpact__(hapticType);
+                    } catch(_) {}
+                }, 50);
+                
+                lastValue = value;
+            }
+        });
+        
+        // 滑块拖动结束
+        slider.addEventListener('mouseup', function() {
+            if (isDragging) {
+                isDragging = false;
+                const dragDuration = Date.now() - dragStartTime;
+                const value = parseInt(this.value);
+                
+                // 根据拖动时长和最终值提供反馈
+                if (dragDuration > 500) {
+                    // 长时间拖动，提供确认震动
+                    try {
+                        window.__hapticImpact__ && window.__hapticImpact__('Medium');
+                    } catch(_) {}
+                } else {
+                    // 快速拖动，根据最终值提供震动
+                    let hapticType = 'Light';
+                    if (value <= 3 || value >= 8) {
+                        hapticType = 'Heavy';
+                    } else if (value <= 5 || value >= 7) {
+                        hapticType = 'Medium';
+                    }
+                    
+                    try {
+                        window.__hapticImpact__ && window.__hapticImpact__(hapticType);
+                    } catch(_) {}
+                }
+            }
+        });
+        
+        slider.addEventListener('touchend', function() {
+            if (isDragging) {
+                isDragging = false;
+                const dragDuration = Date.now() - dragStartTime;
+                const value = parseInt(this.value);
+                
+                // 根据拖动时长和最终值提供反馈
+                if (dragDuration > 500) {
+                    // 长时间拖动，提供确认震动
+                    try {
+                        window.__hapticImpact__ && window.__hapticImpact__('Medium');
+                    } catch(_) {}
+                } else {
+                    // 快速拖动，根据最终值提供震动
+                    let hapticType = 'Light';
+                    if (value <= 3 || value >= 8) {
+                        hapticType = 'Heavy';
+                    } else if (value <= 5 || value >= 7) {
+                        hapticType = 'Medium';
+                    }
+                    
+                    try {
+                        window.__hapticImpact__ && window.__hapticImpact__(hapticType);
+                    } catch(_) {}
+                }
+            }
+        });
+        
+        // 滑块聚焦时的震动
+        slider.addEventListener('focus', function() {
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Light');
+            } catch(_) {}
+        });
+        
+        // 键盘操作时的震动反馈
+        slider.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                try {
+                    window.__hapticImpact__ && window.__hapticImpact__('Light');
+                } catch(_) {}
+            }
+        });
+    }
+}
+
+// 更新滑块填充效果
+function updateSliderFill(value) {
+    const sliderFill = document.getElementById('slider-fill');
+    if (sliderFill) {
+        const percentage = (value / 10) * 100;
+        sliderFill.style.width = percentage + '%';
+        
+        // 根据评分值改变颜色
+        if (value <= 3) {
+            sliderFill.style.background = 'linear-gradient(90deg, #ff4444, #ff6666)';
+        } else if (value <= 6) {
+            sliderFill.style.background = 'linear-gradient(90deg, #ffaa00, #ffcc44)';
+        } else {
+            sliderFill.style.background = 'linear-gradient(90deg, #44ff44, #66ff66)';
+        }
     }
 }
 
@@ -352,6 +627,386 @@ style.textContent = `
         to {
             transform: translate(-50%, -50%) scale(12);
             opacity: 0;
+        }
+    }
+
+    /* 自我评分滑块样式 */
+    .rating-container {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px 0;
+    }
+
+    .rating-labels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.85em;
+        color: #666;
+        margin-bottom: 8px;
+    }
+
+    .rating-label {
+        font-weight: 500;
+    }
+
+    .slider-container {
+        position: relative;
+        height: 40px;
+        display: flex;
+        align-items: center;
+    }
+
+    .rating-slider {
+        width: 100%;
+        height: 6px;
+        background: transparent;
+        outline: none;
+        -webkit-appearance: none;
+        appearance: none;
+        position: relative;
+        z-index: 2;
+        cursor: pointer;
+    }
+
+    .rating-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        background: #6200ea;
+        border-radius: 50%;
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(98, 0, 234, 0.3);
+        transition: all 0.2s ease;
+    }
+
+    .rating-slider::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 4px 12px rgba(98, 0, 234, 0.4);
+    }
+
+    .rating-slider::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        background: #6200ea;
+        border-radius: 50%;
+        cursor: pointer;
+        border: none;
+        box-shadow: 0 2px 6px rgba(98, 0, 234, 0.3);
+        transition: all 0.2s ease;
+    }
+
+    .rating-slider::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 4px 12px rgba(98, 0, 234, 0.4);
+    }
+
+    .slider-track {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        height: 6px;
+        background: #e0e0e0;
+        border-radius: 3px;
+        transform: translateY(-50%);
+        z-index: 1;
+    }
+
+    .slider-fill {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        height: 6px;
+        background: linear-gradient(90deg, #ff4444, #ff6666);
+        border-radius: 3px;
+        transform: translateY(-50%);
+        z-index: 1;
+        transition: all 0.3s ease;
+    }
+
+    .rating-display {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        margin-top: 8px;
+    }
+
+    .rating-value {
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #6200ea;
+        min-width: 24px;
+        text-align: center;
+    }
+
+    .rating-unit {
+        font-size: 1em;
+        color: #666;
+    }
+
+    /* 深色模式适配 */
+    @media (prefers-color-scheme: dark) {
+        .rating-labels {
+            color: #aaa;
+        }
+        
+        .slider-track {
+            background: #444;
+        }
+        
+        .rating-unit {
+            color: #aaa;
+        }
+    }
+
+    /* 出血点选择器美化样式 */
+    .bleeding-selector-container {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .custom-select-wrapper {
+        position: relative;
+        width: 100%;
+    }
+
+    .custom-select {
+        width: 100%;
+        padding: 16px 48px 16px 16px;
+        font-size: 16px;
+        font-weight: 500;
+        color: #333;
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        border: 2px solid #e1e5e9;
+        border-radius: 12px;
+        outline: none;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    .custom-select:hover {
+        border-color: #6200ea;
+        box-shadow: 0 4px 16px rgba(98, 0, 234, 0.1);
+        transform: translateY(-1px);
+    }
+
+    .custom-select:focus {
+        border-color: #6200ea;
+        box-shadow: 0 0 0 3px rgba(98, 0, 234, 0.1);
+        background: linear-gradient(135deg, #ffffff 0%, #f0f4ff 100%);
+    }
+
+    .custom-select:active {
+        transform: translateY(0);
+    }
+
+    .select-arrow {
+        position: absolute;
+        right: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #666;
+        pointer-events: none;
+        transition: all 0.3s ease;
+        z-index: 1;
+    }
+
+    .custom-select:focus + .select-arrow {
+        color: #6200ea;
+        transform: translateY(-50%) rotate(180deg);
+    }
+
+    .custom-select option {
+        padding: 12px 16px;
+        font-size: 16px;
+        font-weight: 500;
+        background: #ffffff;
+        color: #333;
+        border: none;
+    }
+
+    .custom-select option:hover {
+        background: #f0f4ff;
+        color: #6200ea;
+    }
+
+    .custom-select option:checked {
+        background: #6200ea;
+        color: #ffffff;
+    }
+
+    .other-input-container {
+        animation: slideDown 0.3s ease-out;
+        overflow: hidden;
+    }
+
+    .other-input-wrapper {
+        position: relative;
+        width: 100%;
+    }
+
+    .other-text-input {
+        width: 100%;
+        padding: 16px 48px 16px 16px;
+        font-size: 16px;
+        font-weight: 500;
+        color: #333;
+        background: linear-gradient(135deg, #fff5f5 0%, #fef2f2 100%);
+        border: 2px solid #fecaca;
+        border-radius: 12px;
+        outline: none;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 2px 8px rgba(239, 68, 68, 0.1);
+    }
+
+    .other-text-input:focus {
+        border-color: #ef4444;
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+        background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
+    }
+
+    .other-text-input::placeholder {
+        color: #9ca3af;
+        font-weight: 400;
+    }
+
+    .input-icon {
+        position: absolute;
+        right: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 18px;
+        color: #ef4444;
+        pointer-events: none;
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            max-height: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            max-height: 100px;
+            transform: translateY(0);
+        }
+    }
+
+    /* 移动端优化 */
+    @media (max-width: 768px) {
+        .custom-select {
+            padding: 18px 48px 18px 18px;
+            font-size: 17px;
+        }
+
+        .other-text-input {
+            padding: 18px 48px 18px 18px;
+            font-size: 17px;
+        }
+
+        .select-arrow {
+            right: 18px;
+        }
+
+        .input-icon {
+            right: 18px;
+        }
+    }
+
+    /* 深色模式适配 */
+    @media (prefers-color-scheme: dark) {
+        .custom-select {
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            border-color: #374151;
+            color: #f9fafb;
+        }
+
+        .custom-select:hover {
+            border-color: #a78bfa;
+            box-shadow: 0 4px 16px rgba(167, 139, 250, 0.2);
+        }
+
+        .custom-select:focus {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.2);
+            background: linear-gradient(135deg, #1f2937 0%, #1e1b4b 100%);
+        }
+
+        .select-arrow {
+            color: #9ca3af;
+        }
+
+        .custom-select:focus + .select-arrow {
+            color: #a78bfa;
+        }
+
+        .custom-select option {
+            background: #1f2937;
+            color: #f9fafb;
+        }
+
+        .custom-select option:hover {
+            background: #1e1b4b;
+            color: #a78bfa;
+        }
+
+        .custom-select option:checked {
+            background: #a78bfa;
+            color: #1f2937;
+        }
+
+        .other-text-input {
+            background: linear-gradient(135deg, #2d1b1b 0%, #1f1b1b 100%);
+            border-color: #7f1d1d;
+            color: #f9fafb;
+        }
+
+        .other-text-input:focus {
+            border-color: #dc2626;
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.2);
+            background: linear-gradient(135deg, #1f2937 0%, #2d1b1b 100%);
+        }
+
+        .other-text-input::placeholder {
+            color: #6b7280;
+        }
+
+        .input-icon {
+            color: #dc2626;
+        }
+    }
+
+    /* 高对比度模式 */
+    @media (prefers-contrast: high) {
+        .custom-select {
+            border-width: 3px;
+        }
+
+        .other-text-input {
+            border-width: 3px;
+        }
+    }
+
+    /* 减少动画模式 */
+    @media (prefers-reduced-motion: reduce) {
+        .custom-select,
+        .other-text-input,
+        .select-arrow,
+        .other-input-container {
+            transition: none;
+        }
+
+        .other-input-container {
+            animation: none;
         }
     }
 `;

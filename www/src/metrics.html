@@ -145,6 +145,78 @@
             </div>
 
         </div>
+
+        <!-- 出血点记录 -->
+        <div class="metric-card" data-type="bleeding-point">
+            <div class="metric-icon">
+                <div class="icon-placeholder">🩹</div>
+            </div>
+            <div class="metric-content">
+                <h3 class="metric-title">出血点</h3>
+                <p class="metric-description">记录身体出血部位</p>
+                <div class="metric-input">
+                    <div class="bleeding-selector-container">
+                        <div class="custom-select-wrapper">
+                            <select id="bleeding-point-select" class="custom-select">
+                                <option value="">请选择出血部位</option>
+                                <option value="nose">👃 鼻子</option>
+                                <option value="gums">🦷 牙龈</option>
+                                <option value="skin">🩸 皮肤</option>
+                                <option value="joints">🦴 关节</option>
+                                <option value="muscles">💪 肌肉</option>
+                                <option value="urine">💧 尿液</option>
+                                <option value="stool">💩 大便</option>
+                                <option value="vomit">🤮 呕吐物</option>
+                                <option value="menstrual">🩸 月经</option>
+                                <option value="other">📝 其他</option>
+                            </select>
+                            <div class="select-arrow">
+                                <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
+                                    <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div id="other-bleeding-input" class="other-input-container" style="display: none;">
+                            <div class="other-input-wrapper">
+                                <input type="text" id="other-bleeding-text" class="other-text-input" placeholder="请描述其他出血部位...">
+                                <div class="input-icon">✏️</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 自我评分 -->
+        <div class="metric-card" data-type="self-rating">
+            <div class="metric-icon">
+                <div class="icon-placeholder">⭐</div>
+            </div>
+            <div class="metric-content">
+                <h3 class="metric-title">自我评分</h3>
+                <p class="metric-description">请根据您当前的整体状况进行评分（0-10分）</p>
+                <div class="metric-input">
+                    <div class="rating-container">
+                        <div class="rating-labels">
+                            <span class="rating-label">0</span>
+                            <span class="rating-label">5</span>
+                            <span class="rating-label">10</span>
+                        </div>
+                        <div class="slider-container">
+                            <input type="range" id="self-rating-slider" class="rating-slider" min="0" max="10" step="1" value="5">
+                            <div class="slider-track"></div>
+                            <div class="slider-fill" id="slider-fill"></div>
+                        </div>
+                        <div class="rating-display">
+                            <span class="rating-value" id="rating-value">5</span>
+                            <span class="rating-unit">分</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
     </div>
 
     <!-- 统一保存按钮 -->
