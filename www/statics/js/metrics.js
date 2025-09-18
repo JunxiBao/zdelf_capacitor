@@ -39,6 +39,9 @@ function initMetricsPage() {
     // 初始化自我评分滑块功能
     initSelfRatingSlider();
 
+    // 初始化尿液检测指标矩阵
+    initUrinalysisMatrix();
+
     console.log('健康指标页面初始化完成');
 }
 
@@ -76,7 +79,7 @@ function saveAllMetrics() {
         let hasValidData = false;
 
         // 收集所有指标数据
-        const metricTypes = ['symptoms', 'temperature', 'urinalysis', 'proteinuria', 'blood-test', 'bleeding-point', 'self-rating'];
+        const metricTypes = ['symptoms', 'temperature', 'urinalysis', 'proteinuria', 'blood-test', 'bleeding-point', 'self-rating', 'urinalysis-matrix'];
 
         for (const metricType of metricTypes) {
             let data = {};
@@ -163,6 +166,29 @@ function saveAllMetrics() {
                             data = { selfRating: ratingValue };
                             hasValidData = true;
                         }
+                    }
+                    break;
+
+                case 'urinalysis-matrix':
+                    const urinalysisItems = document.querySelectorAll('.urinalysis-item');
+                    const urinalysisData = [];
+                    
+                    urinalysisItems.forEach((item, index) => {
+                        const select = item.querySelector('.urinalysis-select');
+                        const valueInput = item.querySelector('.urinalysis-value');
+                        
+                        if (select && select.value && valueInput && valueInput.value.trim()) {
+                            urinalysisData.push({
+                                item: select.value,
+                                value: valueInput.value.trim(),
+                                index: index
+                            });
+                        }
+                    });
+                    
+                    if (urinalysisData.length > 0) {
+                        data = { urinalysisMatrix: urinalysisData };
+                        hasValidData = true;
                     }
                     break;
             }
@@ -288,6 +314,19 @@ function fillFormData(type, data) {
                     slider.value = data.selfRating;
                     ratingValue.textContent = data.selfRating;
                     updateSliderFill(data.selfRating);
+                }
+                break;
+
+            case 'urinalysis-matrix':
+                if (data.urinalysisMatrix && Array.isArray(data.urinalysisMatrix)) {
+                    // 清空现有项目
+                    const container = document.getElementById('urinalysis-matrix-container');
+                    container.innerHTML = '';
+                    
+                    // 重新创建项目
+                    data.urinalysisMatrix.forEach((item, index) => {
+                        addUrinalysisItem(item.item, item.value, index);
+                    });
                 }
                 break;
         }
@@ -792,11 +831,7 @@ style.textContent = `
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
     }
 
-    .custom-select:hover {
-        border-color: #6200ea;
-        box-shadow: 0 4px 16px rgba(98, 0, 234, 0.1);
-        transform: translateY(-1px);
-    }
+    /* 取消出血点选择框悬停高亮效果 */
 
     .custom-select:focus {
         border-color: #6200ea;
@@ -930,10 +965,7 @@ style.textContent = `
             color: #f9fafb;
         }
 
-        .custom-select:hover {
-            border-color: #a78bfa;
-            box-shadow: 0 4px 16px rgba(167, 139, 250, 0.2);
-        }
+        /* 取消深色模式出血点选择框悬停高亮效果 */
 
         .custom-select:focus {
             border-color: #a78bfa;
@@ -1011,6 +1043,268 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+// 尿液检测指标矩阵相关函数
+let urinalysisItemIndex = 0;
+
+// 添加尿液检测项目
+function addUrinalysisItem(selectedItem = '', value = '', index = null) {
+    const container = document.getElementById('urinalysis-matrix-container');
+    if (!container) return;
+    
+    // 添加按钮点击动画
+    const addBtn = document.querySelector('.add-btn');
+    if (addBtn) {
+        addBtn.classList.add('clicking');
+        setTimeout(() => {
+            addBtn.classList.remove('clicking');
+        }, 300);
+    }
+    
+    // 添加按钮点击时的震动反馈
+    try {
+        window.__hapticImpact__ && window.__hapticImpact__('Medium');
+    } catch(_) {}
+    
+    const itemIndex = index !== null ? index : urinalysisItemIndex++;
+    
+    const itemDiv = document.createElement('div');
+    itemDiv.className = 'urinalysis-item';
+    
+    itemDiv.innerHTML = `
+        <div class="item-header">
+            <select class="urinalysis-select" data-index="${itemIndex}">
+                <option value="">请选择检测项目</option>
+                <option value="ph" data-unit="" data-reference="5.0-8.0">pH</option>
+                <option value="color" data-unit="" data-reference="颜色">颜色</option>
+                <option value="nitrite" data-unit="" data-reference="阴性">亚硝酸盐</option>
+                <option value="glucose" data-unit="" data-reference="阴性">葡萄糖</option>
+                <option value="specific-gravity" data-unit="" data-reference="1.005-1.030">比重</option>
+                <option value="occult-blood" data-unit="" data-reference="阴性">隐血</option>
+                <option value="protein" data-unit="" data-reference="阴性">蛋白质</option>
+                <option value="bilirubin" data-unit="" data-reference="阴性">胆红素</option>
+                <option value="leukocyte-esterase" data-unit="" data-reference="阴性">白细胞酯酶</option>
+                <option value="rbc-count" data-unit="/μl" data-reference="0-17.0">红细胞（定量）</option>
+                <option value="wbc-count" data-unit="/μl" data-reference="0-28.0">白细胞（定量）</option>
+                <option value="hyaline-casts" data-unit="/μl" data-reference="0-1">透明管型</option>
+                <option value="conductivity" data-unit="mS/cm" data-reference="5-32">电导率</option>
+                <option value="crystals" data-unit="/μl" data-reference="">结晶</option>
+                <option value="osmolality" data-unit="mOsm/kgH2O" data-reference="40-1400">渗透压</option>
+                <option value="mucus" data-unit="/μl" data-reference="0-46">粘液丝</option>
+                <option value="squamous-epithelial" data-unit="/μl" data-reference="0-28">鳞状上皮细胞</option>
+                <option value="nonsquamous-epithelial" data-unit="/μl" data-reference="0-6">非鳞状上皮细胞</option>
+                <option value="wbc-clumps" data-unit="/μl" data-reference="0-2.0">白细胞团</option>
+                <option value="urine-creatinine" data-unit="g/L" data-reference="0.1-2.0">尿肌酐</option>
+                <option value="up-cr" data-unit="mg/gCr" data-reference="0-30">尿白蛋白/尿肌酐</option>
+                <option value="vitamin-c" data-unit="" data-reference="阴性">维生素C</option>
+                <option value="urine-rbc" data-unit="/μl" data-reference="0.0-30.7">尿红细胞计数</option>
+                <option value="urine-wbc" data-unit="/μl" data-reference="0.0-39.0">尿白细胞计数</option>
+                <option value="urine-epithelial" data-unit="/μl" data-reference="0.0-45.6">尿上皮细胞计数</option>
+            </select>
+            <button type="button" class="remove-btn" onclick="removeUrinalysisItem(this)" onmousedown="try { window.__hapticImpact__ && window.__hapticImpact__('Light'); } catch(_) {}">×</button>
+        </div>
+        <div class="item-input">
+            <input type="text" class="urinalysis-value" placeholder="请输入数值" data-index="${itemIndex}" value="${value}">
+            <div class="unit-reference">
+                <span class="unit-display">单位</span>
+                <span class="reference-display">参考值</span>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(itemDiv);
+    
+    // 如果提供了选中的项目，设置选择器
+    if (selectedItem) {
+        const select = itemDiv.querySelector('.urinalysis-select');
+        select.value = selectedItem;
+        updateUnitReference(select);
+    }
+    
+    // 添加事件监听器
+    const select = itemDiv.querySelector('.urinalysis-select');
+    select.addEventListener('change', function() {
+        updateUnitReference(this);
+        try {
+            window.__hapticImpact__ && window.__hapticImpact__('Medium');
+        } catch(_) {}
+    });
+    
+    // 选择器聚焦时的震动
+    select.addEventListener('focus', function() {
+        try {
+            window.__hapticImpact__ && window.__hapticImpact__('Light');
+        } catch(_) {}
+    });
+    
+    const valueInput = itemDiv.querySelector('.urinalysis-value');
+    let inputTimer;
+    
+    valueInput.addEventListener('input', function() {
+        // 清除之前的定时器
+        if (inputTimer) {
+            clearTimeout(inputTimer);
+        }
+        
+        // 防抖处理，避免过于频繁的震动
+        inputTimer = setTimeout(() => {
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Light');
+            } catch(_) {}
+        }, 200);
+    });
+    
+    // 输入框聚焦时的震动
+    valueInput.addEventListener('focus', function() {
+        try {
+            window.__hapticImpact__ && window.__hapticImpact__('Light');
+        } catch(_) {}
+    });
+    
+    // 输入框失去焦点时的震动（输入完成）
+    valueInput.addEventListener('blur', function() {
+        if (this.value.trim()) {
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Medium');
+            } catch(_) {}
+        }
+    });
+    
+    // 更新删除按钮显示状态
+    updateRemoveButtons();
+    
+    // 添加震动反馈 - 添加项目时使用强震动
+    try {
+        window.__hapticImpact__ && window.__hapticImpact__('Heavy');
+    } catch(_) {}
+}
+
+// 删除尿液检测项目
+function removeUrinalysisItem(button) {
+    const item = button.closest('.urinalysis-item');
+    if (item) {
+        // 删除按钮动画
+        button.classList.add('removing');
+        
+        // 删除前的震动反馈
+        try {
+            window.__hapticImpact__ && window.__hapticImpact__('Medium');
+        } catch(_) {}
+        
+        // 添加项目滑出动画
+        item.classList.add('removing');
+        
+        // 等待动画完成后删除元素
+        setTimeout(() => {
+            item.remove();
+            updateRemoveButtons();
+            
+            // 删除完成后的震动反馈
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Heavy');
+            } catch(_) {}
+        }, 400); // 增加时间以匹配CSS动画时长
+    }
+}
+
+// 更新单位和参考值显示
+function updateUnitReference(selectElement) {
+    const selectedOption = selectElement.options[selectElement.selectedIndex];
+    const unitDisplay = selectElement.closest('.urinalysis-item').querySelector('.unit-display');
+    const referenceDisplay = selectElement.closest('.urinalysis-item').querySelector('.reference-display');
+    
+    if (selectedOption && unitDisplay && referenceDisplay) {
+        const unit = selectedOption.getAttribute('data-unit') || '';
+        const reference = selectedOption.getAttribute('data-reference') || '';
+        
+        // 添加更新动画
+        unitDisplay.classList.add('updating');
+        referenceDisplay.classList.add('updating');
+        
+        // 更新内容
+        unitDisplay.textContent = unit || '单位';
+        referenceDisplay.textContent = reference || '参考值';
+        
+        // 动画完成后移除类
+        setTimeout(() => {
+            unitDisplay.classList.remove('updating');
+            referenceDisplay.classList.remove('updating');
+        }, 300);
+    }
+}
+
+// 更新删除按钮显示状态
+function updateRemoveButtons() {
+    const items = document.querySelectorAll('.urinalysis-item');
+    const removeButtons = document.querySelectorAll('.remove-btn');
+    
+    // 如果只有一个项目，隐藏删除按钮
+    removeButtons.forEach(button => {
+        button.style.display = items.length > 1 ? 'flex' : 'none';
+    });
+}
+
+// 初始化尿液检测指标矩阵
+function initUrinalysisMatrix() {
+    const container = document.getElementById('urinalysis-matrix-container');
+    if (!container) return;
+    
+    // 为现有的选择器添加事件监听器
+    const existingSelects = container.querySelectorAll('.urinalysis-select');
+    existingSelects.forEach(select => {
+        select.addEventListener('change', function() {
+            updateUnitReference(this);
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Medium');
+            } catch(_) {}
+        });
+        
+        // 选择器聚焦时的震动
+        select.addEventListener('focus', function() {
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Light');
+            } catch(_) {}
+        });
+    });
+    
+    const existingInputs = container.querySelectorAll('.urinalysis-value');
+    existingInputs.forEach(input => {
+        let inputTimer;
+        
+        input.addEventListener('input', function() {
+            // 清除之前的定时器
+            if (inputTimer) {
+                clearTimeout(inputTimer);
+            }
+            
+            // 防抖处理，避免过于频繁的震动
+            inputTimer = setTimeout(() => {
+                try {
+                    window.__hapticImpact__ && window.__hapticImpact__('Light');
+                } catch(_) {}
+            }, 200);
+        });
+        
+        // 输入框聚焦时的震动
+        input.addEventListener('focus', function() {
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Light');
+            } catch(_) {}
+        });
+        
+        // 输入框失去焦点时的震动（输入完成）
+        input.addEventListener('blur', function() {
+            if (this.value.trim()) {
+                try {
+                    window.__hapticImpact__ && window.__hapticImpact__('Medium');
+                } catch(_) {}
+            }
+        });
+    });
+    
+    // 初始化删除按钮状态
+    updateRemoveButtons();
+}
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', initMetricsPage);
