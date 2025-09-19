@@ -36,10 +36,11 @@ let deepseekRoot = document; // Will be set by initDeepseek(shadowRoot) / 将由
 function initDeepseek(shadowRoot) {
   // Cache and use the ShadowRoot / 记录并使用 ShadowRoot
   deepseekRoot = shadowRoot || document;
+  currentShadowRoot = shadowRoot;
   console.log('✅ initDeepseek 执行', { hasShadowRoot: !!shadowRoot });
 
   // 直接加载DeepSeek.html内容
-  loadDeepSeekContent(deepseekRoot);
+  loadDeepSeekContent(shadowRoot);
 
   console.log('✅ initDeepseek 执行，AI助手页面已初始化');
 }
@@ -65,6 +66,12 @@ function loadDeepSeekContent(root) {
   
   iframe.onload = () => {
     console.log('✅ DeepSeek.html 加载完成');
+    // 将API基础路径传递给iframe
+    try {
+      iframe.contentWindow.__API_BASE__ = window.__API_BASE__ || 'https://app.zdelf.cn';
+    } catch (e) {
+      console.warn('无法设置iframe API路径:', e);
+    }
   };
   
   iframe.onerror = () => {

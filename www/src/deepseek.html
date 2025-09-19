@@ -122,14 +122,22 @@
 
       // 初始问候
       function generateGreeting() {
-        const hour = new Date().getHours();
+        const now = new Date();
+        const hour = now.getHours();
+        console.log('当前时间:', now.toLocaleString(), '小时:', hour);
+        
         let greet = "您好！有什么健康问题尽管问我哦~";
-        if (hour >= 5 && hour < 11)
-          greet = "早上好 ☀️，我可以帮你分析饮食、作息或体检报告。";
-        else if (hour < 14) greet = "中午好 🍵，注意补水，有什么想问的？";
-        else if (hour < 18)
-          greet = "下午好 🌿，需要我看看你的训练/饮食计划吗？";
-        else greet = "晚上好 🌙，今天感觉怎么样？我可以帮你做个总结。";
+        if (hour >= 5 && hour < 11) {
+          greet = "早上好 ☀️，祝你有愉快的一天";
+        } else if (hour >= 11 && hour < 14) {
+          greet = "中午好 🍵，注意补水，有什么想问的？";
+        } else if (hour >= 14 && hour < 18) {
+          greet = "下午好 🌿，上午过得如何呢？";
+        } else if (hour >= 18 && hour < 22) {
+          greet = "晚上好 🌙，今天感觉怎么样？可以准备休息喽～";
+        } else {
+          greet = "夜深了 🌃，美好的一天过去了，早点休息哦～";
+        }
         addMessage(greet, "bot");
       }
 
@@ -161,9 +169,13 @@
         const thinkingMsg = addTypingBubble();
 
         try {
+          // 获取API基础路径
+          const apiBase = window.__API_BASE__ || (window.parent && window.parent.__API_BASE__) || 'https://app.zdelf.cn';
+          const baseUrl = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase;
+          
           // 首先尝试使用流式接口
           const response = await fetch(
-            "/deepseek/chat_stream",
+            `${baseUrl}/deepseek/chat_stream`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -196,8 +208,12 @@
       // 回退到普通接口 + 打字机效果
       async function fallbackToLegacy(thinkingMsg, message) {
         try {
+          // 获取API基础路径
+          const apiBase = window.__API_BASE__ || (window.parent && window.parent.__API_BASE__) || 'https://app.zdelf.cn';
+          const baseUrl = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase;
+          
           const response = await fetch(
-            "/deepseek/chat",
+            `${baseUrl}/deepseek/chat`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
