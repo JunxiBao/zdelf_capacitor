@@ -88,7 +88,7 @@ if (document.fonts && document.fonts.ready) {
 const pageMap = [
   "../../src/daily.html",
   "../../src/notification.html",
-  "../../src/square.html",
+  "../../src/deepseek.html",
   "../../src/me.html",
 ];
 
@@ -211,7 +211,7 @@ function loadPage(index) {
       const scriptMap = [
         "../../statics/js/daily.js",
         "../../statics/js/notification.js",
-        "../../statics/js/square.js",
+        "../../statics/js/deepseek.js",
         "../../statics/js/me.js",
       ];
 

@@ -39,6 +39,7 @@
           color: #aaa;
         }
       }
+      
     </style>
 
     <!-- Third-party libs 外部库（defer 避免阻塞渲染） -->
@@ -58,9 +59,6 @@
   </head>
 
   <body>
-    <!-- Header 页头 -->
-    <header>您的健康AI助手</header>
-
     <!-- Chat container 聊天容器 -->
     <div class="chat-container">
       <!-- Message list 消息列表：使用可访问性语义 -->
@@ -74,15 +72,14 @@
 
       <!-- Input area 输入区 -->
       <div class="input-container">
-        <input
-          type="text"
+        <textarea
           id="userInput"
-          placeholder="请输入你的消息..."
+          placeholder="请输入您的健康问题..."
           autocomplete="off"
-          enterkeyhint="send"
-          aria-label="输入你的消息"
-          onkeydown="if(event.key === 'Enter') sendMessage()"
-        />
+          aria-label="输入您的健康问题"
+          onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); }"
+          rows="1"
+        ></textarea>
         <button
           type="button"
           id="sendBtn"
@@ -91,12 +88,7 @@
         >
           发送
         </button>
-      </div>
-      <!-- Reminder 提醒 -->
-      <div class="context-reminder subtle" role="note" aria-label="上下文提醒">
-        ⚠️ 提醒：此AI不会记录上下文。
-      </div>
-    </div>
+    
 
     <script>
       // Wait for deferred libs 等第三方库加载完成
@@ -106,6 +98,15 @@
           marked.setOptions({ breaks: true, mangle: false, headerIds: false });
         }
         generateGreeting();
+        
+        // 自动调整textarea高度
+        const textarea = document.getElementById('userInput');
+        if (textarea) {
+          textarea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+          });
+        }
       });
 
       /**
@@ -348,6 +349,16 @@
         const msgList = document.getElementById("messageList");
         const msgDiv = document.createElement("div");
         msgDiv.className = "message " + sender;
+
+        // avatar（仅机器人显示头像，用户不显示）
+        let avatar = null;
+        if (sender === 'bot') {
+          avatar = document.createElement('img');
+          avatar.className = 'avatar';
+          avatar.src = '../images/doctor.png';
+          avatar.alt = 'Doctor';
+        }
+
         const content = document.createElement("div");
         content.className = "msg-content";
 
@@ -358,6 +369,8 @@
           content.textContent = text;
         }
 
+        // iMessage-like layout: avatar + bubble（仅bot带头像）
+        if (avatar) msgDiv.appendChild(avatar);
         msgDiv.appendChild(content);
         msgList.appendChild(msgDiv);
         msgList.scrollTop = msgList.scrollHeight;

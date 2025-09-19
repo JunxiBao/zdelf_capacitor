@@ -4,7 +4,7 @@
  *
  * Responsibilities / 职责
  * - Render greeting based on time & username / 根据时间与用户名显示问候语
- * - Wire up doctor popup interactions / 绑定“问诊弹窗”的交互
+ * - Load and display user data cards / 加载并显示用户数据卡片
  * - Expose lifecycle hooks: initDaily(shadowRoot), destroyDaily() / 导出生命周期钩子
  *
  * This module is loaded dynamically by the shell (index.js) and receives the
@@ -35,9 +35,6 @@
 // State / 模块状态
 // -----------------------------
 let dailyRoot = document; // Will be set by initDaily(shadowRoot) / 将由 initDaily 赋值
-let onDoctorClick = null; // Cached handler for cleanup / 缓存处理器，便于清理
-let onDocumentClick = null; // Ditto / 同上
-let doctorObserver = null; // MutationObserver reference / 观察者引用
 
 // -----------------------------
 // Utilities / 工具函数
@@ -153,66 +150,6 @@ function initDaily(shadowRoot) {
 
   // Load and display user data cards / 加载并显示用户数据卡片
   loadUserDataCards();
-
-  // Wire up doctor popup interactions scoped to Shadow DOM
-  const doctorButton = dailyRoot.querySelector('#doctor-button');
-  const doctorPopup = dailyRoot.querySelector('#doctor-popup');
-
-  if (!doctorButton || !doctorPopup) {
-    console.warn('⚠️ 未找到 doctorButton 或 doctorPopup（可能 DOM 尚未就绪）');
-    return;
-  }
-
-  // 防止重复绑定：先移除旧监听
-  if (onDoctorClick && doctorButton) doctorButton.removeEventListener('click', onDoctorClick);
-  if (onDocumentClick) document.removeEventListener('click', onDocumentClick, true);
-  if (doctorObserver) { doctorObserver.disconnect(); doctorObserver = null; }
-
-  // Click to toggle popup / 点击切换弹窗
-  onDoctorClick = () => {
-    try { window.__hapticImpact__ && window.__hapticImpact__('Light'); } catch(_) {}
-    if (!doctorPopup.classList.contains('show')) {
-      doctorPopup.classList.add('show');
-      doctorPopup.style.display = 'block';
-    } else if (!doctorPopup.classList.contains('hiding')) {
-      doctorPopup.classList.add('hiding');
-      doctorPopup.addEventListener('transitionend', function handler() {
-        doctorPopup.classList.remove('show', 'hiding');
-        doctorPopup.style.display = 'none';
-        doctorPopup.removeEventListener('transitionend', handler);
-      });
-    }
-  };
-  doctorButton.addEventListener('click', onDoctorClick);
-  cleanupFns.push(() => doctorButton.removeEventListener('click', onDoctorClick));
-
-  // Click outside to close (capture to see outside shadow)
-  onDocumentClick = (event) => {
-    if (
-      doctorPopup.classList.contains('show') &&
-      !doctorButton.contains(event.target) &&
-      !doctorPopup.contains(event.target)
-    ) {
-      try { window.__hapticImpact__ && window.__hapticImpact__('Light'); } catch(_) {}
-      doctorPopup.classList.add('hiding');
-      doctorPopup.addEventListener('transitionend', function handler() {
-        doctorPopup.classList.remove('show', 'hiding');
-        doctorPopup.style.display = 'none';
-        doctorPopup.removeEventListener('transitionend', handler);
-      });
-    }
-  };
-  document.addEventListener('click', onDocumentClick, true);
-  cleanupFns.push(() => document.removeEventListener('click', onDocumentClick, true));
-
-  // Keep display state consistent when class changes / 观察类名变化统一显示状态
-  doctorObserver = new MutationObserver(() => {
-    if (doctorPopup.classList.contains('show')) {
-      doctorPopup.style.display = 'block';
-    }
-  });
-  doctorObserver.observe(doctorPopup, { attributes: true, attributeFilter: ['class'] });
-  cleanupFns.push(() => { try { doctorObserver && doctorObserver.disconnect(); } catch(_) {} doctorObserver = null; });
 }
 
 /**
@@ -387,7 +324,7 @@ function showDetailModal(fileId, type) {
       top: 0 !important;
       left: 0 !important;
       right: 0 !important;
-      bottom: 80px !important;
+      bottom: 0 !important;
       z-index: 99999 !important;
       display: flex !important;
       align-items: center !important;
@@ -395,7 +332,7 @@ function showDetailModal(fileId, type) {
       padding: 20px !important;
       box-sizing: border-box !important;
       width: 100vw !important;
-      height: calc(100vh - 80px) !important;
+      height: 100vh !important;
     }
 
     .modal-backdrop {
@@ -434,7 +371,7 @@ function showDetailModal(fileId, type) {
       max-width: 700px !important;
       overflow: hidden !important;
       animation: modalSlideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-      border: 1px solid rgba(255, 255, 255, 0.2) !important;
+      border: none !important;
       margin: 0 auto !important;
       transform: translateZ(0) !important;
     }
@@ -525,8 +462,8 @@ function showDetailModal(fileId, type) {
     }
 
     .modal-body {
-      padding: 32px;
-      max-height: calc(100vh - 200px);
+      padding: 32px 32px 80px 32px;
+      max-height: calc(100vh - 240px);
       overflow-y: auto;
       background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
       position: relative;
@@ -653,6 +590,64 @@ function showDetailModal(fileId, type) {
       display: flex;
       flex-direction: column;
       gap: 20px;
+    }
+
+    .diet-detail {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .meal-detail {
+      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .meal-detail:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .meal-detail::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 3px;
+      height: 100%;
+      background: linear-gradient(180deg, #10b981, #059669);
+    }
+
+    .meal-detail h5 {
+      margin: 0 0 12px 0;
+      color: #1e293b;
+      font-size: 1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .meal-detail h5::before {
+      content: '🍽️';
+      font-size: 0.9rem;
+    }
+
+    .meal-info p {
+      margin: 0 0 8px 0;
+      color: #475569;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .meal-info p:last-child {
+      margin-bottom: 0;
     }
 
     .detail-section {
@@ -849,8 +844,12 @@ function showDetailModal(fileId, type) {
     /* 暗色模式支持 */
     @media (prefers-color-scheme: dark) {
       .modal-content {
-        background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%) !important;
+        border: none !important;
+        box-shadow: 
+          0 32px 64px rgba(0, 0, 0, 0.5),
+          0 0 0 1px rgba(255, 255, 255, 0.05),
+          inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
       }
       
       .modal-header {
@@ -885,6 +884,19 @@ function showDetailModal(fileId, type) {
       .detail-section {
         background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
         border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .meal-detail {
+        background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .meal-detail h5 {
+        color: #f1f5f9;
+      }
+
+      .meal-info p {
+        color: #cbd5e1;
       }
       
       .detail-section h5 {
@@ -940,19 +952,21 @@ function showDetailModal(fileId, type) {
   
   modal.appendChild(style);
   
-  // 将弹窗添加到 Shadow DOM 的根元素中，而不是 document.body
-  const shadowRoot = document.querySelector('.page-host')?.shadowRoot;
-  if (shadowRoot) {
-    shadowRoot.appendChild(modal);
-  } else {
-    document.body.appendChild(modal);
-  }
+  // 将弹窗添加到主文档，而不是 Shadow DOM，以便正确控制滚动
+  document.body.appendChild(modal);
+  
+  // 禁用页面滚动
+  document.body.style.overflow = 'hidden';
+  document.documentElement.style.overflow = 'hidden';
 
   // 绑定关闭事件
   const closeBtn = modal.querySelector('.close-btn');
   const backdrop = modal.querySelector('.modal-backdrop');
   
   const closeModal = () => {
+    // 恢复页面滚动
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
     modal.remove();
   };
   
@@ -1013,13 +1027,21 @@ function showAllItemsModal(type) {
     </div>
   `;
 
+  // 将弹窗添加到主文档，而不是 Shadow DOM，以便正确控制滚动
   document.body.appendChild(modal);
+  
+  // 禁用页面滚动
+  document.body.style.overflow = 'hidden';
+  document.documentElement.style.overflow = 'hidden';
 
   // 绑定关闭事件
   const closeBtn = modal.querySelector('.close-btn');
   const backdrop = modal.querySelector('.modal-backdrop');
   
   const closeModal = () => {
+    // 恢复页面滚动
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
     modal.remove();
   };
   
@@ -1149,8 +1171,30 @@ function parseMetricsSummary(metricsData) {
  * parseDietSummary — 解析饮食记录摘要
  */
 function parseDietSummary(content) {
-  // 这里可以根据实际的饮食数据结构来解析
-  return '饮食记录数据';
+  const dietData = content.dietData || {};
+  const summaries = [];
+  
+  // 统计餐次数量
+  const mealCount = Object.keys(dietData).length;
+  if (mealCount > 0) {
+    summaries.push(`${mealCount}餐记录`);
+  }
+  
+  // 获取第一餐的时间作为参考
+  const firstMeal = Object.values(dietData)[0];
+  if (firstMeal && firstMeal.time) {
+    summaries.push(`时间: ${firstMeal.time}`);
+  }
+  
+  // 获取第一餐的食物内容（截取前20个字符）
+  if (firstMeal && firstMeal.food) {
+    const foodPreview = firstMeal.food.length > 20 
+      ? firstMeal.food.substring(0, 20) + '...' 
+      : firstMeal.food;
+    summaries.push(`内容: ${foodPreview}`);
+  }
+  
+  return summaries.length > 0 ? summaries.join(' | ') : '饮食记录';
 }
 
 /**
@@ -1383,7 +1427,37 @@ function formatMetricsForDisplay(metricsData) {
  * formatDietForDisplay — 格式化饮食记录用于显示
  */
 function formatDietForDisplay(content) {
-  return '<p>饮食记录详细内容</p>';
+  const dietData = content.dietData || {};
+  const meals = Object.values(dietData);
+  
+  if (meals.length === 0) {
+    return '<p>暂无饮食记录</p>';
+  }
+  
+  let html = '<div class="diet-detail">';
+  
+  // 按时间排序
+  const sortedMeals = meals.sort((a, b) => {
+    if (a.time && b.time) {
+      return a.time.localeCompare(b.time);
+    }
+    return 0;
+  });
+  
+  sortedMeals.forEach((meal, index) => {
+    html += `
+      <div class="meal-detail">
+        <h5>第${index + 1}餐</h5>
+        <div class="meal-info">
+          ${meal.time ? `<p><strong>时间:</strong> ${meal.time}</p>` : ''}
+          ${meal.food ? `<p><strong>食物:</strong> ${meal.food}</p>` : ''}
+        </div>
+      </div>
+    `;
+  });
+  
+  html += '</div>';
+  return html;
 }
 
 /**
@@ -1482,8 +1556,6 @@ function destroyDaily() {
   cleanupFns.forEach(fn => { try { fn(); } catch (_) {} });
   cleanupFns = [];
 
-  onDoctorClick = null;
-  onDocumentClick = null;
   dailyRoot = document;
   console.log('🧹 destroyDaily 清理完成');
 }
