@@ -21,7 +21,7 @@
   const __API_BASE__ = __API_BASE_DEFAULT__ && __API_BASE_DEFAULT__.endsWith('/')
     ? __API_BASE_DEFAULT__.slice(0, -1)
     : __API_BASE_DEFAULT__;
-  console.debug('[daily] daily.js evaluated');
+  console.debug('[daily] daily.js 已加载');
   let cleanupFns = [];
   let fetchController = null;
   function abortInFlight() {
@@ -409,6 +409,9 @@ function bindUnifiedCardEvents(container) {
  * showDetailModal — 显示详情弹窗
  */
 function showDetailModal(fileId, type) {
+  // 检测深色模式
+  const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  
   // 创建弹窗 - 完全使用内联样式
   const modal = document.createElement('div');
   
@@ -430,17 +433,38 @@ function showDetailModal(fileId, type) {
     margin: 0 !important;
   `;
   
+  // 根据深色模式选择样式
+  const backdropStyle = isDarkMode 
+    ? "background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(12px);"
+    : "background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(12px);";
+    
+  const modalContentStyle = isDarkMode
+    ? "background: linear-gradient(145deg, #1f2937 0%, #111827 100%); border-radius: 28px; box-shadow: 0 32px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1); max-width: 90vw; max-height: calc(100vh - 120px); width: 100%; max-width: 700px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1); margin: 0 auto; transform: translateZ(0);"
+    : "background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%); border-radius: 28px; box-shadow: 0 32px 64px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.6); max-width: 90vw; max-height: calc(100vh - 120px); width: 100%; max-width: 700px; overflow: hidden; border: none; margin: 0 auto; transform: translateZ(0);";
+    
+  const headerStyle = isDarkMode
+    ? "display: flex; justify-content: space-between; align-items: center; padding: 28px 32px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); background: linear-gradient(135deg, #374151 0%, #1f2937 100%); color: #f9fafb; border-radius: 28px 28px 0 0;"
+    : "display: flex; justify-content: space-between; align-items: center; padding: 28px 32px 24px; border-bottom: 1px solid rgba(0, 0, 0, 0.06); background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 28px 28px 0 0;";
+    
+  const closeBtnStyle = isDarkMode
+    ? "background: rgba(255, 255, 255, 0.1); border: none; font-size: 1.6rem; color: #d1d5db; cursor: pointer; padding: 12px; border-radius: 16px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center;"
+    : "background: rgba(255, 255, 255, 0.2); border: none; font-size: 1.6rem; color: white; cursor: pointer; padding: 12px; border-radius: 16px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center;";
+    
+  const loadingTextStyle = isDarkMode
+    ? "color: #9ca3af; font-size: 1rem; font-weight: 500;"
+    : "color: #64748b; font-size: 1rem; font-weight: 500;";
+  
   modal.innerHTML = `
-    <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(12px);"></div>
-    <div style="position: relative; background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%); border-radius: 28px; box-shadow: 0 32px 64px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.6); max-width: 90vw; max-height: calc(100vh - 120px); width: 100%; max-width: 700px; overflow: hidden; border: none; margin: 0 auto; transform: translateZ(0);">
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 28px 32px 24px; border-bottom: 1px solid rgba(0, 0, 0, 0.06); background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 28px 28px 0 0;">
+    <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; ${backdropStyle}"></div>
+    <div style="position: relative; ${modalContentStyle}">
+      <div style="${headerStyle}">
         <h3 style="margin: 0; font-size: 1.5rem; font-weight: 700;">${getTypeTitle(type)} 详情</h3>
-        <button style="background: rgba(255, 255, 255, 0.2); border: none; font-size: 1.6rem; color: white; cursor: pointer; padding: 12px; border-radius: 16px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center;">&times;</button>
+        <button style="${closeBtnStyle}">&times;</button>
       </div>
       <div style="padding: 32px; max-height: calc(100vh - 240px); overflow-y: auto;">
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; min-height: 200px;">
           <div style="width: 48px; height: 48px; border: 4px solid rgba(102, 126, 234, 0.2); border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;"></div>
-          <div style="color: #64748b; font-size: 1rem; font-weight: 500;">正在加载详情...</div>
+          <div style="${loadingTextStyle}">正在加载详情...</div>
         </div>
       </div>
     </div>
@@ -505,7 +529,7 @@ function showDetailModal(fileId, type) {
         data.data.dataType = type;
         // 使用内联样式的选择器
         const modalBody = modal.querySelector('div[style*="padding: 32px"]');
-        console.log('找到modal-body元素:', modalBody);
+        console.log('找到弹窗主体元素:', modalBody);
         renderDetailContent(data.data, modalBody);
       } else {
         const modalBody = modal.querySelector('div[style*="padding: 32px"]');
@@ -742,6 +766,65 @@ function getBleedingPointText(bleedingPoint) {
 }
 
 /**
+ * getUrinalysisItemText — 获取尿常规检测项目中文描述
+ */
+function getUrinalysisItemText(itemName) {
+  const urinalysisMap = {
+    // 基本项目
+    'color': '颜色',
+    'appearance': '外观',
+    'clarity': '透明度',
+    'specific_gravity': '比重',
+    'ph': 'pH值',
+    'protein': '蛋白质',
+    'glucose': '葡萄糖',
+    'ketones': '酮体',
+    'blood': '隐血',
+    'nitrite': '亚硝酸盐',
+    'leukocyte_esterase': '白细胞酯酶',
+    'bilirubin': '胆红素',
+    'urobilinogen': '尿胆原',
+    
+    // 显微镜检查
+    'rbc': '红细胞',
+    'wbc': '白细胞',
+    'epithelial_cells': '上皮细胞',
+    'casts': '管型',
+    'crystals': '结晶',
+    'bacteria': '细菌',
+    'yeast': '酵母菌',
+    'parasites': '寄生虫',
+    'mucus': '粘液',
+    
+    // 其他项目
+    'albumin': '白蛋白',
+    'creatinine': '肌酐',
+    'microalbumin': '微量白蛋白',
+    'protein_creatinine_ratio': '蛋白肌酐比',
+    'albumin_creatinine_ratio': '白蛋白肌酐比',
+    
+    // 常见英文缩写
+    'sg': '比重',
+    'le': '白细胞酯酶',
+    'nit': '亚硝酸盐',
+    'bld': '隐血',
+    'pro': '蛋白质',
+    'glu': '葡萄糖',
+    'ket': '酮体',
+    'bil': '胆红素',
+    'ubg': '尿胆原',
+    
+    // 其他可能的项目
+    'other': '其他',
+    'unknown': '未知'
+  };
+  
+  // 转换为小写进行匹配
+  const lowerItemName = itemName.toLowerCase();
+  return urinalysisMap[lowerItemName] || itemName;
+}
+
+/**
  * renderDetailContent — 渲染详情内容
  */
 function renderDetailContent(data, container) {
@@ -749,25 +832,53 @@ function renderDetailContent(data, container) {
   const exportInfo = content.exportInfo || {};
   const dataType = data.dataType || 'unknown';
   
+  // 检测深色模式
+  const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  
+  // 根据深色模式选择样式
+  const infoCardStyle = isDarkMode
+    ? "margin-bottom: 32px; background: linear-gradient(135deg, #334155 0%, #1e293b 100%); border-radius: 16px; padding: 24px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); position: relative; overflow: hidden;"
+    : "margin-bottom: 32px; background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); border-radius: 16px; padding: 24px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); position: relative; overflow: hidden;";
+    
+  const infoItemStyle = isDarkMode
+    ? "display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); position: relative;"
+    : "display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid rgba(0, 0, 0, 0.06); position: relative;";
+    
+  const labelStyle = isDarkMode
+    ? "font-weight: 700; color: #e2e8f0; font-size: 0.95rem; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; min-width: 100px;"
+    : "font-weight: 700; color: #1e293b; font-size: 0.95rem; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; min-width: 100px;";
+    
+  const valueStyle = isDarkMode
+    ? "color: #cbd5e1; font-size: 0.9rem; font-weight: 500; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-align: right;"
+    : "color: #475569; font-size: 0.9rem; font-weight: 500; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-align: right;";
+    
+  const contentStyle = isDarkMode
+    ? "color: #f1f5f9;"
+    : "color: #1e293b;";
+    
+  const titleStyle = isDarkMode
+    ? "margin: 0 0 24px 0; color: #f1f5f9; font-size: 1.3rem; font-weight: 700; text-align: center; position: relative; padding-bottom: 12px;"
+    : "margin: 0 0 24px 0; color: #1e293b; font-size: 1.3rem; font-weight: 700; text-align: center; position: relative; padding-bottom: 12px;";
+  
   container.innerHTML = `
-    <div style="margin-bottom: 32px; background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); border-radius: 16px; padding: 24px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); position: relative; overflow: hidden;">
+    <div style="${infoCardStyle}">
       <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);"></div>
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid rgba(0, 0, 0, 0.06); position: relative;">
-        <label style="font-weight: 700; color: #1e293b; font-size: 0.95rem; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; min-width: 100px;">● 记录类型:</label>
-        <span style="color: #475569; font-size: 0.9rem; font-weight: 500; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-align: right;">${getTypeTitle(dataType)}</span>
+      <div style="${infoItemStyle}">
+        <label style="${labelStyle}">● 记录类型:</label>
+        <span style="${valueStyle}">${getTypeTitle(dataType)}</span>
       </div>
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: none; position: relative;">
-        <label style="font-weight: 700; color: #1e293b; font-size: 0.95rem; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; min-width: 100px;">● 时间:</label>
-        <span style="color: #475569; font-size: 0.9rem; font-weight: 500; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-align: right;">${formatDate(exportInfo.exportTime || data.created_at)}</span>
+      <div style="${infoItemStyle.replace('border-bottom: 1px solid rgba(255, 255, 255, 0.1);', 'border-bottom: none;').replace('border-bottom: 1px solid rgba(0, 0, 0, 0.06);', 'border-bottom: none;')}">
+        <label style="${labelStyle}">● 时间:</label>
+        <span style="${valueStyle}">${formatDate(exportInfo.exportTime || data.created_at)}</span>
       </div>
       </div>
-    <div style="color: #1e293b;">
-      <h4 style="margin: 0 0 24px 0; color: #1e293b; font-size: 1.3rem; font-weight: 700; text-align: center; position: relative; padding-bottom: 12px;">
+    <div style="${contentStyle}">
+      <h4 style="${titleStyle}">
         详细内容:
         <div style="position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 60px; height: 3px; background: linear-gradient(90deg, #667eea, #764ba2); border-radius: 2px;"></div>
       </h4>
-      <div style="color: #1e293b;">
-        ${formatContentForDisplay(content, dataType)}
+      <div style="${contentStyle}">
+        ${formatContentForDisplay(content, dataType, isDarkMode)}
       </div>
     </div>
   `;
@@ -776,22 +887,22 @@ function renderDetailContent(data, container) {
 /**
  * formatContentForDisplay — 格式化内容用于显示
  */
-function formatContentForDisplay(content, dataType) {
-  console.log('formatContentForDisplay called with:', { content, dataType });
+function formatContentForDisplay(content, dataType, isDarkMode = false) {
+  console.log('formatContentForDisplay 调用参数:', { content, dataType, isDarkMode });
   
   const metricsData = content.metricsData || {};
   
   switch (dataType) {
     case 'metrics':
-      const result = formatMetricsForDisplay(metricsData);
-      console.log('formatMetricsForDisplay result:', result);
+      const result = formatMetricsForDisplay(metricsData, isDarkMode);
+      console.log('formatMetricsForDisplay 结果:', result);
       return result;
     case 'diet':
-      return formatDietForDisplay(content);
+      return formatDietForDisplay(content, isDarkMode);
     case 'case':
-      return formatCaseForDisplay(content);
+      return formatCaseForDisplay(content, isDarkMode);
     default:
-      console.log('Unknown dataType:', dataType);
+      console.log('未知数据类型:', dataType);
       return '<p>暂无详细内容</p>';
   }
 }
@@ -799,19 +910,44 @@ function formatContentForDisplay(content, dataType) {
 /**
  * formatMetricsForDisplay — 格式化健康指标用于显示
  */
-function formatMetricsForDisplay(metricsData) {
-  console.log('formatMetricsForDisplay called with:', metricsData);
+function formatMetricsForDisplay(metricsData, isDarkMode = false) {
+  console.log('formatMetricsForDisplay 调用参数:', metricsData);
   
   let html = '<div style="display: flex; flex-direction: column; gap: 20px;">';
   let hasContent = false;
   
+  // 根据深色模式选择样式
+  const sectionStyle = isDarkMode
+    ? "background: linear-gradient(135deg, #334155 0%, #1e293b 100%); border-radius: 16px; padding: 24px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); position: relative; overflow: hidden; transition: all 0.3s ease;"
+    : "background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 16px; padding: 24px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); position: relative; overflow: hidden; transition: all 0.3s ease;";
+    
+  const titleStyle = isDarkMode
+    ? "margin: 0 0 16px 0; color: #f1f5f9; font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; letter-spacing: -0.01em;"
+    : "margin: 0 0 16px 0; color: #1e293b; font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; letter-spacing: -0.01em;";
+    
+  const textStyle = isDarkMode
+    ? "margin: 0; color: #cbd5e1; font-size: 0.95rem; line-height: 1.6; font-weight: 500;"
+    : "margin: 0; color: #475569; font-size: 0.95rem; line-height: 1.6; font-weight: 500;";
+    
+  const gridItemStyle = isDarkMode
+    ? "display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: linear-gradient(135deg, #334155 0%, #1e293b 100%); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); transition: all 0.2s ease;"
+    : "display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); transition: all 0.2s ease;";
+    
+  const gridLabelStyle = isDarkMode
+    ? "color: #94a3b8; font-weight: 600; font-size: 0.9rem; letter-spacing: -0.01em;"
+    : "color: #64748b; font-weight: 600; font-size: 0.9rem; letter-spacing: -0.01em;";
+    
+  const gridValueStyle = isDarkMode
+    ? "color: #f1f5f9; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;"
+    : "color: #1e293b; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;";
+
   // 症状
   if (metricsData.symptoms?.symptoms) {
     html += `
-      <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 16px; padding: 24px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); position: relative; overflow: hidden; transition: all 0.3s ease;">
+      <div style="${sectionStyle}">
         <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
-        <h5 style="margin: 0 0 16px 0; color: #1e293b; font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; letter-spacing: -0.01em;">▶ 症状描述</h5>
-        <p style="margin: 0; color: #475569; font-size: 0.95rem; line-height: 1.6; font-weight: 500;">${metricsData.symptoms.symptoms}</p>
+        <h5 style="${titleStyle}">▶ 症状描述</h5>
+        <p style="${textStyle}">${metricsData.symptoms.symptoms}</p>
       </div>
     `;
     hasContent = true;
@@ -820,10 +956,10 @@ function formatMetricsForDisplay(metricsData) {
   // 体温
   if (metricsData.temperature?.temperature) {
     html += `
-      <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 16px; padding: 24px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); position: relative; overflow: hidden; transition: all 0.3s ease;">
+      <div style="${sectionStyle}">
         <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
-        <h5 style="margin: 0 0 16px 0; color: #1e293b; font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; letter-spacing: -0.01em;">▶ 体温</h5>
-        <p style="margin: 0; color: #475569; font-size: 0.95rem; line-height: 1.6; font-weight: 500;">${metricsData.temperature.temperature}°C</p>
+        <h5 style="${titleStyle}">▶ 体温</h5>
+        <p style="${textStyle}">${metricsData.temperature.temperature}°C</p>
       </div>
     `;
     hasContent = true;
@@ -835,14 +971,14 @@ function formatMetricsForDisplay(metricsData) {
     const hasUrinalysisData = urinalysis.protein || urinalysis.glucose || urinalysis.ketones || urinalysis.blood;
     if (hasUrinalysisData) {
       html += `
-        <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 16px; padding: 24px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); position: relative; overflow: hidden; transition: all 0.3s ease;">
+        <div style="${sectionStyle}">
           <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
-          <h5 style="margin: 0 0 16px 0; color: #1e293b; font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; letter-spacing: -0.01em;">▶ 尿常规检查</h5>
+          <h5 style="${titleStyle}">▶ 尿常规检查</h5>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 8px;">
-            ${urinalysis.protein ? `<div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); transition: all 0.2s ease;"><span style="color: #64748b; font-weight: 600; font-size: 0.9rem; letter-spacing: -0.01em;">蛋白质:</span><span style="color: #1e293b; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${urinalysis.protein}</span></div>` : ''}
-            ${urinalysis.glucose ? `<div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); transition: all 0.2s ease;"><span style="color: #64748b; font-weight: 600; font-size: 0.9rem; letter-spacing: -0.01em;">葡萄糖:</span><span style="color: #1e293b; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${urinalysis.glucose}</span></div>` : ''}
-            ${urinalysis.ketones ? `<div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); transition: all 0.2s ease;"><span style="color: #64748b; font-weight: 600; font-size: 0.9rem; letter-spacing: -0.01em;">酮体:</span><span style="color: #1e293b; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${urinalysis.ketones}</span></div>` : ''}
-            ${urinalysis.blood ? `<div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); transition: all 0.2s ease;"><span style="color: #64748b; font-weight: 600; font-size: 0.9rem; letter-spacing: -0.01em;">隐血:</span><span style="color: #1e293b; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${urinalysis.blood}</span></div>` : ''}
+            ${urinalysis.protein ? `<div style="${gridItemStyle}"><span style="${gridLabelStyle}">蛋白质:</span><span style="${gridValueStyle}">${urinalysis.protein}</span></div>` : ''}
+            ${urinalysis.glucose ? `<div style="${gridItemStyle}"><span style="${gridLabelStyle}">葡萄糖:</span><span style="${gridValueStyle}">${urinalysis.glucose}</span></div>` : ''}
+            ${urinalysis.ketones ? `<div style="${gridItemStyle}"><span style="${gridLabelStyle}">酮体:</span><span style="${gridValueStyle}">${urinalysis.ketones}</span></div>` : ''}
+            ${urinalysis.blood ? `<div style="${gridItemStyle}"><span style="${gridLabelStyle}">隐血:</span><span style="${gridValueStyle}">${urinalysis.blood}</span></div>` : ''}
           </div>
         </div>
       `;
@@ -853,10 +989,10 @@ function formatMetricsForDisplay(metricsData) {
   // 24h尿蛋白
   if (metricsData.proteinuria?.proteinuria24h) {
     html += `
-      <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 16px; padding: 24px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); position: relative; overflow: hidden; transition: all 0.3s ease;">
+      <div style="${sectionStyle}">
         <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
-        <h5 style="margin: 0 0 16px 0; color: #1e293b; font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; letter-spacing: -0.01em;">▶ 24小时尿蛋白</h5>
-        <p style="margin: 0; color: #475569; font-size: 0.95rem; line-height: 1.6; font-weight: 500;">${metricsData.proteinuria.proteinuria24h}g/24h</p>
+        <h5 style="${titleStyle}">▶ 24小时尿蛋白</h5>
+        <p style="${textStyle}">${metricsData.proteinuria.proteinuria24h}g/24h</p>
       </div>
     `;
     hasContent = true;
@@ -868,14 +1004,14 @@ function formatMetricsForDisplay(metricsData) {
     const hasBloodData = blood.wbc || blood.rbc || blood.hb || blood.plt;
     if (hasBloodData) {
       html += `
-        <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 16px; padding: 24px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); position: relative; overflow: hidden; transition: all 0.3s ease;">
+        <div style="${sectionStyle}">
           <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
-          <h5 style="margin: 0 0 16px 0; color: #1e293b; font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; letter-spacing: -0.01em;">▶ 血常规检查</h5>
+          <h5 style="${titleStyle}">▶ 血常规检查</h5>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 8px;">
-            ${blood.wbc ? `<div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); transition: all 0.2s ease;"><span style="color: #64748b; font-weight: 600; font-size: 0.9rem; letter-spacing: -0.01em;">白细胞:</span><span style="color: #1e293b; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${blood.wbc}×10⁹/L</span></div>` : ''}
-            ${blood.rbc ? `<div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); transition: all 0.2s ease;"><span style="color: #64748b; font-weight: 600; font-size: 0.9rem; letter-spacing: -0.01em;">红细胞:</span><span style="color: #1e293b; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${blood.rbc}×10¹²/L</span></div>` : ''}
-            ${blood.hb ? `<div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); transition: all 0.2s ease;"><span style="color: #64748b; font-weight: 600; font-size: 0.9rem; letter-spacing: -0.01em;">血红蛋白:</span><span style="color: #1e293b; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${blood.hb}g/L</span></div>` : ''}
-            ${blood.plt ? `<div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); transition: all 0.2s ease;"><span style="color: #64748b; font-weight: 600; font-size: 0.9rem; letter-spacing: -0.01em;">血小板:</span><span style="color: #1e293b; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${blood.plt}×10⁹/L</span></div>` : ''}
+            ${blood.wbc ? `<div style="${gridItemStyle}"><span style="${gridLabelStyle}">白细胞:</span><span style="${gridValueStyle}">${blood.wbc}×10⁹/L</span></div>` : ''}
+            ${blood.rbc ? `<div style="${gridItemStyle}"><span style="${gridLabelStyle}">红细胞:</span><span style="${gridValueStyle}">${blood.rbc}×10¹²/L</span></div>` : ''}
+            ${blood.hb ? `<div style="${gridItemStyle}"><span style="${gridLabelStyle}">血红蛋白:</span><span style="${gridValueStyle}">${blood.hb}g/L</span></div>` : ''}
+            ${blood.plt ? `<div style="${gridItemStyle}"><span style="${gridLabelStyle}">血小板:</span><span style="${gridValueStyle}">${blood.plt}×10⁹/L</span></div>` : ''}
           </div>
         </div>
       `;
@@ -891,10 +1027,10 @@ function formatMetricsForDisplay(metricsData) {
       bleedingText += ` (${bleeding.otherDescription})`;
     }
     html += `
-      <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 16px; padding: 24px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); position: relative; overflow: hidden; transition: all 0.3s ease;">
+      <div style="${sectionStyle}">
         <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
-        <h5 style="margin: 0 0 16px 0; color: #1e293b; font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; letter-spacing: -0.01em;">▶ 出血点</h5>
-        <p style="margin: 0; color: #475569; font-size: 0.95rem; line-height: 1.6; font-weight: 500;">${bleedingText}</p>
+        <h5 style="${titleStyle}">▶ 出血点</h5>
+        <p style="${textStyle}">${bleedingText}</p>
       </div>
     `;
     hasContent = true;
@@ -903,10 +1039,10 @@ function formatMetricsForDisplay(metricsData) {
   // 自我评分
   if (metricsData['self-rating']?.selfRating !== undefined) {
     html += `
-      <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 16px; padding: 24px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); position: relative; overflow: hidden; transition: all 0.3s ease;">
+      <div style="${sectionStyle}">
         <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
-        <h5 style="margin: 0 0 16px 0; color: #1e293b; font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; letter-spacing: -0.01em;">▶ 自我评分</h5>
-        <p style="margin: 0; color: #475569; font-size: 0.95rem; line-height: 1.6; font-weight: 500;">${metricsData['self-rating'].selfRating}/10分</p>
+        <h5 style="${titleStyle}">▶ 自我评分</h5>
+        <p style="${textStyle}">${metricsData['self-rating'].selfRating}/10分</p>
       </div>
     `;
     hasContent = true;
@@ -916,16 +1052,28 @@ function formatMetricsForDisplay(metricsData) {
   if (metricsData['urinalysis-matrix']?.urinalysisMatrix) {
     const matrix = metricsData['urinalysis-matrix'].urinalysisMatrix;
     if (matrix.length > 0) {
+      const matrixItemStyle = isDarkMode
+        ? "display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: linear-gradient(135deg, #334155 0%, #1e293b 100%); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); transition: all 0.2s ease; position: relative; overflow: hidden;"
+        : "display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); transition: all 0.2s ease; position: relative; overflow: hidden;";
+        
+      const matrixLabelStyle = isDarkMode
+        ? "color: #94a3b8; font-weight: 600; font-size: 0.9rem; letter-spacing: -0.01em;"
+        : "color: #64748b; font-weight: 600; font-size: 0.9rem; letter-spacing: -0.01em;";
+        
+      const matrixValueStyle = isDarkMode
+        ? "color: #f1f5f9; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;"
+        : "color: #1e293b; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;";
+        
       html += `
-        <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 16px; padding: 24px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); position: relative; overflow: hidden; transition: all 0.3s ease;">
+        <div style="${sectionStyle}">
           <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
-          <h5 style="margin: 0 0 16px 0; color: #1e293b; font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; letter-spacing: -0.01em;">▶ 尿液检测指标</h5>
+          <h5 style="${titleStyle}">▶ 尿液检测指标</h5>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 8px;">
             ${matrix.map(item => `
-              <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); transition: all 0.2s ease; position: relative; overflow: hidden;">
+              <div style="${matrixItemStyle}">
                 <div style="position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
-                <span style="color: #64748b; font-weight: 600; font-size: 0.9rem; letter-spacing: -0.01em;">${item.item}</span>
-                <span style="color: #1e293b; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${item.value}</span>
+                <span style="${matrixLabelStyle}">${getUrinalysisItemText(item.item)}</span>
+                <span style="${matrixValueStyle}">${item.value}</span>
               </div>
             `).join('')}
           </div>
@@ -937,11 +1085,15 @@ function formatMetricsForDisplay(metricsData) {
   
   // 如果没有找到任何内容，显示原始数据
   if (!hasContent) {
+    const preStyle = isDarkMode
+      ? "background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 16px; font-family: 'Courier New', monospace; font-size: 0.85rem; color: #e2e8f0; white-space: pre-wrap; overflow-x: auto;"
+      : "background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 16px; font-family: 'Courier New', monospace; font-size: 0.85rem; color: #495057; white-space: pre-wrap; overflow-x: auto;";
+      
     html += `
-      <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 16px; padding: 24px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); position: relative; overflow: hidden; transition: all 0.3s ease;">
+      <div style="${sectionStyle}">
         <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
-        <h5 style="margin: 0 0 16px 0; color: #1e293b; font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; letter-spacing: -0.01em;">▶ 原始数据</h5>
-        <pre style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 16px; font-family: 'Courier New', monospace; font-size: 0.85rem; color: #495057; white-space: pre-wrap; overflow-x: auto;">${JSON.stringify(metricsData, null, 2)}</pre>
+        <h5 style="${titleStyle}">▶ 原始数据</h5>
+        <pre style="${preStyle}">${JSON.stringify(metricsData, null, 2)}</pre>
       </div>
     `;
   }
@@ -953,13 +1105,34 @@ function formatMetricsForDisplay(metricsData) {
 /**
  * formatDietForDisplay — 格式化饮食记录用于显示
  */
-function formatDietForDisplay(content) {
+function formatDietForDisplay(content, isDarkMode = false) {
   const dietData = content.dietData || {};
   const meals = Object.values(dietData);
   
   if (meals.length === 0) {
     return '<p>暂无饮食记录</p>';
   }
+  
+  // 根据深色模式选择样式
+  const mealCardStyle = isDarkMode
+    ? "background: linear-gradient(135deg, #334155 0%, #1e293b 100%); border-radius: 12px; padding: 20px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); position: relative; overflow: hidden; transition: all 0.3s ease;"
+    : "background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 12px; padding: 20px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); position: relative; overflow: hidden; transition: all 0.3s ease;";
+    
+  const titleStyle = isDarkMode
+    ? "margin: 0 0 12px 0; color: #f1f5f9; font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 8px;"
+    : "margin: 0 0 12px 0; color: #1e293b; font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 8px;";
+    
+  const contentStyle = isDarkMode
+    ? "color: #cbd5e1;"
+    : "color: #475569;";
+    
+  const timeStyle = isDarkMode
+    ? "margin: 0 0 8px 0; color: #cbd5e1; font-size: 0.9rem; line-height: 1.5;"
+    : "margin: 0 0 8px 0; color: #475569; font-size: 0.9rem; line-height: 1.5;";
+    
+  const foodStyle = isDarkMode
+    ? "margin: 0 0 8px 0; color: #cbd5e1; font-size: 0.9rem; line-height: 1.5;"
+    : "margin: 0 0 8px 0; color: #475569; font-size: 0.9rem; line-height: 1.5;";
   
   let html = '<div style="display: flex; flex-direction: column; gap: 16px;">';
   
@@ -973,14 +1146,14 @@ function formatDietForDisplay(content) {
   
   sortedMeals.forEach((meal, index) => {
     html += `
-      <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 12px; padding: 20px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); position: relative; overflow: hidden; transition: all 0.3s ease;">
+      <div style="${mealCardStyle}">
         <div style="position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: linear-gradient(180deg, #10b981, #059669);"></div>
-        <h5 style="margin: 0 0 12px 0; color: #1e293b; font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+        <h5 style="${titleStyle}">
           🍽️ 第${index + 1}餐
         </h5>
-        <div style="color: #475569;">
-          ${meal.time ? `<p style="margin: 0 0 8px 0; color: #475569; font-size: 0.9rem; line-height: 1.5;"><strong>时间:</strong> ${meal.time}</p>` : ''}
-          ${meal.food ? `<p style="margin: 0 0 8px 0; color: #475569; font-size: 0.9rem; line-height: 1.5;"><strong>食物:</strong> ${meal.food}</p>` : ''}
+        <div style="${contentStyle}">
+          ${meal.time ? `<p style="${timeStyle}"><strong>时间:</strong> ${meal.time}</p>` : ''}
+          ${meal.food ? `<p style="${foodStyle}"><strong>食物:</strong> ${meal.food}</p>` : ''}
         </div>
       </div>
     `;
@@ -993,7 +1166,7 @@ function formatDietForDisplay(content) {
 /**
  * formatCaseForDisplay — 格式化病例记录用于显示
  */
-function formatCaseForDisplay(content) {
+function formatCaseForDisplay(content, isDarkMode = false) {
   return '<p>病例记录详细内容</p>';
 }
 
@@ -1065,7 +1238,7 @@ function formatFileName(fileName) {
 function formatDate(dateString) {
   if (!dateString) return '未知时间';
   
-  console.log('formatDate 输入:', dateString, '类型:', typeof dateString);
+  console.log('formatDate 输入参数:', dateString, '类型:', typeof dateString);
   
   // 如果已经是北京时间格式的字符串（如 "2024/01/15 16:30:45" 或 "2025/09/21 12:49:43"），直接返回
   if (typeof dateString === 'string' && /^\d{4}\/\d{1,2}\/\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}$/.test(dateString)) {
@@ -1078,14 +1251,14 @@ function formatDate(dateString) {
   
   // 如果是MySQL TIMESTAMP格式（如 "2024-01-15 08:30:45"），需要添加'Z'表示UTC时间
   if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(dateString)) {
-    console.log('匹配MySQL TIMESTAMP格式，添加Z:', dateString + 'Z');
+    console.log('匹配MySQL时间戳格式，添加Z:', dateString + 'Z');
     date = new Date(dateString + 'Z'); // 添加Z表示UTC时间
   } else {
     console.log('其他格式，直接解析:', dateString);
     date = new Date(dateString);
   }
   
-  console.log('解析后的Date对象:', date);
+  console.log('解析后的日期对象:', date);
   
   // 检查日期是否有效
   if (isNaN(date.getTime())) {
