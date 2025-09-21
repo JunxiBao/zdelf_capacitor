@@ -718,78 +718,509 @@
    * 打开添加/编辑模态框
    */
   function openModal(root, reminderId = null) {
-    const modal = root.getElementById('reminderModal');
-    const title = root.getElementById('modalTitle');
-    const form = root.getElementById('reminderForm');
-
-    if (!modal || !title || !form) return;
+    // 检测深色模式
+    const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    // 创建弹窗 - 完全使用内联样式
+    const modal = document.createElement('div');
+    
+    // 弹窗容器样式
+    modal.style.cssText = `
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      z-index: 999999 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      padding: 20px !important;
+      box-sizing: border-box !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      margin: 0 !important;
+      overflow: hidden !important;
+    `;
+    
+    // 根据深色模式选择样式
+    const backdropStyle = isDarkMode 
+      ? "background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(12px);"
+      : "background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(12px);";
+      
+    const modalContentStyle = isDarkMode
+      ? "background: linear-gradient(145deg, #1f2937 0%, #111827 100%); border-radius: 28px; box-shadow: 0 32px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1); max-width: 90vw; max-height: calc(100vh - 120px); width: 100%; max-width: 700px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1); margin: 0 auto; transform: translateZ(0);"
+      : "background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%); border-radius: 28px; box-shadow: 0 32px 64px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.6); max-width: 90vw; max-height: calc(100vh - 120px); width: 100%; max-width: 700px; overflow: hidden; border: none; margin: 0 auto; transform: translateZ(0);";
+      
+    const headerStyle = isDarkMode
+      ? "display: flex; justify-content: space-between; align-items: center; padding: 28px 32px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); background: linear-gradient(135deg, #374151 0%, #1f2937 100%); color: #f9fafb; border-radius: 28px 28px 0 0;"
+      : "display: flex; justify-content: space-between; align-items: center; padding: 28px 32px 24px; border-bottom: 1px solid rgba(0, 0, 0, 0.06); background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 28px 28px 0 0;";
+      
+    const closeBtnStyle = isDarkMode
+      ? "background: rgba(255, 255, 255, 0.1); border: none; font-size: 1.6rem; color: #d1d5db; cursor: pointer; padding: 12px; border-radius: 16px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center;"
+      : "background: rgba(255, 255, 255, 0.2); border: none; font-size: 1.6rem; color: white; cursor: pointer; padding: 12px; border-radius: 16px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center;";
 
     editingReminderId = reminderId;
+    const isEditMode = !!reminderId;
+    const titleText = isEditMode ? '编辑用药提醒' : '添加用药提醒';
 
+    // 获取提醒数据（如果是编辑模式）
+    let reminder = null;
     if (reminderId) {
-      // 编辑模式
-      const reminder = reminders.find(r => r.id === reminderId);
-      if (reminder) {
-        title.textContent = '编辑用药提醒';
-        root.getElementById('medicationName').value = reminder.name || '';
-        const sEl = root.getElementById('startDate');
-        const eEl = root.getElementById('endDate');
-        if (sEl) sEl.value = reminder.startDate || '';
-        if (eEl) eEl.value = reminder.endDate || '';
-        if (sEl && eEl && sEl.value) { eEl.min = sEl.value; }
-        root.getElementById('dosage').value = reminder.dosage || '';
-        const repeatSelect = root.getElementById('repeatInterval');
-        const repeatValue = root.getElementById('repeatCustomValue');
-        const repeatGroup = root.getElementById('repeatCustomGroup');
-        const repeatLabel = root.getElementById('repeatCustomLabel');
-        if (repeatSelect) repeatSelect.value = reminder.repeatInterval || 'none';
-        if (repeatValue) repeatValue.value = reminder.repeatCustomValue || '';
-        if (repeatGroup) repeatGroup.style.display = (reminder.repeatInterval && reminder.repeatInterval !== 'none') ? '' : 'none';
-        if (repeatLabel && repeatSelect) {
-          repeatLabel.textContent = `自定义间隔（${repeatSelect.value === 'daily' ? '天' : repeatSelect.value === 'weekly' ? '周' : repeatSelect.value === 'monthly' ? '月' : repeatSelect.value === 'yearly' ? '年' : ''}）`;
-        }
-        // 每日次数与时间列表
-        const dailyCountEl = root.getElementById('dailyCount');
-        const dailyGroup = root.getElementById('dailyTimesGroup');
-        if (dailyCountEl) dailyCountEl.value = reminder.dailyCount || '';
-        if (dailyGroup) dailyGroup.style.display = reminder.dailyCount > 0 ? '' : 'none';
-        // 确保编辑模式下时间输入数量与次数一致（不足则补空）
-        const timesInit = Array.isArray(reminder.dailyTimes) ? [...reminder.dailyTimes] : [];
-        const need = Math.max(0, (reminder.dailyCount || 0) - timesInit.length);
-        for (let i = 0; i < need; i++) timesInit.push('');
-        renderDailyTimesEditor(root, timesInit);
-      }
-    } else {
-      // 添加模式
-      title.textContent = '添加用药提醒';
-      form.reset();
-      // 设置默认开始日期
-      const now = new Date();
-      const currentDate = now.toISOString().slice(0, 10);
-      const sEl = root.getElementById('startDate');
-      if (sEl) sEl.value = currentDate;
-      const eEl = root.getElementById('endDate');
-      if (sEl && eEl) {
-        eEl.min = sEl.value;
-        eEl.value = sEl.value; // 默认结束日期与开始日期相同
-      }
-      const repeatSelect = root.getElementById('repeatInterval');
-      const repeatValue = root.getElementById('repeatCustomValue');
-      const repeatGroup = root.getElementById('repeatCustomGroup');
-      const repeatLabel = root.getElementById('repeatCustomLabel');
-      if (repeatSelect) repeatSelect.value = 'none';
-      if (repeatValue) repeatValue.value = '';
-      if (repeatGroup) repeatGroup.style.display = 'none';
-      if (repeatLabel) repeatLabel.textContent = '自定义间隔';
-      // 每日次数UI
-      const dailyCountEl = root.getElementById('dailyCount');
-      const dailyGroup = root.getElementById('dailyTimesGroup');
-      if (dailyCountEl) dailyCountEl.value = '';
-      if (dailyGroup) dailyGroup.style.display = 'none';
-      renderDailyTimesEditor(root, []);
+      reminder = reminders.find(r => r.id === reminderId);
     }
 
-    modal.classList.add('show');
+    modal.innerHTML = '<div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; ' + backdropStyle + '"></div>' +
+      '<div style="position: relative; ' + modalContentStyle + '">' +
+        '<div style="' + headerStyle + '">' +
+          '<h3 style="margin: 0; font-size: 1.5rem; font-weight: 700;">' + titleText + '</h3>' +
+          '<button style="' + closeBtnStyle + '">&times;</button>' +
+        '</div>' +
+        '<div style="padding: 32px; max-height: calc(100vh - 240px); overflow-y: auto;">' +
+          createReminderFormHTML(reminder, isDarkMode) +
+        '</div>' +
+      '</div>';
+
+    // 将弹窗添加到主文档，而不是 Shadow DOM，以便正确控制滚动
+    document.body.appendChild(modal);
+    
+    // 禁用页面滚动
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    // 绑定关闭事件
+    const closeBtn = modal.querySelector('button');
+    const backdrop = modal.querySelector('div[style*="backdrop-filter"]');
+    
+    const closeModal = () => {
+      // 恢复页面滚动
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+      modal.remove();
+    };
+    
+    closeBtn.addEventListener('click', () => {
+      hapticFeedback('Light');
+      closeModal();
+    });
+    
+    backdrop.addEventListener('click', () => {
+      hapticFeedback('Light');
+      closeModal();
+    });
+
+    // 绑定表单事件
+    bindReminderFormEvents(modal, closeModal, reminder);
+  }
+
+  /**
+   * 创建提醒表单HTML
+   */
+  function createReminderFormHTML(reminder, isDarkMode) {
+    const formGroupStyle = isDarkMode
+      ? "margin-bottom: 24px;"
+      : "margin-bottom: 24px;";
+      
+    const labelStyle = isDarkMode
+      ? "display: block; margin-bottom: 8px; color: #e2e8f0; font-weight: 600; font-size: 0.95rem;"
+      : "display: block; margin-bottom: 8px; color: #374151; font-weight: 600; font-size: 0.95rem;";
+      
+    const inputStyle = isDarkMode
+      ? "width: 100%; padding: 12px 16px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; background: linear-gradient(135deg, #334155 0%, #1e293b 100%); color: #f1f5f9; font-size: 0.95rem; box-sizing: border-box; transition: all 0.2s ease; display: block; -webkit-appearance: none; appearance: none;"
+      : "width: 100%; padding: 12px 16px; border: 1px solid rgba(0, 0, 0, 0.1); border-radius: 12px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); color: #1e293b; font-size: 0.95rem; box-sizing: border-box; transition: all 0.2s ease; display: block; -webkit-appearance: none; appearance: none;";
+      
+    const textareaStyle = isDarkMode
+      ? "width: 100%; padding: 12px 16px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; background: linear-gradient(135deg, #334155 0%, #1e293b 100%); color: #f1f5f9; font-size: 0.95rem; box-sizing: border-box; min-height: 80px; resize: vertical; transition: all 0.2s ease; display: block;"
+      : "width: 100%; padding: 12px 16px; border: 1px solid rgba(0, 0, 0, 0.1); border-radius: 12px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); color: #1e293b; font-size: 0.95rem; box-sizing: border-box; min-height: 80px; resize: vertical; transition: all 0.2s ease; display: block;";
+      
+    const buttonStyle = isDarkMode
+      ? "padding: 12px 24px; border: none; border-radius: 12px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; margin-right: 12px;"
+      : "padding: 12px 24px; border: none; border-radius: 12px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; margin-right: 12px;";
+      
+    const primaryButtonStyle = isDarkMode
+      ? buttonStyle + ' background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);'
+      : buttonStyle + ' background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);';
+      
+    const secondaryButtonStyle = isDarkMode
+      ? buttonStyle + ' background: rgba(255, 255, 255, 0.1); color: #d1d5db; border: 1px solid rgba(255, 255, 255, 0.2);'
+      : buttonStyle + ' background: rgba(0, 0, 0, 0.05); color: #64748b; border: 1px solid rgba(0, 0, 0, 0.1);';
+
+    const actionsStyle = isDarkMode
+      ? "display: flex; justify-content: flex-end; align-items: center; margin-top: 32px; padding-top: 24px; border-top: 1px solid rgba(255, 255, 255, 0.1);"
+      : "display: flex; justify-content: flex-end; align-items: center; margin-top: 32px; padding-top: 24px; border-top: 1px solid rgba(0, 0, 0, 0.1);";
+
+    // 设置默认值
+      const now = new Date();
+      const currentDate = now.toISOString().slice(0, 10);
+    const name = reminder ? reminder.name || '' : '';
+    const startDate = reminder ? reminder.startDate || currentDate : currentDate;
+    const endDate = reminder ? reminder.endDate || currentDate : currentDate;
+    const dosage = reminder ? reminder.dosage || '' : '';
+    const notes = reminder ? reminder.notes || '' : '';
+    const repeatInterval = reminder ? reminder.repeatInterval || 'none' : 'none';
+    const repeatCustomValue = reminder ? reminder.repeatCustomValue || '' : '';
+    const dailyCount = reminder ? reminder.dailyCount || '' : '';
+    const dailyTimes = reminder && Array.isArray(reminder.dailyTimes) ? reminder.dailyTimes : [];
+
+    let optionsHtml = '';
+    for (let i = 1; i <= 20; i++) {
+      const selected = dailyCount == i ? ' selected' : '';
+      optionsHtml += '<option value="' + i + '"' + selected + '>' + i + '</option>';
+    }
+
+    let repeatOptionsHtml = '';
+    const repeatOptions = [
+      { value: 'none', text: '不循环' },
+      { value: 'daily', text: '每天' },
+      { value: 'weekly', text: '每周' },
+      { value: 'monthly', text: '每月' },
+      { value: 'yearly', text: '每年' }
+    ];
+    
+    repeatOptions.forEach(option => {
+      const selected = repeatInterval === option.value ? ' selected' : '';
+      repeatOptionsHtml += '<option value="' + option.value + '"' + selected + '>' + option.text + '</option>';
+    });
+
+    return '<form id="reminderForm">' +
+      '<div style="' + formGroupStyle + '">' +
+        '<label style="' + labelStyle + '" for="medicationName">药品名称 *</label>' +
+        '<input type="text" id="medicationName" placeholder="请输入药品名称" value="' + name + '" required style="' + inputStyle + '">' +
+      '</div>' +
+      '<div style="' + formGroupStyle + '">' +
+        '<label style="' + labelStyle + '" for="startDate">开始日期 *</label>' +
+        '<input type="date" id="startDate" value="' + startDate + '" required style="' + inputStyle + '">' +
+      '</div>' +
+      '<div style="' + formGroupStyle + '">' +
+        '<label style="' + labelStyle + '" for="endDate">结束日期 *</label>' +
+        '<input type="date" id="endDate" value="' + endDate + '" required style="' + inputStyle + '">' +
+      '</div>' +
+      '<div style="' + formGroupStyle + '">' +
+        '<label style="' + labelStyle + '" for="dailyCount">每日提醒次数 *</label>' +
+        '<select id="dailyCount" required style="' + inputStyle + '">' +
+          '<option value="" disabled' + (!dailyCount ? ' selected' : '') + '>请选择次数（1-20）</option>' +
+          optionsHtml +
+        '</select>' +
+      '</div>' +
+      '<div id="dailyTimesGroup" style="' + formGroupStyle + ' display: ' + (dailyCount > 0 ? 'block' : 'none') + ';">' +
+        '<label style="' + labelStyle + '">每天提醒时间 *</label>' +
+        '<div id="dailyTimesList"></div>' +
+        '<button type="button" id="addDailyTimeBtn" style="' + secondaryButtonStyle + '">新增提醒时间</button>' +
+      '</div>' +
+      '<div style="' + formGroupStyle + '">' +
+        '<label style="' + labelStyle + '" for="dosage">剂量</label>' +
+        '<input type="text" id="dosage" placeholder="例如：1片、2ml" value="' + dosage + '" style="' + inputStyle + '">' +
+      '</div>' +
+      '<div style="' + formGroupStyle + '">' +
+        '<label style="' + labelStyle + '" for="repeatInterval">循环频率</label>' +
+        '<select id="repeatInterval" style="' + inputStyle + '">' +
+          repeatOptionsHtml +
+        '</select>' +
+      '</div>' +
+      '<div id="repeatCustomGroup" style="' + formGroupStyle + ' display: ' + (repeatInterval !== 'none' ? 'block' : 'none') + ';">' +
+        '<label style="' + labelStyle + '" id="repeatCustomLabel" for="repeatCustomValue">自定义间隔</label>' +
+        '<input type="number" min="1" step="1" id="repeatCustomValue" placeholder="例如：2" value="' + repeatCustomValue + '" style="' + inputStyle + '">' +
+      '</div>' +
+      '<div style="' + formGroupStyle + '">' +
+        '<label style="' + labelStyle + '" for="notes">备注</label>' +
+        '<textarea id="notes" placeholder="其他注意事项..." style="' + textareaStyle + '">' + notes + '</textarea>' +
+      '</div>' +
+      '<div style="' + actionsStyle + '">' +
+        '<button type="button" id="cancelBtn" style="' + secondaryButtonStyle + '">取消</button>' +
+        '<button type="submit" id="saveBtn" style="' + primaryButtonStyle + '">保存</button>' +
+      '</div>' +
+    '</form>';
+  }
+
+  /**
+   * 绑定提醒表单事件
+   */
+  function bindReminderFormEvents(modal, closeModal, reminder = null) {
+    const form = modal.querySelector('#reminderForm');
+    const cancelBtn = modal.querySelector('#cancelBtn');
+    const dailyCountEl = modal.querySelector('#dailyCount');
+    const dailyGroup = modal.querySelector('#dailyTimesGroup');
+    const dailyList = modal.querySelector('#dailyTimesList');
+    const addDailyBtn = modal.querySelector('#addDailyTimeBtn');
+    const repeatSelect = modal.querySelector('#repeatInterval');
+    const repeatGroup = modal.querySelector('#repeatCustomGroup');
+    const repeatLabel = modal.querySelector('#repeatCustomLabel');
+    const startDateEl = modal.querySelector('#startDate');
+    const endDateEl = modal.querySelector('#endDate');
+
+    // 取消按钮
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        hapticFeedback('Light');
+        closeModal();
+      });
+    }
+
+    // 表单提交
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveReminderFromModal(modal, closeModal);
+      });
+    }
+
+    // 每日次数变化
+    if (dailyCountEl && dailyGroup && dailyList && addDailyBtn) {
+      const onCountChange = () => {
+        let n = parseInt(dailyCountEl.value || '0', 10) || 0;
+        if (n > 20) {
+          n = 20;
+          dailyCountEl.value = '20';
+          hapticFeedback('Medium');
+        }
+        dailyGroup.style.display = n > 0 ? 'block' : 'none';
+        // 获取当前的时间值
+        const currentTimes = [...dailyList.querySelectorAll('input[type="time"]')].map(i => i.value);
+        renderDailyTimesEditorInModal(modal, n, currentTimes);
+      };
+
+      const onAddRow = () => {
+        const currentCount = parseInt(dailyCountEl.value || '0', 10) || 0;
+        if (currentCount >= 20) {
+          hapticFeedback('Heavy');
+          return;
+        }
+        hapticFeedback('Light');
+        dailyCountEl.value = String(currentCount + 1);
+        // 获取当前的时间值
+        const currentTimes = [...dailyList.querySelectorAll('input[type="time"]')].map(i => i.value);
+        renderDailyTimesEditorInModal(modal, currentCount + 1, currentTimes);
+      };
+
+      dailyCountEl.addEventListener('change', onCountChange);
+      addDailyBtn.addEventListener('click', onAddRow);
+    }
+
+    // 循环频率变化
+    if (repeatSelect && repeatGroup && repeatLabel) {
+      const onRepeatChange = () => {
+        const v = repeatSelect.value;
+        repeatGroup.style.display = (v !== 'none') ? 'block' : 'none';
+        repeatLabel.textContent = `自定义间隔（${v === 'daily' ? '天' : v === 'weekly' ? '周' : v === 'monthly' ? '月' : v === 'yearly' ? '年' : ''}）`;
+      };
+      repeatSelect.addEventListener('change', onRepeatChange);
+    }
+
+    // 日期联动
+    if (startDateEl && endDateEl) {
+      const onStartChange = () => {
+        if (startDateEl.value) endDateEl.min = startDateEl.value;
+        if (endDateEl.value && startDateEl.value && endDateEl.value < startDateEl.value) {
+          endDateEl.value = startDateEl.value;
+        }
+      };
+      startDateEl.addEventListener('change', onStartChange);
+    }
+
+    // 初始化每日时间编辑器
+    if (dailyCountEl) {
+      const count = parseInt(dailyCountEl.value || '0', 10) || 0;
+      if (count > 0) {
+        // 获取现有的时间值
+        const existingTimes = reminder && Array.isArray(reminder.dailyTimes) ? reminder.dailyTimes : [];
+        renderDailyTimesEditorInModal(modal, count, existingTimes);
+      }
+    }
+  }
+
+  /**
+   * 在模态框中渲染每日时间编辑器
+   */
+  function renderDailyTimesEditorInModal(modal, count, existingTimes = []) {
+    const dailyList = modal.querySelector('#dailyTimesList');
+    if (!dailyList) return;
+
+    const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    const rowStyle = "display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;";
+    const cellStyle = "display: flex; gap: 6px;";
+    const inputStyle = isDarkMode
+      ? "flex: 1; padding: 8px 12px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; background: linear-gradient(135deg, #334155 0%, #1e293b 100%); color: #f1f5f9; font-size: 0.9rem;"
+      : "flex: 1; padding: 8px 12px; border: 1px solid rgba(0, 0, 0, 0.1); border-radius: 8px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); color: #1e293b; font-size: 0.9rem;";
+    const removeBtnStyle = isDarkMode
+      ? "padding: 8px 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; color: #fca5a5; font-size: 0.8rem; cursor: pointer;"
+      : "padding: 8px 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; color: #dc2626; font-size: 0.8rem; cursor: pointer;";
+
+    dailyList.innerHTML = '';
+
+    for (let i = 0; i < count; i += 2) {
+      const row = document.createElement('div');
+      row.style.cssText = rowStyle;
+      
+      // 左格
+      const leftCell = document.createElement('div');
+      leftCell.style.cssText = cellStyle;
+      const leftValue = existingTimes[i] || '';
+      leftCell.innerHTML = '<input type="time" style="' + inputStyle + '" value="' + leftValue + '">' +
+        '<button type="button" data-remove-input style="' + removeBtnStyle + '">删除</button>';
+      row.appendChild(leftCell);
+      
+      // 右格（如果存在）
+      if (i + 1 < count) {
+        const rightCell = document.createElement('div');
+        rightCell.style.cssText = cellStyle;
+        const rightValue = existingTimes[i + 1] || '';
+        rightCell.innerHTML = '<input type="time" style="' + inputStyle + '" value="' + rightValue + '">' +
+          '<button type="button" data-remove-input style="' + removeBtnStyle + '">删除</button>';
+        row.appendChild(rightCell);
+      } else {
+        const placeholder = document.createElement('div');
+        row.appendChild(placeholder);
+      }
+      
+      dailyList.appendChild(row);
+    }
+
+    // 绑定删除按钮事件 - 为每个按钮单独绑定，避免重复绑定
+    dailyList.querySelectorAll('[data-remove-input]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        hapticFeedback('Medium');
+        const input = btn.parentElement.querySelector('input[type="time"]');
+        const all = [...dailyList.querySelectorAll('input[type="time"]')];
+        const values = all.map(i => i.value);
+        const idx = all.indexOf(input);
+        if (idx >= 0) {
+          values.splice(idx, 1);
+          const n = Math.max(0, count - 1);
+          // 获取当前的时间值
+          const currentTimes = [...dailyList.querySelectorAll('input[type="time"]')].map(i => i.value);
+          renderDailyTimesEditorInModal(modal, n, currentTimes);
+          const dailyCountEl = modal.querySelector('#dailyCount');
+          if (dailyCountEl) {
+            dailyCountEl.value = n > 0 ? String(n) : '';
+          }
+          const dailyGroup = modal.querySelector('#dailyTimesGroup');
+          if (dailyGroup) {
+            dailyGroup.style.display = n > 0 ? 'block' : 'none';
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * 从模态框保存提醒
+   */
+  async function saveReminderFromModal(modal, closeModal) {
+    const name = modal.querySelector('#medicationName').value.trim();
+    const startDate = modal.querySelector('#startDate').value;
+    const endDate = modal.querySelector('#endDate').value;
+    const dosage = modal.querySelector('#dosage').value.trim();
+    const notes = modal.querySelector('#notes').value.trim();
+    const repeatInterval = modal.querySelector('#repeatInterval').value;
+    const repeatCustomValueRaw = modal.querySelector('#repeatCustomValue').value;
+    const repeatCustomValue = repeatCustomValueRaw ? Math.max(1, parseInt(repeatCustomValueRaw, 10)) : null;
+    const dailyCount = parseInt(modal.querySelector('#dailyCount').value || '0', 10) || 0;
+    const dailyList = modal.querySelector('#dailyTimesList');
+    const dailyTimes = dailyList ? [...dailyList.querySelectorAll('input[type="time"]')].map(i => i.value).filter(Boolean) : [];
+
+    if (!name || !startDate) {
+      alert('请填写药品名称与开始日期');
+      return;
+    }
+    
+    // 检查开始日期不能是过去的日期
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const today = `${year}-${month}-${day}`;
+    
+    if (startDate < today) {
+      alert('开始日期不能是过去的日期');
+      return;
+    }
+    
+    if (!endDate) {
+      alert('请填写结束日期');
+      return;
+    }
+    if (endDate < startDate) {
+      alert('结束日期必须大于或等于开始日期');
+      return;
+    }
+    
+    if (endDate < today) {
+      alert('结束日期不能是过去的日期');
+      return;
+    }
+
+    if (!dailyCount || dailyCount < 1) {
+      alert('请填写每日提醒次数（至少为1次）');
+      return;
+    }
+    if (!Array.isArray(dailyTimes) || dailyTimes.length !== dailyCount) {
+      alert('请填写与次数相同数量的提醒时间');
+      return;
+    }
+
+    // 校验：每天提醒时间不得在同一分钟重复
+    const timeSet = new Set();
+    let duplicateValue = null;
+    for (const t of dailyTimes) {
+      if (timeSet.has(t)) { duplicateValue = t; break; }
+      timeSet.add(t);
+    }
+    if (duplicateValue) {
+      alert('每天提醒时间不能相同，请修改重复的时间：' + duplicateValue);
+      return;
+    }
+
+    // 生成/合并每日时间启用状态映射
+    let dailyTimeEnabled = {};
+    if (editingReminderId) {
+      const existing = reminders.find(r => r.id === editingReminderId);
+      if (existing && existing.dailyTimeEnabled && typeof existing.dailyTimeEnabled === 'object') {
+        dailyTimes.forEach(t => {
+          if (Object.prototype.hasOwnProperty.call(existing.dailyTimeEnabled, t)) {
+            dailyTimeEnabled[t] = !!existing.dailyTimeEnabled[t];
+          } else {
+            dailyTimeEnabled[t] = true;
+          }
+        });
+      } else {
+        dailyTimes.forEach(t => { dailyTimeEnabled[t] = true; });
+      }
+    } else {
+      dailyTimes.forEach(t => { dailyTimeEnabled[t] = true; });
+    }
+
+    const reminder = {
+      id: editingReminderId || generateId(),
+      name,
+      startDate,
+      endDate,
+      dosage,
+      notes,
+      repeatInterval,
+      repeatCustomValue,
+      dailyCount,
+      dailyTimes,
+      dailyTimeEnabled,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    if (editingReminderId) {
+      const index = reminders.findIndex(r => r.id === editingReminderId);
+      if (index !== -1) {
+        reminders[index] = reminder;
+      }
+    } else {
+      reminders.push(reminder);
+    }
+
+    saveReminders();
+    renderReminders(currentRoot || document);
+    await setupReminders();
+    closeModal();
+    hapticFeedback('Medium');
   }
 
   /**
@@ -972,10 +1403,118 @@
    * 显示删除确认弹窗
    */
   function showDeleteModal(root) {
-    const modal = root.getElementById('deleteConfirmModal');
-    if (modal) {
-      modal.classList.add('show');
-    }
+    // 检测深色模式
+    const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    // 创建弹窗 - 完全使用内联样式
+    const modal = document.createElement('div');
+    
+    // 弹窗容器样式
+    modal.style.cssText = `
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      z-index: 999999 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      padding: 20px !important;
+      box-sizing: border-box !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      margin: 0 !important;
+      overflow: hidden !important;
+    `;
+    
+    // 根据深色模式选择样式
+    const backdropStyle = isDarkMode 
+      ? "background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(12px);"
+      : "background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(12px);";
+      
+    const modalContentStyle = isDarkMode
+      ? "background: linear-gradient(145deg, #1f2937 0%, #111827 100%); border-radius: 28px; box-shadow: 0 32px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1); max-width: 90vw; max-height: calc(100vh - 120px); width: 100%; max-width: 500px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1); margin: 0 auto; transform: translateZ(0);"
+      : "background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%); border-radius: 28px; box-shadow: 0 32px 64px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.6); max-width: 90vw; max-height: calc(100vh - 120px); width: 100%; max-width: 500px; overflow: hidden; border: none; margin: 0 auto; transform: translateZ(0);";
+      
+    const headerStyle = isDarkMode
+      ? "display: flex; justify-content: center; align-items: center; padding: 28px 32px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); background: linear-gradient(135deg, #374151 0%, #1f2937 100%); color: #f9fafb; border-radius: 28px 28px 0 0;"
+      : "display: flex; justify-content: center; align-items: center; padding: 28px 32px 24px; border-bottom: 1px solid rgba(0, 0, 0, 0.06); background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; border-radius: 28px 28px 0 0;";
+      
+    const warningIconStyle = isDarkMode
+      ? "font-size: 3rem; margin-bottom: 16px; color: #fca5a5;"
+      : "font-size: 3rem; margin-bottom: 16px; color: #fef2f2;";
+      
+    const warningTextStyle = isDarkMode
+      ? "color: #f1f5f9; font-size: 1.1rem; font-weight: 600; margin: 0 0 8px 0; text-align: center;"
+      : "color: #1e293b; font-size: 1.1rem; font-weight: 600; margin: 0 0 8px 0; text-align: center;";
+      
+    const warningDetailStyle = isDarkMode
+      ? "color: #cbd5e1; font-size: 0.9rem; margin: 0; text-align: center; line-height: 1.5;"
+      : "color: #64748b; font-size: 0.9rem; margin: 0; text-align: center; line-height: 1.5;";
+      
+    const buttonStyle = isDarkMode
+      ? "padding: 12px 24px; border: none; border-radius: 12px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; margin: 0 8px;"
+      : "padding: 12px 24px; border: none; border-radius: 12px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; margin: 0 8px;";
+      
+    const cancelButtonStyle = isDarkMode
+      ? buttonStyle + ' background: rgba(255, 255, 255, 0.1); color: #d1d5db; border: 1px solid rgba(255, 255, 255, 0.2);'
+      : buttonStyle + ' background: rgba(0, 0, 0, 0.05); color: #64748b; border: 1px solid rgba(0, 0, 0, 0.1);';
+      
+    const confirmButtonStyle = isDarkMode
+      ? buttonStyle + ' background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);'
+      : buttonStyle + ' background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);';
+
+    modal.innerHTML = '<div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; ' + backdropStyle + '"></div>' +
+      '<div style="position: relative; ' + modalContentStyle + '">' +
+        '<div style="' + headerStyle + '">' +
+          '<h3 style="margin: 0; font-size: 1.5rem; font-weight: 700;">确认删除</h3>' +
+        '</div>' +
+        '<div style="padding: 32px; text-align: center;">' +
+          '<div style="' + warningIconStyle + '">⚠️</div>' +
+          '<p style="' + warningTextStyle + '">确定要删除这个用药提醒吗？</p>' +
+          '<p style="' + warningDetailStyle + '">此操作无法撤销，相关的定时提醒也将被取消。</p>' +
+        '</div>' +
+        '<div style="display: flex; justify-content: center; align-items: center; padding: 0 32px 32px; gap: 16px;">' +
+          '<button id="deleteCancelBtn" style="' + cancelButtonStyle + '">取消</button>' +
+          '<button id="deleteConfirmBtn" style="' + confirmButtonStyle + '">确认删除</button>' +
+        '</div>' +
+      '</div>';
+
+    // 将弹窗添加到主文档
+    document.body.appendChild(modal);
+    
+    // 禁用页面滚动
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    // 绑定关闭事件
+    const cancelBtn = modal.querySelector('#deleteCancelBtn');
+    const confirmBtn = modal.querySelector('#deleteConfirmBtn');
+    const backdrop = modal.querySelector('div[style*="backdrop-filter"]');
+    
+    const closeModal = () => {
+      // 恢复页面滚动
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+      modal.remove();
+    };
+    
+    cancelBtn.addEventListener('click', () => {
+      hapticFeedback('Light');
+      closeModal();
+    });
+    
+    confirmBtn.addEventListener('click', () => {
+      hapticFeedback('Medium');
+      confirmDelete(root);
+      closeModal();
+    });
+    
+    backdrop.addEventListener('click', () => {
+      hapticFeedback('Light');
+      closeModal();
+    });
   }
 
   /**
