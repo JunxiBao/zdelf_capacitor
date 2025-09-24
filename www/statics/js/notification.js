@@ -348,209 +348,13 @@
    * 绑定所有事件监听器
    */
   function bindEvents(root) {
-    // 添加提醒按钮
-    const addBtn = root.getElementById('addReminderBtn');
-    if (addBtn) {
-      const addHandler = () => {
-        hapticFeedback('Light');
-        openModal(root);
-      };
-      addBtn.addEventListener('click', addHandler);
-      cleanupFns.push(() => addBtn.removeEventListener('click', addHandler));
-    }
+    // 添加提醒按钮 - 注意：这个按钮是在 renderReminders 中动态创建的
+    // 所以这里不需要绑定，事件绑定在 renderReminders 中处理
 
-    // 模态框事件
-    const modal = root.getElementById('reminderModal');
-    const closeBtn = root.getElementById('modalClose');
-    const cancelBtn = root.getElementById('cancelBtn');
-    const form = root.getElementById('reminderForm');
+    // 注意：模态框是动态创建的，所以这里不需要绑定静态HTML中的事件
+    // 所有模态框相关的事件绑定都在 openModal 和 bindReminderFormEvents 中处理
 
-    if (closeBtn) {
-      const closeHandler = () => {
-        hapticFeedback('Light');
-        closeModal(root);
-      };
-      closeBtn.addEventListener('click', closeHandler);
-      cleanupFns.push(() => closeBtn.removeEventListener('click', closeHandler));
-    }
-
-    if (cancelBtn) {
-      const cancelHandler = () => {
-        hapticFeedback('Light');
-        closeModal(root);
-      };
-      cancelBtn.addEventListener('click', cancelHandler);
-      cleanupFns.push(() => cancelBtn.removeEventListener('click', cancelHandler));
-    }
-
-    if (form) {
-      const submitHandler = (e) => {
-        e.preventDefault();
-        saveReminder(root);
-      };
-      form.addEventListener('submit', submitHandler);
-      cleanupFns.push(() => form.removeEventListener('submit', submitHandler));
-
-      const repeatSelect = root.getElementById('repeatInterval');
-      const repeatGroup = root.getElementById('repeatCustomGroup');
-      const repeatLabel = root.getElementById('repeatCustomLabel');
-      if (repeatSelect && repeatGroup) {
-        const changeHandler = () => {
-          const v = repeatSelect.value;
-          repeatGroup.style.display = (v !== 'none') ? '' : 'none';
-          if (repeatLabel) {
-            repeatLabel.textContent = `自定义间隔（${v === 'daily' ? '天' : v === 'weekly' ? '周' : v === 'monthly' ? '月' : v === 'yearly' ? '年' : ''}）`;
-          }
-        };
-        repeatSelect.addEventListener('change', changeHandler);
-        cleanupFns.push(() => repeatSelect.removeEventListener('change', changeHandler));
-      }
-
-      // 每日次数与时间列表事件
-      const dailyCountEl = root.getElementById('dailyCount');
-      const dailyGroup = root.getElementById('dailyTimesGroup');
-      const dailyList = root.getElementById('dailyTimesList');
-      const addDailyBtn = root.getElementById('addDailyTimeBtn');
-      if (dailyCountEl && dailyGroup && dailyList && addDailyBtn) {
-        // 工具：读取当前所有时间值（包含空值）
-        const readTimes = () => [...dailyList.querySelectorAll('input[type="time"]')].map(i => i.value);
-        // 工具：按目标数量n重建两列布局，尽量保留已填值（包含空位）
-        const rebuildToCount = (n) => {
-          const current = [...dailyList.querySelectorAll('input[type="time"]')].map(i => i.value);
-          while (current.length < n) current.push('');
-          while (current.length > n) current.pop();
-          renderDailyTimesEditor(root, current);
-        };
-
-        const onCountChange = () => {
-          let n = parseInt(dailyCountEl.value || '0', 10) || 0;
-          // 限制最大值为20
-          if (n > 20) {
-            n = 20;
-            dailyCountEl.value = '20';
-            hapticFeedback('Medium'); // 超出限制时的反馈
-          }
-          dailyGroup.style.display = n > 0 ? '' : 'none';
-          rebuildToCount(n);
-        };
-        const onAddRow = () => {
-          const currentCount = parseInt(dailyCountEl.value || '0', 10) || 0;
-          if (currentCount >= 20) {
-            hapticFeedback('Heavy'); // 达到最大值时的强反馈
-            return; // 不允许继续添加
-          }
-          hapticFeedback('Light');
-          const current = readTimes();
-          current.push('');
-          dailyCountEl.value = String(currentCount + 1);
-          renderDailyTimesEditor(root, current);
-        };
-        const onListClick = (e) => {
-          const btn = e.target.closest('[data-remove-input]');
-          if (!btn) return;
-          hapticFeedback('Medium');
-          const input = btn.parentElement && btn.parentElement.querySelector('input[type="time"]');
-          const all = [...dailyList.querySelectorAll('input[type="time"]')];
-          const values = all.map(i => i.value);
-          const idx = all.indexOf(input);
-          if (idx >= 0) {
-            values.splice(idx, 1);
-            const n = Math.max(0, (parseInt(dailyCountEl.value || '0', 10) || 0) - 1);
-            if (n === 0) {
-              dailyCountEl.value = '';
-            } else {
-              dailyCountEl.value = String(n);
-            }
-            renderDailyTimesEditor(root, values);
-            dailyGroup.style.display = n > 0 ? '' : 'none';
-          }
-        };
-        dailyCountEl.addEventListener('input', onCountChange);
-        dailyCountEl.addEventListener('change', onCountChange);
-        addDailyBtn.addEventListener('click', onAddRow);
-        dailyList.addEventListener('click', onListClick);
-        cleanupFns.push(() => {
-          dailyCountEl.removeEventListener('input', onCountChange);
-          dailyCountEl.removeEventListener('change', onCountChange);
-          addDailyBtn.removeEventListener('click', onAddRow);
-          dailyList.removeEventListener('click', onListClick);
-        });
-      }
-
-      // 开始/结束日期联动校验与限制
-      const sEl = root.getElementById('startDate');
-      const eEl = root.getElementById('endDate');
-      if (sEl && eEl) {
-        const onStartChange = () => {
-          if (sEl.value) eEl.min = sEl.value;
-          if (eEl.value && sEl.value && eEl.value < sEl.value) eEl.value = sEl.value;
-        };
-        sEl.addEventListener('change', onStartChange);
-        cleanupFns.push(() => sEl.removeEventListener('change', onStartChange));
-      }
-    }
-
-    // 点击模态框背景关闭
-    if (modal) {
-      const modalHandler = (e) => {
-        if (e.target === modal) {
-          hapticFeedback('Light');
-          closeModal(root);
-        }
-      };
-      modal.addEventListener('click', modalHandler);
-      cleanupFns.push(() => modal.removeEventListener('click', modalHandler));
-    }
-
-    // ESC 键关闭模态框
-    const escHandler = (e) => {
-      if (e.key === 'Escape') {
-        if (modal && modal.classList.contains('show')) {
-          hapticFeedback('Light');
-          closeModal(root);
-        } else if (deleteModal && deleteModal.classList.contains('show')) {
-          hapticFeedback('Light');
-          closeDeleteModal(root);
-        }
-      }
-    };
-    document.addEventListener('keydown', escHandler);
-    cleanupFns.push(() => document.removeEventListener('keydown', escHandler));
-
-    // 删除确认弹窗事件
-    const deleteModal = root.getElementById('deleteConfirmModal');
-    const deleteCancelBtn = root.getElementById('deleteCancelBtn');
-    const deleteConfirmBtn = root.getElementById('deleteConfirmBtn');
-
-    if (deleteCancelBtn) {
-      const cancelHandler = () => {
-        hapticFeedback('Light');
-        closeDeleteModal(root);
-      };
-      deleteCancelBtn.addEventListener('click', cancelHandler);
-      cleanupFns.push(() => deleteCancelBtn.removeEventListener('click', cancelHandler));
-    }
-
-    if (deleteConfirmBtn) {
-      const confirmHandler = () => {
-        hapticFeedback('Medium');
-        confirmDelete(root);
-      };
-      deleteConfirmBtn.addEventListener('click', confirmHandler);
-      cleanupFns.push(() => deleteConfirmBtn.removeEventListener('click', confirmHandler));
-    }
-
-    // 点击删除确认弹窗背景关闭
-    if (deleteModal) {
-      const deleteModalHandler = (e) => {
-        if (e.target === deleteModal) {
-          hapticFeedback('Light');
-          closeDeleteModal(root);
-        }
-      };
-      deleteModal.addEventListener('click', deleteModalHandler);
-      cleanupFns.push(() => deleteModal.removeEventListener('click', deleteModalHandler));
-    }
+    // 所有表单相关的事件绑定都在动态创建的模态框中处理
   }
 
   /**
@@ -1623,6 +1427,9 @@
         let username = '访客';
         try { username = await getUsernameAsync(); } catch(_) {}
 
+        // 使用Set来避免重复的通知ID
+        const scheduledNotificationIds = new Set();
+
         reminders.forEach(reminder => {
           // 必须有 dailyTimes
           if (!(reminder.dailyCount > 0 && Array.isArray(reminder.dailyTimes) && reminder.dailyTimes.length > 0)) return;
@@ -1665,6 +1472,15 @@
             if (!nextAtForUi || firstTime < nextAtForUi) nextAtForUi = firstTime;
 
             const notificationId = stableIdFromString(reminder.id + '|' + t);
+            
+            // 检查是否已经调度过这个通知ID，避免重复
+            if (scheduledNotificationIds.has(notificationId)) {
+              console.warn(`⏰ 跳过重复的通知ID: ${notificationId}`);
+              return;
+            }
+            
+            scheduledNotificationIds.add(notificationId);
+            
             const schedule = { at: firstTime };
             // 不再使用 repeats/every，避免原生立即触发或时间漂移，由应用层手动重调度
 
