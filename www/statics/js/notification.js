@@ -235,6 +235,58 @@
   }
 
   /**
+   * 添加点击跳转到 zdelf.cn 的功能
+   */
+  function addClickToRedirectFunctionality(root) {
+    // 获取引导提示元素
+    const redirectHint = root.querySelector('.redirect-hint');
+    
+    // 为整个页面添加点击事件监听器
+    const handlePageClick = (event) => {
+      // 检查是否点击了按钮、输入框或其他交互元素
+      const interactiveElements = ['button', 'input', 'select', 'textarea', 'a'];
+      const clickedElement = event.target;
+      
+      // 如果点击的是交互元素，不执行跳转
+      if (interactiveElements.includes(clickedElement.tagName.toLowerCase())) {
+        return;
+      }
+      
+      // 如果点击的是交互元素的父元素，也不执行跳转
+      const isInsideInteractive = clickedElement.closest('button, input, select, textarea, a, .btn, .modal, .confirm-modal');
+      if (isInsideInteractive) {
+        return;
+      }
+      
+      // 执行跳转到 zdelf.cn
+      console.log('🔄 点击页面，跳转到 zdelf.cn');
+      hapticFeedback('Light');
+      
+      // 隐藏引导提示
+      if (redirectHint) {
+        redirectHint.style.opacity = '0';
+        redirectHint.style.transform = 'translateX(-50%) translateY(-20px)';
+        setTimeout(() => {
+          redirectHint.style.display = 'none';
+        }, 300);
+      }
+      
+      // 在新标签页中打开 zdelf.cn
+      window.open('https://zdelf.cn', '_blank');
+    };
+    
+    // 添加点击事件监听器
+    root.addEventListener('click', handlePageClick);
+    
+    // 记录清理函数
+    cleanupFns.push(() => {
+      root.removeEventListener('click', handlePageClick);
+    });
+    
+    console.log('✅ 已添加点击跳转到 zdelf.cn 的功能');
+  }
+
+  /**
    * 显示浏览器限制提示
    */
   function showBrowserRestriction(root) {
@@ -293,6 +345,9 @@
     const root = rootEl || document;
     currentRoot = root; // 存储当前的root引用
     isActiveReminderView = true;
+
+    // 添加点击跳转到 zdelf.cn 的功能
+    addClickToRedirectFunctionality(root);
 
     // 检查是否在Capacitor App环境中
     if (!isCapacitorApp()) {
