@@ -30,6 +30,136 @@ body {
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
 }
 
+/* 日期选择器容器 - 屏幕最右边 */
+.date-picker-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 日期选择器输入框 - 隐藏但保持功能 */
+.date-picker {
+  position: absolute;
+  opacity: 0;
+  pointer-events: auto;
+  width: 48px;
+  height: 48px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  z-index: 1;
+}
+
+/* 日期选择器图标按钮 */
+.date-picker-icon {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 16px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 48px;
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+
+.date-picker-icon::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, transparent 50%, rgba(255,255,255,0.05) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.date-picker-icon:hover {
+  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+  transform: translateY(-2px) scale(1.05);
+}
+
+.date-picker-icon:hover::before {
+  opacity: 1;
+}
+
+.date-picker-icon:active {
+  transform: translateY(0) scale(0.95);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.date-picker-icon svg {
+  position: relative;
+  z-index: 1;
+}
+
+/* 清除日期按钮 */
+.clear-date-btn {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.clear-date-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, transparent 50%, rgba(255,255,255,0.05) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.clear-date-btn:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+}
+
+.clear-date-btn:hover::before {
+  opacity: 1;
+}
+
+.clear-date-btn:active {
+  transform: scale(0.95);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.clear-date-btn svg {
+  position: relative;
+  z-index: 1;
+}
+
+.clear-date-btn.hidden {
+  display: none;
+}
+
 @media (prefers-color-scheme: dark) {
   body {
     background-color: #18181c;
@@ -39,6 +169,27 @@ body {
   #greeting {
     color: #fff;
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+  }
+
+  /* 深色模式日期选择器 */
+  .date-picker-icon {
+    background: linear-gradient(135deg, #a78bfa 0%, #c4b5fd 100%);
+    box-shadow: 0 4px 16px rgba(167, 139, 250, 0.4);
+  }
+
+  .date-picker-icon:hover {
+    background: linear-gradient(135deg, #9333ea 0%, #a855f7 100%);
+    box-shadow: 0 8px 24px rgba(167, 139, 250, 0.5);
+  }
+
+  .clear-date-btn {
+    background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+    box-shadow: 0 4px 12px rgba(248, 113, 113, 0.4);
+  }
+
+  .clear-date-btn:hover {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    box-shadow: 0 6px 16px rgba(248, 113, 113, 0.5);
   }
 }
 
@@ -1010,6 +1161,34 @@ body {
 
   #greeting {
     font-size: 1.5rem;
+  }
+
+  .date-picker-container {
+    top: 15px;
+    right: 15px;
+    gap: 6px;
+  }
+
+  .date-picker-icon {
+    min-width: 44px;
+    height: 44px;
+    padding: 10px;
+  }
+
+  .date-picker-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .clear-date-btn {
+    min-width: 32px;
+    height: 32px;
+    padding: 6px;
+  }
+
+  .clear-date-btn svg {
+    width: 14px;
+    height: 14px;
   }
 
   .data-cards-container {

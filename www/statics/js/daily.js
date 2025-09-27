@@ -211,6 +211,9 @@ function initDaily(shadowRoot) {
   // 显示统一的加载状态
   showLoadingState();
 
+  // 初始化日期选择器
+  initDatePicker();
+
   // 并行加载问候语和数据卡片
   Promise.all([
     loadUsername(),
@@ -224,6 +227,138 @@ function initDaily(shadowRoot) {
 // 缓存数据卡片，避免重复请求
 let cachedDataCards = null;
 let dataCardsLoadPromise = null;
+
+// 当前选择的日期
+let selectedDate = null;
+
+/**
+ * initDatePicker — 初始化日期选择器
+ */
+function initDatePicker() {
+  const datePicker = dailyRoot.querySelector('#date-picker');
+  const datePickerIcon = dailyRoot.querySelector('#date-picker-icon');
+  const clearBtn = dailyRoot.querySelector('#clear-date-btn');
+  
+  if (!datePicker || !datePickerIcon || !clearBtn) {
+    console.warn('⚠️ 未找到日期选择器元素');
+    return;
+  }
+
+  // 初始隐藏清除按钮
+  clearBtn.classList.add('hidden');
+
+  // 点击图标触发日期选择器
+  datePickerIcon.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // 添加震动反馈
+    if (window.__hapticImpact__) {
+      window.__hapticImpact__('Medium');
+    }
+    
+    // 尝试多种方法触发日期选择器
+    try {
+      // 方法1: 使用showPicker API (现代浏览器)
+      if (datePicker.showPicker) {
+        datePicker.showPicker();
+      } else {
+        // 方法2: 传统方法
+        datePicker.focus();
+        datePicker.click();
+      }
+    } catch (error) {
+      console.warn('无法触发日期选择器:', error);
+      // 方法3: 备用方法
+      try {
+        datePicker.click();
+      } catch (fallbackError) {
+        console.error('所有方法都失败了:', fallbackError);
+      }
+    }
+  });
+
+  // 备用方法：直接点击隐藏的input
+  datePicker.addEventListener('click', (e) => {
+    // 添加震动反馈
+    if (window.__hapticImpact__) {
+      window.__hapticImpact__('Medium');
+    }
+    console.log('日期选择器被点击');
+  });
+
+  // 日期选择器变化事件
+  datePicker.addEventListener('change', (e) => {
+    selectedDate = e.target.value;
+    console.log('📅 选择日期:', selectedDate);
+    
+    // 显示清除按钮
+    clearBtn.classList.remove('hidden');
+    
+    // 过滤并重新渲染卡片
+    filterAndRenderCards();
+  });
+
+  // 清除日期按钮事件
+  clearBtn.addEventListener('click', () => {
+    // 添加震动反馈
+    if (window.__hapticImpact__) {
+      window.__hapticImpact__('Light');
+    }
+    
+    selectedDate = null;
+    datePicker.value = '';
+    clearBtn.classList.add('hidden');
+    console.log('🗑️ 清除日期筛选');
+    
+    // 重新渲染所有卡片
+    filterAndRenderCards();
+  });
+}
+
+/**
+ * filterAndRenderCards — 根据选择的日期过滤并渲染卡片
+ */
+function filterAndRenderCards() {
+  if (!cachedDataCards) {
+    console.warn('⚠️ 没有缓存的数据卡片');
+    return;
+  }
+
+  const cardsContainer = dailyRoot.querySelector('#data-cards-container');
+  if (!cardsContainer) {
+    console.warn('⚠️ 未找到卡片容器');
+    return;
+  }
+
+  let filteredCards = cachedDataCards;
+
+  // 如果选择了日期，进行过滤
+  if (selectedDate) {
+    const targetDate = new Date(selectedDate);
+    const targetDateStr = targetDate.toISOString().split('T')[0]; // YYYY-MM-DD格式
+    
+    filteredCards = cachedDataCards.filter(item => {
+      const itemDate = new Date(item.created_at);
+      const itemDateStr = itemDate.toISOString().split('T')[0];
+      return itemDateStr === targetDateStr;
+    });
+    
+    console.log(`🔍 按日期 ${selectedDate} 过滤，从 ${cachedDataCards.length} 条记录中筛选出 ${filteredCards.length} 条`);
+  }
+
+  // 渲染过滤后的卡片
+  renderUnifiedCards(filteredCards, cardsContainer).catch(err => {
+    console.error('渲染过滤后的卡片失败:', err);
+    cardsContainer.innerHTML = `
+      <div class="no-data-message">
+        <div class="no-data-icon">⚠️</div>
+        <h3>筛选失败</h3>
+        <p>请刷新页面重试</p>
+      </div>
+    `;
+  });
+}
 
 /**
  * loadUserDataCards — 加载并显示用户数据卡片
@@ -309,19 +444,9 @@ function loadUserDataCards() {
     // 等待加载完成
     dataCardsLoadPromise.then(() => {
       if (cachedDataCards) {
-        // 异步渲染卡片
-        renderUnifiedCards(cachedDataCards, cardsContainer).catch(err => {
-          console.error('渲染卡片失败:', err);
-          cardsContainer.innerHTML = `
-            <div class="no-data-message">
-              <div class="no-data-icon">⚠️</div>
-              <h3>加载失败</h3>
-              <p>请刷新页面重试</p>
-            </div>
-          `;
-        }).finally(() => {
-          resolve();
-        });
+        // 使用过滤函数渲染卡片（会根据当前选择的日期进行过滤）
+        filterAndRenderCards();
+        resolve();
       } else {
         cardsContainer.innerHTML = `
           <div class="no-data-message">
@@ -343,13 +468,24 @@ function loadUserDataCards() {
  */
 async function renderUnifiedCards(items, container) {
   if (items.length === 0) {
-    container.innerHTML = `
-      <div class="no-data-message">
-        <div class="no-data-icon">📝</div>
-        <h3>暂无数据记录</h3>
-        <p>开始记录您的健康数据吧</p>
-      </div>
-    `;
+    // 根据是否有选择日期显示不同的消息
+    const message = selectedDate 
+      ? `
+        <div class="no-data-message">
+          <div class="no-data-icon">📅</div>
+          <h3>该日期无数据记录</h3>
+          <p>选择其他日期或清除筛选查看所有记录</p>
+        </div>
+      `
+      : `
+        <div class="no-data-message">
+          <div class="no-data-icon">📝</div>
+          <h3>暂无数据记录</h3>
+          <p>开始记录您的健康数据吧</p>
+        </div>
+      `;
+    
+    container.innerHTML = message;
     return;
   }
 
