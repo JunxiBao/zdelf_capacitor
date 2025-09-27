@@ -214,6 +214,9 @@ function initDaily(shadowRoot) {
   // 初始化日期选择器
   initDatePicker();
 
+  // 初始化搜索框
+  initSearchBox();
+
   // 并行加载问候语和数据卡片
   Promise.all([
     loadUsername(),
@@ -230,6 +233,65 @@ let dataCardsLoadPromise = null;
 
 // 当前选择的日期
 let selectedDate = null;
+
+// 当前搜索关键字
+let searchKeyword = '';
+
+/**
+ * initSearchBox — 初始化搜索框
+ */
+function initSearchBox() {
+  const searchInput = dailyRoot.querySelector('#search-input');
+  const clearBtn = dailyRoot.querySelector('#clear-search-btn');
+  
+  if (!searchInput || !clearBtn) {
+    console.warn('⚠️ 未找到搜索框元素');
+    return;
+  }
+
+  // 初始隐藏清除按钮
+  clearBtn.classList.add('hidden');
+
+  // 搜索输入事件
+  searchInput.addEventListener('input', (e) => {
+    searchKeyword = e.target.value.trim();
+    console.log('🔍 搜索关键字:', searchKeyword);
+    
+    // 显示或隐藏清除按钮
+    if (searchKeyword) {
+      clearBtn.classList.remove('hidden');
+    } else {
+      clearBtn.classList.add('hidden');
+    }
+    
+    // 过滤并重新渲染卡片
+    filterAndRenderCards();
+  });
+
+  // 清除搜索按钮事件
+  clearBtn.addEventListener('click', () => {
+    // 添加震动反馈
+    if (window.__hapticImpact__) {
+      window.__hapticImpact__('Light');
+    }
+    
+    searchKeyword = '';
+    searchInput.value = '';
+    clearBtn.classList.add('hidden');
+    console.log('🗑️ 清除搜索');
+    
+    // 重新渲染所有卡片
+    filterAndRenderCards();
+  });
+
+  // 搜索框聚焦事件
+  searchInput.addEventListener('focus', () => {
+    // 添加震动反馈
+    if (window.__hapticImpact__) {
+      window.__hapticImpact__('Light');
+    }
+  });
+}
 
 /**
  * initDatePicker — 初始化日期选择器
@@ -317,7 +379,7 @@ function initDatePicker() {
 }
 
 /**
- * filterAndRenderCards — 根据选择的日期过滤并渲染卡片
+ * filterAndRenderCards — 根据选择的日期和搜索关键字过滤并渲染卡片
  */
 function filterAndRenderCards() {
   if (!cachedDataCards) {
@@ -333,18 +395,27 @@ function filterAndRenderCards() {
 
   let filteredCards = cachedDataCards;
 
-  // 如果选择了日期，进行过滤
+  // 如果选择了日期，进行日期过滤
   if (selectedDate) {
     const targetDate = new Date(selectedDate);
     const targetDateStr = targetDate.toISOString().split('T')[0]; // YYYY-MM-DD格式
     
-    filteredCards = cachedDataCards.filter(item => {
+    filteredCards = filteredCards.filter(item => {
       const itemDate = new Date(item.created_at);
       const itemDateStr = itemDate.toISOString().split('T')[0];
       return itemDateStr === targetDateStr;
     });
     
-    console.log(`🔍 按日期 ${selectedDate} 过滤，从 ${cachedDataCards.length} 条记录中筛选出 ${filteredCards.length} 条`);
+    console.log(`📅 按日期 ${selectedDate} 过滤，从 ${cachedDataCards.length} 条记录中筛选出 ${filteredCards.length} 条`);
+  }
+
+  // 如果有搜索关键字，进行搜索过滤
+  if (searchKeyword) {
+    filteredCards = filteredCards.filter(item => {
+      return searchInCardData(item, searchKeyword);
+    });
+    
+    console.log(`🔍 按关键字 "${searchKeyword}" 过滤，从 ${cachedDataCards.length} 条记录中筛选出 ${filteredCards.length} 条`);
   }
 
   // 渲染过滤后的卡片
@@ -358,6 +429,178 @@ function filterAndRenderCards() {
       </div>
     `;
   });
+}
+
+/**
+ * searchInCardData — 在卡片数据中搜索关键字
+ * @param {Object} item - 卡片数据项
+ * @param {string} keyword - 搜索关键字
+ * @returns {boolean} - 是否匹配
+ */
+function searchInCardData(item, keyword) {
+  if (!keyword) return true;
+  
+  const lowerKeyword = keyword.toLowerCase();
+  
+  // 搜索文件名
+  if (item.file_name && item.file_name.toLowerCase().includes(lowerKeyword)) {
+    return true;
+  }
+  
+  // 搜索创建时间
+  if (item.created_at && item.created_at.toLowerCase().includes(lowerKeyword)) {
+    return true;
+  }
+  
+  // 搜索数据类型
+  if (item.dataType && item.dataType.toLowerCase().includes(lowerKeyword)) {
+    return true;
+  }
+  
+  // 搜索内容摘要（如果有的话）
+  if (item.content) {
+    const contentStr = JSON.stringify(item.content).toLowerCase();
+    if (contentStr.includes(lowerKeyword)) {
+      return true;
+    }
+  }
+  
+  // 搜索预览数据（如果有的话）
+  if (item.preview) {
+    const previewStr = JSON.stringify(item.preview).toLowerCase();
+    if (previewStr.includes(lowerKeyword)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * searchInCardContent — 在卡片详细内容中搜索关键字
+ * @param {Object} content - 卡片详细内容
+ * @param {string} dataType - 数据类型
+ * @param {string} keyword - 搜索关键字
+ * @returns {boolean} - 是否匹配
+ */
+function searchInCardContent(content, dataType, keyword) {
+  if (!keyword) return true;
+  
+  const lowerKeyword = keyword.toLowerCase();
+  console.log(`🔍 在 ${dataType} 内容中搜索 "${lowerKeyword}"`);
+  
+  // 将内容转换为字符串进行搜索
+  const contentStr = JSON.stringify(content).toLowerCase();
+  if (contentStr.includes(lowerKeyword)) {
+    console.log(`✅ 在JSON字符串中找到匹配: "${lowerKeyword}"`);
+    return true;
+  }
+  
+  // 根据数据类型进行特定搜索
+  let result = false;
+  switch (dataType) {
+    case 'metrics':
+      result = searchInMetricsContent(content, lowerKeyword);
+      break;
+    case 'diet':
+      result = searchInDietContent(content, lowerKeyword);
+      break;
+    case 'case':
+      result = searchInCaseContent(content, lowerKeyword);
+      break;
+    default:
+      result = false;
+  }
+  
+  console.log(`🔍 ${dataType} 特定搜索结果:`, result);
+  return result;
+}
+
+/**
+ * searchInMetricsContent — 在健康指标内容中搜索
+ */
+function searchInMetricsContent(content, keyword) {
+  const metricsData = content.metricsData || {};
+  
+  // 搜索症状
+  if (metricsData.symptoms?.symptoms && metricsData.symptoms.symptoms.toLowerCase().includes(keyword)) {
+    return true;
+  }
+  
+  // 搜索体温
+  if (metricsData.temperature?.temperature && metricsData.temperature.temperature.toString().includes(keyword)) {
+    return true;
+  }
+  
+  // 搜索尿常规
+  if (metricsData.urinalysis) {
+    const urinalysis = metricsData.urinalysis;
+    if (urinalysis.protein && urinalysis.protein.toLowerCase().includes(keyword)) return true;
+    if (urinalysis.glucose && urinalysis.glucose.toLowerCase().includes(keyword)) return true;
+    if (urinalysis.ketones && urinalysis.ketones.toLowerCase().includes(keyword)) return true;
+    if (urinalysis.blood && urinalysis.blood.toLowerCase().includes(keyword)) return true;
+  }
+  
+  // 搜索24h尿蛋白
+  if (metricsData.proteinuria?.proteinuria24h && metricsData.proteinuria.proteinuria24h.toString().includes(keyword)) {
+    return true;
+  }
+  
+  // 搜索血常规
+  if (metricsData['blood-test']) {
+    const blood = metricsData['blood-test'];
+    if (blood.wbc && blood.wbc.toString().includes(keyword)) return true;
+    if (blood.rbc && blood.rbc.toString().includes(keyword)) return true;
+    if (blood.hb && blood.hb.toString().includes(keyword)) return true;
+    if (blood.plt && blood.plt.toString().includes(keyword)) return true;
+  }
+  
+  // 搜索出血点
+  if (metricsData['bleeding-point']?.bleedingPoint) {
+    const bleeding = metricsData['bleeding-point'];
+    const bleedingText = getBleedingPointText(bleeding.bleedingPoint);
+    if (bleedingText.toLowerCase().includes(keyword)) return true;
+    if (bleeding.otherDescription && bleeding.otherDescription.toLowerCase().includes(keyword)) return true;
+  }
+  
+  // 搜索自我评分
+  if (metricsData['self-rating']?.selfRating !== undefined && metricsData['self-rating'].selfRating.toString().includes(keyword)) {
+    return true;
+  }
+  
+  // 搜索尿液检测矩阵
+  if (metricsData['urinalysis-matrix']?.urinalysisMatrix) {
+    const matrix = metricsData['urinalysis-matrix'].urinalysisMatrix;
+    for (const item of matrix) {
+      if (item.item && item.item.toLowerCase().includes(keyword)) return true;
+      if (item.value && item.value.toString().toLowerCase().includes(keyword)) return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * searchInDietContent — 在饮食记录内容中搜索
+ */
+function searchInDietContent(content, keyword) {
+  const dietData = content.dietData || {};
+  
+  for (const meal of Object.values(dietData)) {
+    if (meal.time && meal.time.toLowerCase().includes(keyword)) return true;
+    if (meal.food && meal.food.toLowerCase().includes(keyword)) return true;
+  }
+  
+  return false;
+}
+
+/**
+ * searchInCaseContent — 在病例记录内容中搜索
+ */
+function searchInCaseContent(content, keyword) {
+  // 这里可以根据实际的病例数据结构来实现
+  const contentStr = JSON.stringify(content).toLowerCase();
+  return contentStr.includes(keyword);
 }
 
 /**
@@ -468,23 +711,14 @@ function loadUserDataCards() {
  */
 async function renderUnifiedCards(items, container) {
   if (items.length === 0) {
-    // 根据是否有选择日期显示不同的消息
-    const message = selectedDate 
-      ? `
-        <div class="no-data-message">
-          <div class="no-data-icon">📅</div>
-          <h3>该日期无数据记录</h3>
-          <p>选择其他日期或清除筛选查看所有记录</p>
-        </div>
-      `
-      : `
-        <div class="no-data-message">
-          <div class="no-data-icon">📝</div>
-          <h3>暂无数据记录</h3>
-          <p>开始记录您的健康数据吧</p>
-        </div>
-      `;
-    
+    // 如果没有传入任何项目，显示无数据消息
+    const message = `
+      <div class="no-data-message">
+        <div class="no-data-icon">📝</div>
+        <h3>暂无数据记录</h3>
+        <p>开始记录您的健康数据吧</p>
+      </div>
+    `;
     container.innerHTML = message;
     return;
   }
@@ -498,7 +732,17 @@ async function renderUnifiedCards(items, container) {
       if (detailData.success) {
         const content = detailData.data.content || {};
         const exportInfo = content.exportInfo || {};
-    const summary = parseContentToSummary(content, item.dataType);
+        
+        // 如果有搜索关键字，检查详细内容是否匹配
+        if (searchKeyword) {
+          const matches = searchInCardContent(content, item.dataType, searchKeyword);
+          console.log(`🔍 搜索 "${searchKeyword}" 在 ${item.dataType} 记录 ${item.id}:`, matches);
+          if (!matches) {
+            return null; // 不匹配搜索条件，返回null
+          }
+        }
+        
+        const summary = parseContentToSummary(content, item.dataType);
         
         // 使用exportTime或created_at
         let displayTime;
@@ -608,7 +852,54 @@ async function renderUnifiedCards(items, container) {
 
   // 等待所有卡片数据加载完成
   const cardsHtml = await Promise.all(cardPromises);
-  container.innerHTML = cardsHtml.join('');
+  // 过滤掉null值（不匹配搜索条件的卡片）
+  const validCardsHtml = cardsHtml.filter(html => html !== null);
+  
+  // 如果没有有效的卡片，显示相应的消息
+  if (validCardsHtml.length === 0) {
+    let message;
+    
+    if (selectedDate && searchKeyword) {
+      message = `
+        <div class="no-data-message">
+          <div class="no-data-icon">🔍</div>
+          <h3>未找到匹配的记录</h3>
+          <p>在 ${selectedDate} 中没有找到包含 "${searchKeyword}" 的记录</p>
+          <p>尝试调整搜索条件或清除筛选</p>
+        </div>
+      `;
+    } else if (selectedDate) {
+      message = `
+        <div class="no-data-message">
+          <div class="no-data-icon">📅</div>
+          <h3>该日期无数据记录</h3>
+          <p>选择其他日期或清除筛选查看所有记录</p>
+        </div>
+      `;
+    } else if (searchKeyword) {
+      message = `
+        <div class="no-data-message">
+          <div class="no-data-icon">🔍</div>
+          <h3>未找到匹配的记录</h3>
+          <p>没有找到包含 "${searchKeyword}" 的记录</p>
+          <p>尝试其他关键字或清除搜索</p>
+        </div>
+      `;
+    } else {
+      message = `
+        <div class="no-data-message">
+          <div class="no-data-icon">📝</div>
+          <h3>暂无数据记录</h3>
+          <p>开始记录您的健康数据吧</p>
+        </div>
+      `;
+    }
+    
+    container.innerHTML = message;
+    return;
+  }
+  
+  container.innerHTML = validCardsHtml.join('');
 
   // 绑定点击事件
   bindUnifiedCardEvents(container);

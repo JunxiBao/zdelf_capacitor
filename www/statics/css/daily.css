@@ -30,6 +30,146 @@ body {
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
 }
 
+/* 搜索框容器 - 问候语和卡片正中央 */
+.search-container {
+  position: fixed;
+  top: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  width: calc(100% - 40px);
+  max-width: 600px;
+}
+
+.search-box {
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  border-radius: 20px;
+  padding: 4px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.search-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, rgba(102, 126, 234, 0.1) 0%, transparent 50%, rgba(102, 126, 234, 0.05) 100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.search-box:focus-within {
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.15);
+  border-color: rgba(102, 126, 234, 0.3);
+  transform: translateY(-1px);
+}
+
+.search-box:focus-within::before {
+  opacity: 1;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.search-icon {
+  position: absolute;
+  left: 16px;
+  color: #9ca3af;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.search-input:focus + .search-icon {
+  color: #667eea;
+  transform: scale(1.1);
+}
+
+.search-input {
+  width: 100%;
+  padding: 16px 16px 16px 52px;
+  border: none;
+  background: transparent;
+  font-size: 1rem;
+  color: #1f2937;
+  outline: none;
+  font-weight: 500;
+}
+
+.search-input::placeholder {
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.search-input:focus {
+  color: #1f2937;
+}
+
+.clear-search-btn {
+  position: absolute;
+  right: 12px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 12px;
+  min-width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+  position: relative;
+  overflow: hidden;
+  z-index: 2;
+}
+
+.clear-search-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, transparent 50%, rgba(255,255,255,0.05) 100%);
+  opacity: 0;
+}
+
+.clear-search-btn:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+.clear-search-btn:hover::before {
+  opacity: 1;
+}
+
+.clear-search-btn:active {
+  transform: scale(0.95);
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+}
+
+.clear-search-btn svg {
+  position: relative;
+  z-index: 1;
+}
+
+.clear-search-btn.hidden {
+  display: none;
+}
+
 /* 日期选择器容器 - 屏幕最右边 */
 .date-picker-container {
   position: fixed;
@@ -171,6 +311,52 @@ body {
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
   }
 
+  /* 深色模式搜索框 */
+  .search-box {
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    border-color: rgba(167, 139, 250, 0.2);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  }
+
+  .search-box::before {
+    background: linear-gradient(45deg, rgba(167, 139, 250, 0.1) 0%, transparent 50%, rgba(167, 139, 250, 0.05) 100%);
+  }
+
+  .search-box:focus-within {
+    box-shadow: 0 8px 32px rgba(167, 139, 250, 0.2);
+    border-color: rgba(167, 139, 250, 0.4);
+  }
+
+  .search-icon {
+    color: #6b7280;
+  }
+
+  .search-input:focus + .search-icon {
+    color: #a78bfa;
+  }
+
+  .search-input {
+    color: #f9fafb;
+  }
+
+  .search-input::placeholder {
+    color: #6b7280;
+  }
+
+  .search-input:focus {
+    color: #f9fafb;
+  }
+
+  .clear-search-btn {
+    background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+    box-shadow: 0 2px 8px rgba(248, 113, 113, 0.4);
+  }
+
+  .clear-search-btn:hover {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    box-shadow: 0 4px 12px rgba(248, 113, 113, 0.5);
+  }
+
   /* 深色模式日期选择器 */
   .date-picker-icon {
     background: linear-gradient(135deg, #a78bfa 0%, #c4b5fd 100%);
@@ -204,9 +390,9 @@ body {
   bottom: auto;
   overflow-y: visible;
   z-index: 100;
-  margin-top: 80px;
+  margin-top: 150px;
   margin-bottom: 100px;
-  min-height: calc(100vh - 220px);
+  min-height: calc(100vh - 290px);
   padding: 0 20px;
 }
 
@@ -1163,6 +1349,40 @@ body {
     font-size: 1.5rem;
   }
 
+  .search-container {
+    top: 80px;
+    width: calc(100% - 20px);
+    max-width: none;
+  }
+
+  .search-box {
+    border-radius: 16px;
+    padding: 3px;
+  }
+
+  .search-input {
+    padding: 14px 14px 14px 48px;
+    font-size: 0.95rem;
+  }
+
+  .search-icon {
+    left: 14px;
+    width: 18px;
+    height: 18px;
+  }
+
+  .clear-search-btn {
+    right: 10px;
+    min-width: 28px;
+    height: 28px;
+    padding: 6px;
+  }
+
+  .clear-search-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
   .date-picker-container {
     top: 15px;
     right: 15px;
@@ -1197,9 +1417,9 @@ body {
     transform: translateX(-50%);
     width: calc(100% - 20px);
     bottom: auto;
-    margin-top: 70px;
+    margin-top: 130px;
     margin-bottom: 80px;
-    min-height: calc(100vh - 180px);
+    min-height: calc(100vh - 230px);
     grid-template-columns: 1fr;
     gap: 16px;
     padding: 16px;
