@@ -46,6 +46,15 @@ function initMetricsPage() {
 
     // 初始化出血点选择功能
     initBleedingPointSelection();
+    
+    // 初始化出血点图片上传功能
+    initBleedingImageUpload();
+    
+    // 初始化JSON大小显示功能
+    initJsonSizeDisplay();
+    
+    // 初始显示JSON大小
+    updateJsonSizeDisplay();
 
     // 初始化自我评分滑块功能
     initSelfRatingSlider();
@@ -175,16 +184,31 @@ function saveAllMetrics() {
                     break;
 
                 case 'bleeding-point':
-                    const _bpEl = document.getElementById('bleeding-point-select');
-                    const _bpOtherEl = document.getElementById('other-bleeding-text');
-                    const bleedingPoint = _bpEl ? _bpEl.value : '';
-                    const otherBleedingText = _bpOtherEl ? _bpOtherEl.value.trim() : '';
+                    const bleedingPoints = [];
+                    const bleedingPointItems = document.querySelectorAll('.bleeding-point-item');
                     
-                    if (bleedingPoint) {
-                        data = { bleedingPoint };
-                        if (bleedingPoint === 'other' && otherBleedingText) {
-                            data.otherDescription = otherBleedingText;
+                    bleedingPointItems.forEach(item => {
+                        const select = item.querySelector('.bleeding-point-select');
+                        const otherInput = item.querySelector('.other-bleeding-text');
+                        
+                        if (select && select.value) {
+                            const bleedingData = { bleedingPoint: select.value };
+                            if (select.value === 'other' && otherInput && otherInput.value.trim()) {
+                                bleedingData.otherDescription = otherInput.value.trim();
+                            }
+                            bleedingPoints.push(bleedingData);
                         }
+                    });
+                    
+                    // 收集图片数据
+                    const bleedingImages = [];
+                    const imageItems = document.querySelectorAll('#bleedingUploadedImages .uploaded-image-item img');
+                    imageItems.forEach(img => {
+                        bleedingImages.push(img.src);
+                    });
+                    
+                    if (bleedingPoints.length > 0 || bleedingImages.length > 0) {
+                        data = { bleedingPoints, bleedingImages };
                         hasValidData = true;
                     }
                     break;
@@ -265,6 +289,23 @@ function saveAllMetrics() {
                 const identity = await resolveUserIdentity();
                 const user_id = identity.user_id || '';
                 const username = identity.username || '';
+
+                // 检查JSON文件大小
+                const jsonString = JSON.stringify({ user_id, username, payload });
+                const jsonSizeKB = (new Blob([jsonString]).size / 1024).toFixed(1);
+                const maxJsonSizeKB = 5120; // 5MB限制
+                
+                console.log(`JSON文件大小: ${jsonSizeKB}KB`);
+                
+                if (jsonSizeKB > maxJsonSizeKB) {
+                    // 恢复按钮状态
+                    saveBtn.disabled = false;
+                    btnText.textContent = '保存所有指标';
+                    spinner.classList.remove('show');
+                    
+                    showMessage(`数据过大 (${jsonSizeKB}KB > ${maxJsonSizeKB}KB)！请删除一些图片或减少文本内容`, 'error');
+                    return;
+                }
 
                 var API_BASE = (typeof window !== 'undefined' && window.__API_BASE__) || 'https://app.zdelf.cn';
                 if (API_BASE && API_BASE.endsWith('/')) API_BASE = API_BASE.slice(0, -1);
@@ -383,16 +424,25 @@ function fillFormData(type, data) {
                 break;
 
             case 'bleeding-point':
-                if (data.bleedingPoint) {
-                    document.getElementById('bleeding-point-select').value = data.bleedingPoint;
-                    // 如果选择的是"其他"，显示其他输入框并填充内容
-                    if (data.bleedingPoint === 'other') {
-                        const otherInput = document.getElementById('other-bleeding-input');
-                        otherInput.style.display = 'block';
-                        if (data.otherDescription) {
-                            document.getElementById('other-bleeding-text').value = data.otherDescription;
-                        }
-                    }
+                if (data.bleedingPoints && Array.isArray(data.bleedingPoints)) {
+                    // 清空现有出血点
+                    const container = document.getElementById('bleeding-points-list');
+                    container.innerHTML = '';
+                    
+                    // 重新创建出血点项目
+                    data.bleedingPoints.forEach((item, index) => {
+                        addBleedingPoint(item.bleedingPoint, item.otherDescription, index);
+                    });
+                }
+                
+                // 恢复图片
+                if (data.bleedingImages && Array.isArray(data.bleedingImages)) {
+                    const imageContainer = document.getElementById('bleedingUploadedImages');
+                    imageContainer.innerHTML = '';
+                    
+                    data.bleedingImages.forEach(imageSrc => {
+                        addBleedingImageToContainer(imageSrc);
+                    });
                 }
                 break;
 
@@ -426,63 +476,376 @@ function fillFormData(type, data) {
 
 // 初始化出血点选择功能
 function initBleedingPointSelection() {
-    const bleedingSelect = document.getElementById('bleeding-point-select');
-    const otherInput = document.getElementById('other-bleeding-input');
-    
-    if (bleedingSelect && otherInput) {
-        // 选择器变化时的震动反馈
-        bleedingSelect.addEventListener('change', function() {
-            // 添加震动反馈
-            try {
-                window.__hapticImpact__ && window.__hapticImpact__('Medium');
-            } catch(_) {}
-            
-            if (this.value === 'other') {
-                otherInput.style.display = 'block';
-                // 聚焦到其他输入框
-                const otherTextInput = document.getElementById('other-bleeding-text');
-                if (otherTextInput) {
-                    otherTextInput.focus();
-                }
-            } else {
-                otherInput.style.display = 'none';
-                // 清空其他输入框的内容
-                const otherTextInput = document.getElementById('other-bleeding-text');
-                if (otherTextInput) {
-                    otherTextInput.value = '';
-                }
-            }
-        });
+    // 添加第一个出血点项目
+    addBleedingPoint();
+}
 
-        // 选择器聚焦时的轻微震动
-        bleedingSelect.addEventListener('focus', function() {
+// 添加出血点项目
+function addBleedingPoint(selectedValue = '', otherDescription = '', index = null) {
+    const container = document.getElementById('bleeding-points-list');
+    if (!container) return;
+    
+    // 添加按钮点击动画
+    const addBtn = document.querySelector('.add-bleeding-point-btn');
+    if (addBtn) {
+        addBtn.classList.add('clicking');
+        setTimeout(() => {
+            addBtn.classList.remove('clicking');
+        }, 300);
+    }
+    
+    // 添加按钮点击时的震动反馈
+    try {
+        window.__hapticImpact__ && window.__hapticImpact__('Medium');
+    } catch(_) {}
+    
+    const itemIndex = index !== null ? index : container.children.length;
+    
+    const itemDiv = document.createElement('div');
+    itemDiv.className = 'bleeding-point-item';
+    
+    itemDiv.innerHTML = `
+        <div class="bleeding-point-header">
+            <div class="custom-select-wrapper">
+                <select class="bleeding-point-select custom-select" data-index="${itemIndex}">
+                    <option value="">请选择出血部位</option>
+                    <option value="joints">🦴 关节</option>
+                    <option value="thigh">🦵 大腿</option>
+                    <option value="calf">🦵 小腿</option>
+                    <option value="upper-arm">💪 大臂</option>
+                    <option value="forearm">💪 小臂</option>
+                    <option value="abdomen">🫁 腹部</option>
+                    <option value="other">📝 其他</option>
+                </select>
+                <div class="select-arrow">
+                    <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
+                        <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+            </div>
+            <button type="button" class="remove-bleeding-point-btn" onclick="removeBleedingPoint(this)" onmousedown="try { window.__hapticImpact__ && window.__hapticImpact__('Light'); } catch(_) {}">×</button>
+        </div>
+        <div class="other-bleeding-input" style="display: none;">
+            <div class="other-input-wrapper">
+                <input type="text" class="other-bleeding-text other-text-input" placeholder="请描述其他出血部位...">
+                <div class="input-icon">✏️</div>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(itemDiv);
+    
+    // 如果提供了选中的值，设置选择器
+    if (selectedValue) {
+        const select = itemDiv.querySelector('.bleeding-point-select');
+        select.value = selectedValue;
+        
+        if (selectedValue === 'other') {
+            const otherInput = itemDiv.querySelector('.other-bleeding-input');
+            otherInput.style.display = 'block';
+            const otherTextInput = itemDiv.querySelector('.other-bleeding-text');
+            if (otherDescription) {
+                otherTextInput.value = otherDescription;
+            }
+        }
+    }
+    
+    // 添加事件监听器
+    const select = itemDiv.querySelector('.bleeding-point-select');
+    select.addEventListener('change', function() {
+        const otherInput = itemDiv.querySelector('.other-bleeding-input');
+        const otherTextInput = itemDiv.querySelector('.other-bleeding-text');
+        
+        try {
+            window.__hapticImpact__ && window.__hapticImpact__('Medium');
+        } catch(_) {}
+        
+        if (this.value === 'other') {
+            otherInput.style.display = 'block';
+            if (otherTextInput) {
+                otherTextInput.focus();
+            }
+        } else {
+            otherInput.style.display = 'none';
+            if (otherTextInput) {
+                otherTextInput.value = '';
+            }
+        }
+    });
+    
+    // 选择器聚焦时的震动
+    select.addEventListener('focus', function() {
+        try {
+            window.__hapticImpact__ && window.__hapticImpact__('Light');
+        } catch(_) {}
+    });
+    
+    const otherTextInput = itemDiv.querySelector('.other-bleeding-text');
+    if (otherTextInput) {
+        otherTextInput.addEventListener('focus', function() {
             try {
                 window.__hapticImpact__ && window.__hapticImpact__('Light');
             } catch(_) {}
         });
 
-        // 其他输入框的震动反馈
-        const otherTextInput = document.getElementById('other-bleeding-text');
-        if (otherTextInput) {
-            otherTextInput.addEventListener('focus', function() {
+        otherTextInput.addEventListener('input', function() {
+            if (this._inputTimer) {
+                clearTimeout(this._inputTimer);
+            }
+            this._inputTimer = setTimeout(() => {
                 try {
                     window.__hapticImpact__ && window.__hapticImpact__('Light');
                 } catch(_) {}
-            });
-
-            otherTextInput.addEventListener('input', function() {
-                // 输入时的轻微震动（防抖处理）
-                if (this._inputTimer) {
-                    clearTimeout(this._inputTimer);
-                }
-                this._inputTimer = setTimeout(() => {
-                    try {
-                        window.__hapticImpact__ && window.__hapticImpact__('Light');
-                    } catch(_) {}
-                }, 300);
-            });
-        }
+            }, 300);
+        });
     }
+    
+    // 更新删除按钮显示状态
+    updateBleedingPointRemoveButtons();
+    
+    // 添加震动反馈
+    try {
+        window.__hapticImpact__ && window.__hapticImpact__('Heavy');
+    } catch(_) {}
+}
+
+// 删除出血点项目
+function removeBleedingPoint(button) {
+    const item = button.closest('.bleeding-point-item');
+    if (item) {
+        // 删除按钮动画
+        button.classList.add('removing');
+        
+        // 删除前的震动反馈
+        try {
+            window.__hapticImpact__ && window.__hapticImpact__('Medium');
+        } catch(_) {}
+        
+        // 添加项目滑出动画
+        item.classList.add('removing');
+        
+        // 等待动画完成后删除元素
+        setTimeout(() => {
+            item.remove();
+            updateBleedingPointRemoveButtons();
+            
+            // 删除完成后的震动反馈
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Heavy');
+            } catch(_) {}
+        }, 400);
+    }
+}
+
+// 更新出血点删除按钮显示状态
+function updateBleedingPointRemoveButtons() {
+    const items = document.querySelectorAll('.bleeding-point-item');
+    const removeButtons = document.querySelectorAll('.remove-bleeding-point-btn');
+    
+    // 如果只有一个项目，隐藏删除按钮
+    removeButtons.forEach(button => {
+        button.style.display = items.length > 1 ? 'flex' : 'none';
+    });
+}
+
+// 初始化出血点图片上传功能
+function initBleedingImageUpload() {
+    const imageUploadBtn = document.getElementById('bleedingImageUploadBtn');
+    
+    if (imageUploadBtn) {
+        // 点击上传按钮触发图片选择
+        imageUploadBtn.addEventListener('click', async function() {
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Medium');
+                
+                // 检查并请求权限
+                const permissions = await window.cameraUtils.checkPermissions();
+                if (permissions.camera === 'denied' || permissions.photos === 'denied') {
+                    const newPermissions = await window.cameraUtils.requestPermissions();
+                    if (newPermissions.camera === 'denied' || newPermissions.photos === 'denied') {
+                        showMessage('需要相机和相册权限才能上传图片', 'error');
+                        return;
+                    }
+                }
+
+                // 显示图片选择选项
+                await window.cameraUtils.showImageOptions(
+                    (dataUrl) => {
+                        // 成功获取图片
+                        handleBleedingImageDataUrl(dataUrl);
+                    },
+                    (error) => {
+                        // 错误处理
+                        showMessage('图片选择失败: ' + error, 'error');
+                    }
+                );
+            } catch (error) {
+                console.error('图片上传失败:', error);
+                showMessage('图片上传失败: ' + error.message, 'error');
+            }
+        });
+    }
+}
+
+// 处理出血点图片数据URL（新的统一处理函数）
+function handleBleedingImageDataUrl(dataUrl) {
+    // 显示压缩进度
+    showBleedingCompressionProgress('图片处理中...');
+    
+    // 将DataURL转换为File对象进行压缩
+    dataURLToFile(dataUrl, 'bleeding-image.jpg').then(file => {
+        compressImage(file, (compressedDataUrl) => {
+            hideBleedingCompressionProgress();
+            
+            // 添加新图片到容器
+            addBleedingImageToContainer(compressedDataUrl, file.name);
+            
+            // 显示压缩成功信息
+            const originalSizeKB = (file.size / 1024).toFixed(1);
+            const compressedSizeKB = ((compressedDataUrl.length * 0.75) / 1024).toFixed(1);
+            const compressionRatio = ((1 - compressedDataUrl.length * 0.75 / file.size) * 100).toFixed(1);
+            
+            showMessage(`图片压缩成功！原始: ${originalSizeKB}KB → 压缩后: ${compressedSizeKB}KB (压缩率: ${compressionRatio}%)`, 'success');
+        }, (error) => {
+            hideBleedingCompressionProgress();
+            showMessage(`图片压缩失败: ${error}`, 'error');
+        }, 500); // 限制为500KB
+    }).catch(error => {
+        hideBleedingCompressionProgress();
+        showMessage(`图片处理失败: ${error.message}`, 'error');
+    });
+}
+
+// 将DataURL转换为File对象
+function dataURLToFile(dataUrl, filename) {
+    return new Promise((resolve, reject) => {
+        try {
+            const arr = dataUrl.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) {
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            const file = new File([u8arr], filename, { type: mime });
+            resolve(file);
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+// 处理出血点图片上传
+function handleBleedingImageUpload(files) {
+    Array.from(files).forEach(file => {
+        // 检查文件类型
+        if (!file.type.startsWith('image/')) {
+            showMessage('请选择图片文件', 'error');
+            return;
+        }
+        
+        // 检查文件大小（原始文件不超过10MB）
+        const maxOriginalSizeMB = 10;
+        if (file.size > maxOriginalSizeMB * 1024 * 1024) {
+            showMessage(`图片文件过大，请选择小于${maxOriginalSizeMB}MB的图片`, 'error');
+            return;
+        }
+        
+        // 显示压缩进度
+        showBleedingCompressionProgress(file.name);
+        
+        compressImage(file, (compressedDataUrl) => {
+            hideBleedingCompressionProgress();
+            
+            // 添加新图片到容器
+            addBleedingImageToContainer(compressedDataUrl, file.name);
+            
+            // 显示压缩成功信息
+            const originalSizeKB = (file.size / 1024).toFixed(1);
+            const compressedSizeKB = ((compressedDataUrl.length * 0.75) / 1024).toFixed(1);
+            const compressionRatio = ((1 - compressedDataUrl.length * 0.75 / file.size) * 100).toFixed(1);
+            
+            showMessage(`图片 ${file.name} 压缩成功！原始: ${originalSizeKB}KB → 压缩后: ${compressedSizeKB}KB (压缩率: ${compressionRatio}%)`, 'success');
+            
+            // 更新JSON大小显示
+            updateJsonSizeDisplay();
+        }, (error) => {
+            hideBleedingCompressionProgress();
+            showMessage(`图片 ${file.name} 压缩失败: ${error}`, 'error');
+        }, 500); // 限制为500KB
+    });
+}
+
+// 显示出血点图片压缩进度
+function showBleedingCompressionProgress(fileName) {
+    const progressHtml = `
+        <div class="bleeding-compression-progress" style="
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 12px;
+            z-index: 10000;
+            text-align: center;
+            backdrop-filter: blur(8px);
+        ">
+            <div style="margin-bottom: 12px;">
+                <div style="width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.3); border-top: 3px solid white; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+            </div>
+            <div style="font-size: 0.9rem; color: #ccc;">正在压缩图片...</div>
+            <div style="font-size: 0.8rem; color: #999; margin-top: 4px;">${fileName}</div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', progressHtml);
+}
+
+// 隐藏出血点图片压缩进度
+function hideBleedingCompressionProgress() {
+    const progress = document.querySelector('.bleeding-compression-progress');
+    if (progress) {
+        progress.remove();
+    }
+}
+
+// 添加出血点图片到容器
+function addBleedingImageToContainer(imageSrc, fileName) {
+    const imageContainer = document.getElementById('bleedingUploadedImages');
+    const imageItem = document.createElement('div');
+    imageItem.className = 'uploaded-image-item';
+    
+    const img = document.createElement('img');
+    img.src = imageSrc;
+    img.alt = fileName;
+    
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-image-btn';
+    removeBtn.innerHTML = '×';
+    removeBtn.onclick = function() {
+        imageItem.remove();
+        try {
+            window.__hapticImpact__ && window.__hapticImpact__('Medium');
+        } catch(_) {}
+        // 更新JSON大小显示
+        updateJsonSizeDisplay();
+    };
+    
+    imageItem.appendChild(img);
+    imageItem.appendChild(removeBtn);
+    imageContainer.appendChild(imageItem);
+    
+    // 添加动画效果
+    imageItem.style.opacity = '0';
+    imageItem.style.transform = 'scale(0.8)';
+    setTimeout(() => {
+        imageItem.style.transition = 'all 0.3s ease';
+        imageItem.style.opacity = '1';
+        imageItem.style.transform = 'scale(1)';
+    }, 10);
 }
 
 // 初始化自我评分滑块功能
@@ -652,6 +1015,91 @@ function saveMetricsData() {
     } catch (error) {
         console.error('保存指标数据到本地存储失败:', error);
     }
+}
+
+// 显示消息提示（与病历页面保持一致）
+function showMessage(message, type = 'info') {
+    // 创建消息元素
+    const messageEl = document.createElement('div');
+    messageEl.className = `message-toast message-${type}`;
+    messageEl.textContent = message;
+    
+    // 根据类型选择颜色
+    let backgroundColor;
+    switch(type) {
+        case 'success':
+            backgroundColor = '#4caf50';
+            break;
+        case 'error':
+            backgroundColor = '#f44336';
+            break;
+        case 'warning':
+            backgroundColor = '#ff9800';
+            break;
+        default:
+            backgroundColor = '#2196f3';
+    }
+    
+    // 添加样式
+    messageEl.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: ${backgroundColor};
+        color: white;
+        padding: 16px 24px;
+        border-radius: 8px;
+        font-size: 1em;
+        font-weight: 500;
+        z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        animation: messageSlideIn 0.3s ease-out;
+        max-width: 90vw;
+        word-wrap: break-word;
+    `;
+    
+    // 添加动画样式
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes messageSlideIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+        @keyframes messageSlideOut {
+            from {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            to {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.8);
+            }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // 添加到页面
+    document.body.appendChild(messageEl);
+    
+    // 自动移除
+    setTimeout(() => {
+        messageEl.style.animation = 'messageSlideOut 0.3s ease-in';
+        setTimeout(() => {
+            if (messageEl.parentNode) {
+                messageEl.parentNode.removeChild(messageEl);
+            }
+            if (style.parentNode) {
+                style.parentNode.removeChild(style);
+            }
+        }, 300);
+    }, 3000);
 }
 
 // 显示提示消息
@@ -1750,13 +2198,17 @@ function clearAllFormData() {
         }
         
         // 重置出血点选择
-        const bleedingSelect = document.getElementById('bleeding-point-select');
-        const otherInput = document.getElementById('other-bleeding-input');
-        if (bleedingSelect) bleedingSelect.value = '';
-        if (otherInput) {
-            otherInput.style.display = 'none';
-            const otherTextInput = document.getElementById('other-bleeding-text');
-            if (otherTextInput) otherTextInput.value = '';
+        const bleedingPointsList = document.getElementById('bleeding-points-list');
+        if (bleedingPointsList) {
+            bleedingPointsList.innerHTML = '';
+            // 重新添加一个空的出血点项目
+            addBleedingPoint();
+        }
+        
+        // 清除出血点图片
+        const bleedingImages = document.getElementById('bleedingUploadedImages');
+        if (bleedingImages) {
+            bleedingImages.innerHTML = '';
         }
         
         // 清除本地存储
@@ -1768,6 +2220,247 @@ function clearAllFormData() {
         console.log('所有表单数据已清除');
     } catch (error) {
         console.error('清除表单数据失败:', error);
+    }
+}
+
+// 初始化JSON大小显示功能
+function initJsonSizeDisplay() {
+    // 绑定表单输入事件，实时更新JSON大小
+    const formInputs = ['symptoms-input', 'temperature-input', 'proteinuria-input', 'wbc-input', 'rbc-input', 'hb-input', 'plt-input'];
+    formInputs.forEach(inputId => {
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.addEventListener('input', updateJsonSizeDisplay);
+        }
+    });
+    
+    // 为出血点选择器添加事件监听
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('bleeding-point-select') || e.target.classList.contains('other-bleeding-text')) {
+            updateJsonSizeDisplay();
+        }
+    });
+    
+    // 为尿液检测矩阵添加事件监听
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('urinalysis-select') || e.target.classList.contains('urinalysis-value')) {
+            updateJsonSizeDisplay();
+        }
+    });
+    
+    // 为自我评分滑块添加事件监听
+    const ratingSlider = document.getElementById('self-rating-slider');
+    if (ratingSlider) {
+        ratingSlider.addEventListener('input', updateJsonSizeDisplay);
+    }
+}
+
+// 更新JSON大小显示
+function updateJsonSizeDisplay() {
+    // 收集当前数据
+    const symptoms = document.getElementById('symptoms-input')?.value.trim() || '';
+    const temperature = document.getElementById('temperature-input')?.value || '';
+    const proteinuria = document.getElementById('proteinuria-input')?.value || '';
+    const wbc = document.getElementById('wbc-input')?.value || '';
+    const rbc = document.getElementById('rbc-input')?.value || '';
+    const hb = document.getElementById('hb-input')?.value || '';
+    const plt = document.getElementById('plt-input')?.value || '';
+    
+    // 收集出血点数据
+    const bleedingPoints = [];
+    const bleedingPointItems = document.querySelectorAll('.bleeding-point-item');
+    bleedingPointItems.forEach(item => {
+        const select = item.querySelector('.bleeding-point-select');
+        const otherInput = item.querySelector('.other-bleeding-text');
+        
+        if (select && select.value) {
+            const bleedingData = { bleedingPoint: select.value };
+            if (select.value === 'other' && otherInput && otherInput.value.trim()) {
+                bleedingData.otherDescription = otherInput.value.trim();
+            }
+            bleedingPoints.push(bleedingData);
+        }
+    });
+    
+    // 收集尿液检测矩阵数据
+    const urinalysisData = [];
+    const urinalysisItems = document.querySelectorAll('.urinalysis-item');
+    urinalysisItems.forEach((item, index) => {
+        const select = item.querySelector('.urinalysis-select');
+        const valueInput = item.querySelector('.urinalysis-value');
+        
+        if (select && select.value && valueInput && valueInput.value.trim()) {
+            urinalysisData.push({
+                item: select.value,
+                value: valueInput.value.trim(),
+                index: index
+            });
+        }
+    });
+    
+    // 收集图片数据
+    const bleedingImages = [];
+    const imageItems = document.querySelectorAll('#bleedingUploadedImages .uploaded-image-item img');
+    imageItems.forEach(img => {
+        bleedingImages.push(img.src);
+    });
+    
+    // 收集自我评分数据
+    const selfRating = document.getElementById('self-rating-slider')?.value || '';
+    
+    // 构建测试数据
+    const testMetricsData = {
+        symptoms: symptoms ? { symptoms } : null,
+        temperature: temperature && !isNaN(parseFloat(temperature)) ? { temperature: parseFloat(temperature) } : null,
+        proteinuria: proteinuria && !isNaN(parseFloat(proteinuria)) ? { proteinuria24h: parseFloat(proteinuria) } : null,
+        'blood-test': (() => {
+            const bloodData = {};
+            if (wbc && !isNaN(parseFloat(wbc))) bloodData.wbc = parseFloat(wbc);
+            if (rbc && !isNaN(parseFloat(rbc))) bloodData.rbc = parseFloat(rbc);
+            if (hb && !isNaN(parseInt(hb))) bloodData.hb = parseInt(hb);
+            if (plt && !isNaN(parseInt(plt))) bloodData.plt = parseInt(plt);
+            return Object.keys(bloodData).length > 0 ? bloodData : null;
+        })(),
+        'bleeding-point': bleedingPoints.length > 0 || bleedingImages.length > 0 ? { bleedingPoints, bleedingImages } : null,
+        'urinalysis-matrix': urinalysisData.length > 0 ? { urinalysisMatrix: urinalysisData } : null,
+        'self-rating': selfRating && !isNaN(parseInt(selfRating)) ? { selfRating: parseInt(selfRating) } : null,
+        timestamp: new Date().toISOString(),
+        id: 'test'
+    };
+    
+    // 过滤掉null值
+    Object.keys(testMetricsData).forEach(key => {
+        if (testMetricsData[key] === null) {
+            delete testMetricsData[key];
+        }
+    });
+    
+    const testPayload = {
+        exportInfo: {
+            exportTime: new Date().toLocaleString('zh-CN'),
+            version: '1.0',
+            appName: '紫癜精灵',
+            dataType: 'health_metrics'
+        },
+        metricsData: testMetricsData
+    };
+    
+    // 计算JSON大小
+    const jsonString = JSON.stringify({ user_id: 'test', username: 'test', payload: testPayload });
+    const jsonSizeKB = (new Blob([jsonString]).size / 1024).toFixed(1);
+    const maxJsonSizeKB = 5120; // 5MB限制
+    
+    // 更新显示
+    const sizeDisplay = document.getElementById('json-size-display');
+    if (!sizeDisplay) return;
+    
+    // 检查是否有图片上传
+    const hasImages = bleedingImages.length > 0;
+    
+    if (!hasImages) {
+        // 没有图片时隐藏大小显示
+        sizeDisplay.style.display = 'none';
+        return;
+    }
+    
+    // 有图片时显示大小
+    sizeDisplay.style.display = 'block';
+    const isOverLimit = jsonSizeKB > maxJsonSizeKB;
+    sizeDisplay.innerHTML = `
+        <div style="color: ${isOverLimit ? '#e74c3c' : '#27ae60'}; font-weight: 600;">
+            当前数据大小: ${jsonSizeKB}KB / ${maxJsonSizeKB}KB
+        </div>
+        ${isOverLimit ? '<div style="color: #e74c3c; margin-top: 4px;">⚠️ 数据过大，请删除一些图片或减少文本内容</div>' : ''}
+    `;
+}
+
+// 图片压缩函数（从病历页面复制）
+function compressImage(file, callback, errorCallback, maxSizeKB = 500) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = function() {
+        try {
+            // 计算压缩后的尺寸
+            let { width, height } = calculateCompressedSize(img.width, img.height, maxSizeKB);
+            
+            // 设置canvas尺寸
+            canvas.width = width;
+            canvas.height = height;
+            
+            // 绘制压缩后的图片
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // 尝试不同的质量直到文件大小符合要求
+            compressWithQuality(canvas, file.type, maxSizeKB, callback);
+        } catch (error) {
+            if (errorCallback) {
+                errorCallback(error.message || '图片处理失败');
+            }
+        }
+    };
+    
+    img.onerror = function() {
+        if (errorCallback) {
+            errorCallback('图片加载失败');
+        }
+    };
+    
+    img.src = URL.createObjectURL(file);
+}
+
+// 计算压缩后的尺寸
+function calculateCompressedSize(originalWidth, originalHeight, maxSizeKB) {
+    // 对于500KB限制，设置更小的最大尺寸以确保压缩效果
+    const maxWidth = maxSizeKB <= 500 ? 1200 : 1920;
+    const maxHeight = maxSizeKB <= 500 ? 900 : 1080;
+    
+    // 先按最大尺寸限制
+    let width = originalWidth;
+    let height = originalHeight;
+    
+    if (width > maxWidth || height > maxHeight) {
+        const ratio = Math.min(maxWidth / width, maxHeight / height);
+        width = Math.floor(width * ratio);
+        height = Math.floor(height * ratio);
+    }
+    
+    // 对于500KB，使用更保守的像素估算
+    const estimatedBytesPerPixel = maxSizeKB <= 500 ? 0.3 : 0.2;
+    const maxPixels = (maxSizeKB * 1024) / estimatedBytesPerPixel;
+    const currentPixels = width * height;
+    
+    if (currentPixels <= maxPixels) {
+        return { width, height };
+    }
+    
+    // 进一步压缩尺寸
+    const ratio = Math.sqrt(maxPixels / currentPixels);
+    return {
+        width: Math.floor(width * ratio),
+        height: Math.floor(height * ratio)
+    };
+}
+
+// 使用不同质量压缩
+function compressWithQuality(canvas, mimeType, maxSizeKB, callback, quality = null) {
+    // 根据目标大小设置起始质量，对于500KB使用更低的质量
+    if (quality === null) {
+        quality = maxSizeKB <= 500 ? 0.6 : 0.8;
+    }
+    
+    const dataUrl = canvas.toDataURL(mimeType, quality);
+    const sizeKB = (dataUrl.length * 0.75) / 1024; // Base64转字节再转KB
+    
+    console.log(`压缩质量: ${quality.toFixed(1)}, 文件大小: ${sizeKB.toFixed(1)}KB`);
+    
+    if (sizeKB <= maxSizeKB || quality <= 0.1) {
+        callback(dataUrl);
+    } else {
+        // 降低质量继续压缩，对于500KB使用更大的步长
+        const step = maxSizeKB <= 500 ? 0.1 : 0.05;
+        compressWithQuality(canvas, mimeType, maxSizeKB, callback, quality - step);
     }
 }
 

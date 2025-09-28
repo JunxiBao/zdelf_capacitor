@@ -17,6 +17,71 @@ body {
     }
 }
 
+/* 指标卡片样式（从指标页面复制） */
+.metric-card {
+    background: #fff;
+    border: 2px solid #e0e0e0;
+    border-radius: 16px;
+    padding: 24px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.metric-card:hover {
+    border-color: #6200ea;
+    background: #faf7ff;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(98, 0, 234, 0.15);
+}
+
+/* 指标图标样式 */
+.metric-icon {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+}
+
+.icon-placeholder {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #6200ea, #bb86fc);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: white;
+    box-shadow: 0 4px 12px rgba(98, 0, 234, 0.3);
+}
+
+/* 指标内容样式 */
+.metric-content {
+    margin-right: 70px; /* 为图标留出空间 */
+}
+
+.metric-title {
+    font-size: 1.3em;
+    font-weight: 600;
+    color: #333;
+    margin: 0 0 8px 0;
+    letter-spacing: 0.5px;
+}
+
+.metric-description {
+    font-size: 0.9em;
+    color: #666;
+    margin: 0 0 16px 0;
+    line-height: 1.4;
+}
+
+/* 输入区域样式 */
+.metric-input {
+    margin-bottom: 16px;
+}
+
 /* 返回按钮样式 */
 .back-button-container {
     position: absolute;
@@ -498,6 +563,105 @@ body {
         padding: 14px 24px;
         font-size: 1em;
     }
+}
+
+/* 深色模式下的指标卡片样式 */
+@media (prefers-color-scheme: dark) {
+    .metric-card {
+        background: #1e1e1e;
+        border-color: #444;
+        color: #eee;
+    }
+
+    .metric-card:hover {
+        border-color: #bb86fc;
+        background: #2b2b2b;
+        box-shadow: 0 8px 24px rgba(187, 134, 252, 0.2);
+    }
+
+    .metric-title {
+        color: #ddd;
+    }
+
+    .metric-description {
+        color: #aaa;
+    }
+
+    .form-input {
+        background: #1e1e1e;
+        border-color: #444;
+        color: #eee;
+    }
+
+    .form-input:focus {
+        background: #222;
+        border-color: #bb86fc;
+    }
+
+    .form-input::placeholder {
+        color: #666;
+    }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    .metric-card {
+        padding: 20px;
+        border-radius: 12px;
+    }
+
+    .metric-icon {
+        position: static;
+        display: flex;
+        justify-content: center;
+        margin-bottom: 16px;
+    }
+
+    .metric-content {
+        margin-right: 0;
+        text-align: center;
+    }
+
+    .metric-title {
+        font-size: 1.1em;
+    }
+
+    .metric-description {
+        font-size: 0.85em;
+    }
+}
+
+/* 卡片动画效果 */
+.metric-card {
+    animation: fadeInUp 0.5s ease-out both;
+}
+
+.metric-card:nth-child(1) {
+    animation-delay: 0.1s;
+}
+
+.metric-card:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.metric-card:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+.metric-card:nth-child(4) {
+    animation-delay: 0.4s;
+}
+
+.metric-card:nth-child(5) {
+    animation-delay: 0.5s;
+}
+
+.metric-card:nth-child(6) {
+    animation-delay: 0.6s;
+}
+
+.page-title {
+    animation: fadeInUp 0.5s ease-out;
 }
 
 /* 动画效果 */

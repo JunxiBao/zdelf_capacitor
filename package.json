@@ -1,7 +1,9 @@
 {
   "dependencies": {
+    "@capacitor/action-sheet": "^7.0.2",
     "@capacitor/android": "7.4.3",
     "@capacitor/browser": "^7.0.2",
+    "@capacitor/camera": "^7.0.2",
     "@capacitor/cli": "^7.4.3",
     "@capacitor/core": "^7.4.3",
     "@capacitor/haptics": "^7.0.2",

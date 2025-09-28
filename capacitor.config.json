@@ -10,6 +10,10 @@
     },
     "Browser": {
       "presentationStyle": "fullscreen"
+    },
+    "Camera": {
+      "cameraPermission": "此应用需要访问相机来拍摄病例单和检查报告照片",
+      "photoLibraryPermission": "此应用需要访问相册来选择病例单和检查报告照片"
     }
   }
 }

@@ -53,5 +53,11 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>此应用需要访问相机来拍摄病例单和检查报告照片</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>此应用需要访问相册来选择病例单和检查报告照片</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>此应用需要访问相册来保存拍摄的照片</string>
 </dict>
 </plist>

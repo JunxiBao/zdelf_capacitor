@@ -12,19 +12,35 @@ function goBack() {
 // 图片上传功能
 document.addEventListener('DOMContentLoaded', function() {
     const imageUploadBtn = document.getElementById('imageUploadBtn');
-    const imageInput = document.getElementById('imageInput');
     const uploadedImages = document.getElementById('uploadedImages');
     
-    // 点击上传按钮触发文件选择
-    imageUploadBtn.addEventListener('click', function() {
-        imageInput.click();
-    });
-    
-    // 文件选择处理
-    imageInput.addEventListener('change', function(e) {
-        const files = e.target.files;
-        if (files.length > 0) {
-            handleImageUpload(files);
+    // 点击上传按钮触发图片选择
+    imageUploadBtn.addEventListener('click', async function() {
+        try {
+            // 检查并请求权限
+            const permissions = await window.cameraUtils.checkPermissions();
+            if (permissions.camera === 'denied' || permissions.photos === 'denied') {
+                const newPermissions = await window.cameraUtils.requestPermissions();
+                if (newPermissions.camera === 'denied' || newPermissions.photos === 'denied') {
+                    showMessage('需要相机和相册权限才能上传图片', 'error');
+                    return;
+                }
+            }
+
+            // 显示图片选择选项
+            await window.cameraUtils.showImageOptions(
+                (dataUrl) => {
+                    // 成功获取图片
+                    handleImageDataUrl(dataUrl);
+                },
+                (error) => {
+                    // 错误处理
+                    showMessage('图片选择失败: ' + error, 'error');
+                }
+            );
+        } catch (error) {
+            console.error('图片上传失败:', error);
+            showMessage('图片上传失败: ' + error.message, 'error');
         }
     });
     
@@ -37,7 +53,36 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // 处理图片上传
+    // 处理图片数据URL（新的统一处理函数）
+    function handleImageDataUrl(dataUrl) {
+        // 显示压缩进度
+        showCompressionProgress('图片处理中...');
+        
+        // 将DataURL转换为File对象进行压缩
+        dataURLToFile(dataUrl, 'image.jpg').then(file => {
+            compressImage(file, (compressedDataUrl) => {
+                hideCompressionProgress();
+                
+                // 添加新图片到容器（不清空现有图片）
+                addImageToContainer(compressedDataUrl, file.name);
+                
+                // 显示压缩成功信息
+                const originalSizeKB = (file.size / 1024).toFixed(1);
+                const compressedSizeKB = ((compressedDataUrl.length * 0.75) / 1024).toFixed(1);
+                const compressionRatio = ((1 - compressedDataUrl.length * 0.75 / file.size) * 100).toFixed(1);
+                
+                showMessage(`图片压缩成功！原始: ${originalSizeKB}KB → 压缩后: ${compressedSizeKB}KB (压缩率: ${compressionRatio}%)`, 'success');
+            }, (error) => {
+                hideCompressionProgress();
+                showMessage(`图片压缩失败: ${error}`, 'error');
+            }, 500); // 限制为500KB
+        }).catch(error => {
+            hideCompressionProgress();
+            showMessage(`图片处理失败: ${error.message}`, 'error');
+        });
+    }
+
+    // 处理图片上传（保留用于兼容性）
     function handleImageUpload(files) {
         // 处理所有文件
         Array.from(files).forEach(file => {
@@ -73,6 +118,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 hideCompressionProgress();
                 showMessage(`图片 ${file.name} 压缩失败: ${error}`, 'error');
             }, 500); // 限制为500KB
+        });
+    }
+
+    // 将DataURL转换为File对象
+    function dataURLToFile(dataUrl, filename) {
+        return new Promise((resolve, reject) => {
+            try {
+                const arr = dataUrl.split(',');
+                const mime = arr[0].match(/:(.*?);/)[1];
+                const bstr = atob(arr[1]);
+                let n = bstr.length;
+                const u8arr = new Uint8Array(n);
+                while (n--) {
+                    u8arr[n] = bstr.charCodeAt(n);
+                }
+                const file = new File([u8arr], filename, { type: mime });
+                resolve(file);
+            } catch (error) {
+                reject(error);
+            }
         });
     }
     
@@ -125,7 +190,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // 图片压缩函数
-    function compressImage(file, callback, errorCallback, maxSizeKB = 2000) {
+    function compressImage(file, callback, errorCallback, maxSizeKB = 500) {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         const img = new Image();
@@ -162,9 +227,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 计算压缩后的尺寸
     function calculateCompressedSize(originalWidth, originalHeight, maxSizeKB) {
-        // 对于500KB限制，设置更大的最大尺寸
-        const maxWidth = maxSizeKB <= 500 ? 1600 : 1920;
-        const maxHeight = maxSizeKB <= 500 ? 1200 : 1080;
+        // 对于500KB限制，设置更小的最大尺寸以确保压缩效果
+        const maxWidth = maxSizeKB <= 500 ? 1200 : 1920;
+        const maxHeight = maxSizeKB <= 500 ? 900 : 1080;
         
         // 先按最大尺寸限制
         let width = originalWidth;
@@ -176,8 +241,8 @@ document.addEventListener('DOMContentLoaded', function() {
             height = Math.floor(height * ratio);
         }
         
-        // 对于500KB，使用更高的像素估算
-        const estimatedBytesPerPixel = maxSizeKB <= 500 ? 0.25 : 0.2;
+        // 对于500KB，使用更保守的像素估算
+        const estimatedBytesPerPixel = maxSizeKB <= 500 ? 0.3 : 0.2;
         const maxPixels = (maxSizeKB * 1024) / estimatedBytesPerPixel;
         const currentPixels = width * height;
         
@@ -195,9 +260,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 使用不同质量压缩
     function compressWithQuality(canvas, mimeType, maxSizeKB, callback, quality = null) {
-        // 根据目标大小设置起始质量
+        // 根据目标大小设置起始质量，对于500KB使用更低的质量
         if (quality === null) {
-            quality = maxSizeKB <= 500 ? 0.8 : 0.8;
+            quality = maxSizeKB <= 500 ? 0.6 : 0.8;
         }
         
         const dataUrl = canvas.toDataURL(mimeType, quality);
@@ -208,8 +273,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (sizeKB <= maxSizeKB || quality <= 0.1) {
             callback(dataUrl);
         } else {
-            // 降低质量继续压缩，对于500KB使用适中的步长
-            const step = maxSizeKB <= 500 ? 0.05 : 0.05;
+            // 降低质量继续压缩，对于500KB使用更大的步长
+            const step = maxSizeKB <= 500 ? 0.1 : 0.05;
             compressWithQuality(canvas, mimeType, maxSizeKB, callback, quality - step);
         }
     }
@@ -313,6 +378,17 @@ function updateJsonSizeDisplay() {
         uploadContainer.parentNode.insertBefore(sizeDisplay, uploadContainer.nextSibling);
     }
     
+    // 检查是否有图片上传
+    const hasImages = images.length > 0;
+    
+    if (!hasImages) {
+        // 没有图片时隐藏大小显示
+        sizeDisplay.style.display = 'none';
+        return;
+    }
+    
+    // 有图片时显示大小
+    sizeDisplay.style.display = 'block';
     const isOverLimit = jsonSizeKB > maxJsonSizeKB;
     sizeDisplay.innerHTML = `
         <div style="color: ${isOverLimit ? '#e74c3c' : '#27ae60'}; font-weight: 600;">
@@ -425,12 +501,7 @@ function saveCaseRecord() {
                 showMessage('本地保存成功，但服务器同步失败', 'warning');
             } else {
                 console.log('病例记录上传成功:', resJson);
-                showMessage('病例记录保存成功！2秒后自动返回首页', 'success');
-                
-                // 延迟2秒后自动跳转到首页
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 2000);
+                showMessage('病例记录保存成功！', 'success');
             }
         } catch (error) {
             console.error('上传到服务器失败:', error);
@@ -443,6 +514,11 @@ function saveCaseRecord() {
             
             // 重置表单
             resetForm();
+            
+            // 延迟2秒后自动跳转到首页（无论上传是否成功）
+            setTimeout(() => {
+                window.location.href = '../index.html';
+            }, 2000);
         }
     })();
 }
