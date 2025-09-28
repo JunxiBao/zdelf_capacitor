@@ -22,6 +22,23 @@ let recordData = null;
 
 // 页面初始化
 function initOptionsPage() {
+    // 强制重新触发动画（防止缓存问题）
+    const optionCards = document.querySelectorAll('.option-card');
+    const optionsTitle = document.querySelector('.options-title');
+    
+    // 重置动画
+    optionCards.forEach(card => {
+        card.style.animation = 'none';
+        card.offsetHeight; // 强制重排
+        card.style.animation = null;
+    });
+    
+    if (optionsTitle) {
+        optionsTitle.style.animation = 'none';
+        optionsTitle.offsetHeight; // 强制重排
+        optionsTitle.style.animation = null;
+    }
+
     // 从本地存储获取记录数据
     const storedData = localStorage.getItem('health_record_data');
     if (storedData) {
@@ -34,7 +51,6 @@ function initOptionsPage() {
     }
 
     // 为选项卡添加点击事件
-    const optionCards = document.querySelectorAll('.option-card');
     optionCards.forEach(card => {
         card.addEventListener('click', handleOptionClick);
         // 添加涟漪效果

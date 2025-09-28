@@ -3,6 +3,32 @@ let mealCounter = 1; // 餐次计数器
 let dietData = {}; // 存储饮食数据
 let pendingDeleteMealId = null; // 待删除的餐次ID
 
+// 统一的保存状态管理函数
+function initSaveState() {
+    const saveBtn = document.querySelector('.global-save-btn');
+    const spinner = document.getElementById('global-spinner');
+    const btnText = saveBtn.querySelector('.btn-text');
+    
+    return {
+        saveBtn,
+        spinner,
+        btnText,
+        originalText: btnText.textContent
+    };
+}
+
+function showSaveLoading(saveState, loadingText = '保存中...') {
+    saveState.saveBtn.disabled = true;
+    saveState.btnText.textContent = loadingText;
+    saveState.spinner.classList.add('show');
+}
+
+function hideSaveLoading(saveState, originalText = null) {
+    saveState.saveBtn.disabled = false;
+    saveState.btnText.textContent = originalText || saveState.originalText;
+    saveState.spinner.classList.remove('show');
+}
+
 // 震动反馈初始化（兼容性处理）
 (function() {
   'use strict';
@@ -218,15 +244,9 @@ async function saveAllMeals() {
         window.__hapticImpact__ && window.__hapticImpact__('Light');
     } catch(_) {}
 
-    const saveBtn = document.querySelector('.save-btn');
-    const spinner = document.getElementById('save-spinner');
-    const btnText = saveBtn.querySelector('.btn-text');
-
-    // 禁用按钮并显示保存中状态
-    const originalText = btnText.textContent;
-    saveBtn.disabled = true;
-    btnText.textContent = '保存中...';
-    spinner.classList.add('show');
+    // 统一的保存状态管理
+    const saveState = initSaveState();
+    showSaveLoading(saveState, '保存中...');
 
     try {
         let allMealsData = {};
@@ -328,9 +348,7 @@ async function saveAllMeals() {
     } finally {
         // 恢复按钮状态
         setTimeout(() => {
-            btnText.textContent = originalText;
-            saveBtn.disabled = false;
-            spinner.classList.remove('show');
+            hideSaveLoading(saveState, '保存记录');
         }, 1500);
     }
 }

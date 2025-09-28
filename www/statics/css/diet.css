@@ -214,11 +214,11 @@ body {
     z-index: 100;
 }
 
-.save-btn {
+.global-save-btn {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 14px 28px;
+    padding: 16px 32px;
     background: linear-gradient(135deg, #6200ea, #bb86fc);
     color: #fff;
     border: none;
@@ -228,21 +228,21 @@ body {
     cursor: pointer;
     transition: all 0.3s ease;
     box-shadow: 0 4px 16px rgba(98, 0, 234, 0.3);
-    min-width: 140px;
+    min-width: 200px;
     justify-content: center;
 }
 
-.save-btn:hover {
+.global-save-btn:hover {
     background: linear-gradient(135deg, #4b00b5, #9c66d6);
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(98, 0, 234, 0.4);
 }
 
-.save-btn:active {
+.global-save-btn:active {
     transform: translateY(0);
 }
 
-.save-btn:disabled {
+.global-save-btn:disabled {
     opacity: 0.7;
     cursor: not-allowed;
     transform: none;
@@ -531,11 +531,11 @@ body {
         color: #ccc;
     }
 
-    .save-btn {
+    .global-save-btn {
         background: linear-gradient(135deg, #bb86fc, #6200ea);
     }
 
-    .save-btn:hover {
+    .global-save-btn:hover {
         background: linear-gradient(135deg, #9c66d6, #4b00b5);
     }
 
@@ -639,10 +639,10 @@ body {
         transform: translateX(-50%);
     }
 
-    .save-btn {
-        padding: 12px 24px;
+    .global-save-btn {
+        padding: 14px 24px;
         font-size: 0.95em;
-        min-width: 120px;
+        min-width: 200px;
     }
 
 

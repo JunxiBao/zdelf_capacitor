@@ -1,6 +1,32 @@
 // 全局变量存储指标数据
 let metricsData = {};
 
+// 统一的保存状态管理函数
+function initSaveState() {
+    const saveBtn = document.querySelector('.global-save-btn');
+    const spinner = document.getElementById('global-spinner');
+    const btnText = saveBtn.querySelector('.btn-text');
+    
+    return {
+        saveBtn,
+        spinner,
+        btnText,
+        originalText: btnText.textContent
+    };
+}
+
+function showSaveLoading(saveState, loadingText = '保存中...') {
+    saveState.saveBtn.disabled = true;
+    saveState.btnText.textContent = loadingText;
+    saveState.spinner.classList.add('show');
+}
+
+function hideSaveLoading(saveState, originalText = null) {
+    saveState.saveBtn.disabled = false;
+    saveState.btnText.textContent = originalText || saveState.originalText;
+    saveState.spinner.classList.remove('show');
+}
+
 // 震动反馈初始化（兼容性处理）
 (function() {
   'use strict';
@@ -61,6 +87,9 @@ function initMetricsPage() {
 
     // 初始化尿液检测指标矩阵
     initUrinalysisMatrix();
+    
+    // 初始化血常规检测指标矩阵
+    initBloodTestMatrix();
 
     console.log('健康指标页面初始化完成');
 }
@@ -84,22 +113,16 @@ function saveAllMetrics() {
         window.__hapticImpact__ && window.__hapticImpact__('Light');
     } catch(_) {}
 
-    const saveBtn = document.querySelector('.global-save-btn');
-    const spinner = document.getElementById('global-spinner');
-    const btnText = saveBtn.querySelector('.btn-text');
-
-    // 禁用按钮并显示保存中状态
-    const originalText = btnText.textContent;
-    saveBtn.disabled = true;
-    btnText.textContent = '保存中...';
-    spinner.classList.add('show');
+    // 统一的保存状态管理
+    const saveState = initSaveState();
+    showSaveLoading(saveState, '保存中...');
 
     try {
         let allData = {};
         let hasValidData = false;
 
         // 收集所有指标数据
-        const metricTypes = ['symptoms', 'temperature', 'urinalysis', 'proteinuria', 'blood-test', 'bleeding-point', 'self-rating', 'urinalysis-matrix'];
+        const metricTypes = ['symptoms', 'temperature', 'urinalysis', 'proteinuria', 'blood-test', 'blood-test-matrix', 'bleeding-point', 'self-rating', 'urinalysis-matrix'];
 
         for (const metricType of metricTypes) {
             let data = {};
@@ -225,6 +248,37 @@ function saveAllMetrics() {
                     }
                     break;
 
+                case 'blood-test-matrix':
+                    const bloodTestItems = document.querySelectorAll('.blood-test-item');
+                    const bloodTestData = [];
+                    
+                    bloodTestItems.forEach((item, index) => {
+                        const select = item.querySelector('.blood-test-select');
+                        const valueInput = item.querySelector('.blood-test-value');
+                        const customNameInput = item.querySelector('.custom-blood-test-name');
+                        
+                        if (select && select.value && valueInput && valueInput.value.trim()) {
+                            const data = {
+                                item: select.value,
+                                value: valueInput.value.trim(),
+                                index: index
+                            };
+                            
+                            // 如果是自定义项目，添加自定义名称
+                            if (select.value === 'custom' && customNameInput && customNameInput.value.trim()) {
+                                data.customName = customNameInput.value.trim();
+                            }
+                            
+                            bloodTestData.push(data);
+                        }
+                    });
+                    
+                    if (bloodTestData.length > 0) {
+                        data = { bloodTestMatrix: bloodTestData };
+                        hasValidData = true;
+                    }
+                    break;
+
                 case 'urinalysis-matrix':
                     const urinalysisItems = document.querySelectorAll('.urinalysis-item');
                     const urinalysisData = [];
@@ -232,13 +286,21 @@ function saveAllMetrics() {
                     urinalysisItems.forEach((item, index) => {
                         const select = item.querySelector('.urinalysis-select');
                         const valueInput = item.querySelector('.urinalysis-value');
+                        const customNameInput = item.querySelector('.custom-urinalysis-name');
                         
                         if (select && select.value && valueInput && valueInput.value.trim()) {
-                            urinalysisData.push({
+                            const data = {
                                 item: select.value,
                                 value: valueInput.value.trim(),
                                 index: index
-                            });
+                            };
+                            
+                            // 如果是自定义项目，添加自定义名称
+                            if (select.value === 'custom' && customNameInput && customNameInput.value.trim()) {
+                                data.customName = customNameInput.value.trim();
+                            }
+                            
+                            urinalysisData.push(data);
                         }
                     });
                     
@@ -299,9 +361,7 @@ function saveAllMetrics() {
                 
                 if (jsonSizeKB > maxJsonSizeKB) {
                     // 恢复按钮状态
-                    saveBtn.disabled = false;
-                    btnText.textContent = '保存所有指标';
-                    spinner.classList.remove('show');
+                    hideSaveLoading(saveState, '保存所有指标');
                     
                     showMessage(`数据过大 (${jsonSizeKB}KB > ${maxJsonSizeKB}KB)！请删除一些图片或减少文本内容`, 'error');
                     return;
@@ -353,9 +413,7 @@ function saveAllMetrics() {
     } finally {
         // 恢复按钮状态
         setTimeout(() => {
-            btnText.textContent = originalText;
-            saveBtn.disabled = false;
-            spinner.classList.remove('show');
+            hideSaveLoading(saveState, '保存所有指标');
         }, 1500);
     }
 }
@@ -456,6 +514,29 @@ function fillFormData(type, data) {
                 }
                 break;
 
+            case 'blood-test-matrix':
+                if (data.bloodTestMatrix && Array.isArray(data.bloodTestMatrix)) {
+                    // 清空现有项目
+                    const container = document.getElementById('blood-test-matrix-container');
+                    container.innerHTML = '';
+                    
+                    // 重新创建项目
+                    data.bloodTestMatrix.forEach((item, index) => {
+                        addBloodTestItem(item.item, item.value, index);
+                        
+                        // 如果是自定义项目，设置自定义名称
+                        if (item.item === 'custom' && item.customName) {
+                            setTimeout(() => {
+                                const customInput = document.querySelector(`[data-index="${index}"] .custom-blood-test-name`);
+                                if (customInput) {
+                                    customInput.value = item.customName;
+                                }
+                            }, 100);
+                        }
+                    });
+                }
+                break;
+
             case 'urinalysis-matrix':
                 if (data.urinalysisMatrix && Array.isArray(data.urinalysisMatrix)) {
                     // 清空现有项目
@@ -465,6 +546,16 @@ function fillFormData(type, data) {
                     // 重新创建项目
                     data.urinalysisMatrix.forEach((item, index) => {
                         addUrinalysisItem(item.item, item.value, index);
+                        
+                        // 如果是自定义项目，设置自定义名称
+                        if (item.item === 'custom' && item.customName) {
+                            setTimeout(() => {
+                                const customInput = document.querySelector(`[data-index="${index}"] .custom-urinalysis-name`);
+                                if (customInput) {
+                                    customInput.value = item.customName;
+                                }
+                            }, 100);
+                        }
                     });
                 }
                 break;
@@ -1700,8 +1791,12 @@ function addUrinalysisItem(selectedItem = '', value = '', index = null) {
                 <option value="urine-rbc" data-unit="/μl" data-reference="0.0-30.7">尿红细胞计数</option>
                 <option value="urine-wbc" data-unit="/μl" data-reference="0.0-39.0">尿白细胞计数</option>
                 <option value="urine-epithelial" data-unit="/μl" data-reference="0.0-45.6">尿上皮细胞计数</option>
+                <option value="custom" data-unit="" data-reference="">自定义项目</option>
             </select>
             <button type="button" class="remove-btn" onclick="removeUrinalysisItem(this)" onmousedown="try { window.__hapticImpact__ && window.__hapticImpact__('Light'); } catch(_) {}">×</button>
+        </div>
+        <div class="custom-input-wrapper" style="display: none;">
+            <input type="text" class="custom-urinalysis-name" placeholder="请输入自定义项目名称" data-index="${itemIndex}">
         </div>
         <div class="item-input">
             <input type="text" class="urinalysis-value" placeholder="请输入数值" data-index="${itemIndex}" value="${value}">
@@ -1725,6 +1820,7 @@ function addUrinalysisItem(selectedItem = '', value = '', index = null) {
     const select = itemDiv.querySelector('.urinalysis-select');
     select.addEventListener('change', function() {
         updateUnitReference(this);
+        toggleCustomInput(this);
         try {
             window.__hapticImpact__ && window.__hapticImpact__('Medium');
         } catch(_) {}
@@ -1844,6 +1940,304 @@ function updateRemoveButtons() {
     });
 }
 
+// 血常规检测指标矩阵相关函数
+let bloodTestItemIndex = 0;
+
+// 切换自定义输入框显示/隐藏
+function toggleCustomInput(selectElement) {
+    const itemDiv = selectElement.closest('.blood-test-item, .urinalysis-item');
+    if (!itemDiv) return;
+    
+    const customWrapper = itemDiv.querySelector('.custom-input-wrapper');
+    if (!customWrapper) return;
+    
+    if (selectElement.value === 'custom') {
+        customWrapper.style.display = 'block';
+        // 添加动画效果
+        customWrapper.style.opacity = '0';
+        customWrapper.style.transform = 'translateY(-10px)';
+        setTimeout(() => {
+            customWrapper.style.transition = 'all 0.3s ease';
+            customWrapper.style.opacity = '1';
+            customWrapper.style.transform = 'translateY(0)';
+        }, 10);
+    } else {
+        customWrapper.style.display = 'none';
+        // 清除自定义输入框的值
+        const customInput = customWrapper.querySelector('input');
+        if (customInput) {
+            customInput.value = '';
+        }
+    }
+}
+
+// 添加血常规检测项目
+function addBloodTestItem(selectedItem = '', value = '', index = null) {
+    const container = document.getElementById('blood-test-matrix-container');
+    if (!container) return;
+    
+    // 添加按钮点击动画
+    const addBtn = document.querySelector('.add-btn');
+    if (addBtn) {
+        addBtn.classList.add('clicking');
+        setTimeout(() => {
+            addBtn.classList.remove('clicking');
+        }, 300);
+    }
+    
+    // 添加按钮点击时的震动反馈
+    try {
+        window.__hapticImpact__ && window.__hapticImpact__('Medium');
+    } catch(_) {}
+    
+    const itemIndex = index !== null ? index : bloodTestItemIndex++;
+    
+    const itemDiv = document.createElement('div');
+    itemDiv.className = 'blood-test-item';
+    
+    itemDiv.innerHTML = `
+        <div class="item-header">
+            <select class="blood-test-select" data-index="${itemIndex}">
+                <option value="">请选择检测项目</option>
+                <!-- 白细胞相关 -->
+                <option value="wbc-count" data-unit="×10⁹/L" data-reference="4-10">白细胞计数</option>
+                <option value="neutrophils-abs" data-unit="×10⁹/L" data-reference="2-7.5">中性粒细胞(绝对值)</option>
+                <option value="lymphocytes-abs" data-unit="×10⁹/L" data-reference="0.8-4">淋巴细胞(绝对值)</option>
+                <option value="monocytes-abs" data-unit="×10⁹/L" data-reference="0.16-1.2">单核细胞(绝对值)</option>
+                <option value="eosinophils-abs" data-unit="×10⁹/L" data-reference="0.02-0.5">嗜酸性粒细胞(绝对值)</option>
+                <option value="basophils-abs" data-unit="×10⁹/L" data-reference="0-0.1">嗜碱性粒细胞(绝对值)</option>
+                <option value="neutrophils-percent" data-unit="%" data-reference="50-75">中性粒细胞(百分比)</option>
+                <option value="lymphocytes-percent" data-unit="%" data-reference="20-40">淋巴细胞(百分比)</option>
+                <option value="monocytes-percent" data-unit="%" data-reference="4-12">单核细胞(百分比)</option>
+                <option value="eosinophils-percent" data-unit="%" data-reference="0.5-5">嗜酸性粒细胞(百分比)</option>
+                <option value="basophils-percent" data-unit="%" data-reference="0-1">嗜碱性粒细胞(百分比)</option>
+                <!-- 红细胞相关 -->
+                <option value="rbc-count" data-unit="×10¹²/L" data-reference="3.5-5.5">红细胞计数</option>
+                <option value="hemoglobin" data-unit="g/L" data-reference="110-160">血红蛋白</option>
+                <option value="hematocrit" data-unit="%" data-reference="37-49">红细胞压积</option>
+                <option value="mcv" data-unit="fL" data-reference="82-95">平均红细胞体积</option>
+                <option value="mch" data-unit="pg" data-reference="27-31">平均红细胞血红蛋白量</option>
+                <option value="mchc" data-unit="g/L" data-reference="320-360">平均红细胞血红蛋白浓度</option>
+                <option value="rdw-sd" data-unit="fL" data-reference="37-54">红细胞分布宽度(SD)</option>
+                <option value="rdw-cv" data-unit="%" data-reference="11-16">红细胞分布宽度(CV)</option>
+                <!-- 血小板相关 -->
+                <option value="platelet-count" data-unit="×10⁹/L" data-reference="100-300">血小板计数</option>
+                <option value="pdw" data-unit="fL" data-reference="9-17">血小板分布宽度</option>
+                <option value="mpv" data-unit="fL" data-reference="9.4-12.5">平均血小板体积</option>
+                <option value="pct" data-unit="%" data-reference="0.11-0.27">血小板压积</option>
+                <option value="p-lcr" data-unit="%" data-reference="13-43">大型血小板比率</option>
+                <option value="custom" data-unit="" data-reference="">自定义项目</option>
+            </select>
+            <button type="button" class="remove-btn" onclick="removeBloodTestItem(this)" onmousedown="try { window.__hapticImpact__ && window.__hapticImpact__('Light'); } catch(_) {}">×</button>
+        </div>
+        <div class="custom-input-wrapper" style="display: none;">
+            <input type="text" class="custom-blood-test-name" placeholder="请输入自定义项目名称" data-index="${itemIndex}">
+        </div>
+        <div class="item-input">
+            <input type="text" class="blood-test-value" placeholder="请输入数值" data-index="${itemIndex}" value="${value}">
+            <div class="unit-reference">
+                <span class="unit-display">单位</span>
+                <span class="reference-display">参考值</span>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(itemDiv);
+    
+    // 如果提供了选中的项目，设置选择器
+    if (selectedItem) {
+        const select = itemDiv.querySelector('.blood-test-select');
+        select.value = selectedItem;
+        updateBloodTestUnitReference(select);
+    }
+    
+    // 添加事件监听器
+    const select = itemDiv.querySelector('.blood-test-select');
+    select.addEventListener('change', function() {
+        updateBloodTestUnitReference(this);
+        toggleCustomInput(this);
+        try {
+            window.__hapticImpact__ && window.__hapticImpact__('Medium');
+        } catch(_) {}
+    });
+    
+    // 选择器聚焦时的震动
+    select.addEventListener('focus', function() {
+        try {
+            window.__hapticImpact__ && window.__hapticImpact__('Light');
+        } catch(_) {}
+    });
+    
+    const valueInput = itemDiv.querySelector('.blood-test-value');
+    let inputTimer;
+    
+    valueInput.addEventListener('input', function() {
+        // 清除之前的定时器
+        if (inputTimer) {
+            clearTimeout(inputTimer);
+        }
+        
+        // 防抖处理，避免过于频繁的震动
+        inputTimer = setTimeout(() => {
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Light');
+            } catch(_) {}
+        }, 200);
+    });
+    
+    // 输入框聚焦时的震动
+    valueInput.addEventListener('focus', function() {
+        try {
+            window.__hapticImpact__ && window.__hapticImpact__('Light');
+        } catch(_) {}
+    });
+    
+    // 输入框失去焦点时的震动（输入完成）
+    valueInput.addEventListener('blur', function() {
+        if (this.value.trim()) {
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Medium');
+            } catch(_) {}
+        }
+    });
+    
+    // 更新删除按钮显示状态
+    updateBloodTestRemoveButtons();
+    
+    // 添加震动反馈 - 添加项目时使用强震动
+    try {
+        window.__hapticImpact__ && window.__hapticImpact__('Heavy');
+    } catch(_) {}
+}
+
+// 删除血常规检测项目
+function removeBloodTestItem(button) {
+    const item = button.closest('.blood-test-item');
+    if (item) {
+        // 删除按钮动画
+        button.classList.add('removing');
+        
+        // 删除前的震动反馈
+        try {
+            window.__hapticImpact__ && window.__hapticImpact__('Medium');
+        } catch(_) {}
+        
+        // 添加项目滑出动画
+        item.classList.add('removing');
+        
+        // 等待动画完成后删除元素
+        setTimeout(() => {
+            item.remove();
+            updateBloodTestRemoveButtons();
+            
+            // 删除完成后的震动反馈
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Heavy');
+            } catch(_) {}
+        }, 400); // 增加时间以匹配CSS动画时长
+    }
+}
+
+// 更新血常规单位和参考值显示
+function updateBloodTestUnitReference(selectElement) {
+    const selectedOption = selectElement.options[selectElement.selectedIndex];
+    const unitDisplay = selectElement.closest('.blood-test-item').querySelector('.unit-display');
+    const referenceDisplay = selectElement.closest('.blood-test-item').querySelector('.reference-display');
+    
+    if (selectedOption && unitDisplay && referenceDisplay) {
+        const unit = selectedOption.getAttribute('data-unit') || '';
+        const reference = selectedOption.getAttribute('data-reference') || '';
+        
+        // 添加更新动画
+        unitDisplay.classList.add('updating');
+        referenceDisplay.classList.add('updating');
+        
+        // 更新内容
+        unitDisplay.textContent = unit || '单位';
+        referenceDisplay.textContent = reference || '参考值';
+        
+        // 动画完成后移除类
+        setTimeout(() => {
+            unitDisplay.classList.remove('updating');
+            referenceDisplay.classList.remove('updating');
+        }, 300);
+    }
+}
+
+// 更新血常规删除按钮显示状态
+function updateBloodTestRemoveButtons() {
+    const items = document.querySelectorAll('.blood-test-item');
+    const removeButtons = document.querySelectorAll('.blood-test-item .remove-btn');
+    
+    // 如果只有一个项目，隐藏删除按钮
+    removeButtons.forEach(button => {
+        button.style.display = items.length > 1 ? 'flex' : 'none';
+    });
+}
+
+// 初始化血常规检测指标矩阵
+function initBloodTestMatrix() {
+    const container = document.getElementById('blood-test-matrix-container');
+    if (!container) return;
+    
+    // 为现有的选择器添加事件监听器
+    const existingSelects = container.querySelectorAll('.blood-test-select');
+    existingSelects.forEach(select => {
+        select.addEventListener('change', function() {
+            updateBloodTestUnitReference(this);
+            toggleCustomInput(this);
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Medium');
+            } catch(_) {}
+        });
+        
+        // 选择器聚焦时的震动
+        select.addEventListener('focus', function() {
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Light');
+            } catch(_) {}
+        });
+    });
+    
+    const existingInputs = container.querySelectorAll('.blood-test-value');
+    existingInputs.forEach(input => {
+        let inputTimer;
+        
+        input.addEventListener('input', function() {
+            // 清除之前的定时器
+            if (inputTimer) {
+                clearTimeout(inputTimer);
+            }
+            
+            // 防抖处理，避免过于频繁的震动
+            inputTimer = setTimeout(() => {
+                try {
+                    window.__hapticImpact__ && window.__hapticImpact__('Light');
+                } catch(_) {}
+            }, 200);
+        });
+        
+        // 输入框聚焦时的震动
+        input.addEventListener('focus', function() {
+            try {
+                window.__hapticImpact__ && window.__hapticImpact__('Light');
+            } catch(_) {}
+        });
+        
+        // 输入框失去焦点时的震动（输入完成）
+        input.addEventListener('blur', function() {
+            if (this.value.trim()) {
+                try {
+                    window.__hapticImpact__ && window.__hapticImpact__('Medium');
+                } catch(_) {}
+            }
+        });
+    });
+    
+    // 初始化删除按钮状态
+    updateBloodTestRemoveButtons();
+}
+
 // 初始化尿液检测指标矩阵
 function initUrinalysisMatrix() {
     const container = document.getElementById('urinalysis-matrix-container');
@@ -1854,6 +2248,7 @@ function initUrinalysisMatrix() {
     existingSelects.forEach(select => {
         select.addEventListener('change', function() {
             updateUnitReference(this);
+            toggleCustomInput(this);
             try {
                 window.__hapticImpact__ && window.__hapticImpact__('Medium');
             } catch(_) {}
@@ -2139,14 +2534,82 @@ function clearAllFormData() {
             updateSliderFill(parseInt(slider.value));
         });
         
+        // 清除血常规检测矩阵
+        const bloodTestItems = document.querySelectorAll('.blood-test-item');
+        bloodTestItems.forEach(item => {
+            const select = item.querySelector('.blood-test-select');
+            const valueInput = item.querySelector('.blood-test-value');
+            const customNameInput = item.querySelector('.custom-blood-test-name');
+            if (select) select.value = '';
+            if (valueInput) valueInput.value = '';
+            if (customNameInput) customNameInput.value = '';
+        });
+        
         // 清除尿液检测矩阵
         const urinalysisItems = document.querySelectorAll('.urinalysis-item');
         urinalysisItems.forEach(item => {
             const select = item.querySelector('.urinalysis-select');
             const valueInput = item.querySelector('.urinalysis-value');
+            const customNameInput = item.querySelector('.custom-urinalysis-name');
             if (select) select.value = '';
             if (valueInput) valueInput.value = '';
+            if (customNameInput) customNameInput.value = '';
         });
+        
+        // 重置血常规检测矩阵到初始状态（只保留一个空项目）
+        const bloodTestContainer = document.getElementById('blood-test-matrix-container');
+        if (bloodTestContainer) {
+            bloodTestContainer.innerHTML = `
+                <div class="blood-test-item">
+                    <div class="item-header">
+                        <select class="blood-test-select" data-index="0">
+                            <option value="">请选择检测项目</option>
+                            <!-- 白细胞相关 -->
+                            <option value="wbc-count" data-unit="×10⁹/L" data-reference="4-10">白细胞计数</option>
+                            <option value="neutrophils-abs" data-unit="×10⁹/L" data-reference="2-7.5">中性粒细胞(绝对值)</option>
+                            <option value="lymphocytes-abs" data-unit="×10⁹/L" data-reference="0.8-4">淋巴细胞(绝对值)</option>
+                            <option value="monocytes-abs" data-unit="×10⁹/L" data-reference="0.16-1.2">单核细胞(绝对值)</option>
+                            <option value="eosinophils-abs" data-unit="×10⁹/L" data-reference="0.02-0.5">嗜酸性粒细胞(绝对值)</option>
+                            <option value="basophils-abs" data-unit="×10⁹/L" data-reference="0-0.1">嗜碱性粒细胞(绝对值)</option>
+                            <option value="neutrophils-percent" data-unit="%" data-reference="50-75">中性粒细胞(百分比)</option>
+                            <option value="lymphocytes-percent" data-unit="%" data-reference="20-40">淋巴细胞(百分比)</option>
+                            <option value="monocytes-percent" data-unit="%" data-reference="4-12">单核细胞(百分比)</option>
+                            <option value="eosinophils-percent" data-unit="%" data-reference="0.5-5">嗜酸性粒细胞(百分比)</option>
+                            <option value="basophils-percent" data-unit="%" data-reference="0-1">嗜碱性粒细胞(百分比)</option>
+                            <!-- 红细胞相关 -->
+                            <option value="rbc-count" data-unit="×10¹²/L" data-reference="3.5-5.5">红细胞计数</option>
+                            <option value="hemoglobin" data-unit="g/L" data-reference="110-160">血红蛋白</option>
+                            <option value="hematocrit" data-unit="%" data-reference="37-49">红细胞压积</option>
+                            <option value="mcv" data-unit="fL" data-reference="82-95">平均红细胞体积</option>
+                            <option value="mch" data-unit="pg" data-reference="27-31">平均红细胞血红蛋白量</option>
+                            <option value="mchc" data-unit="g/L" data-reference="320-360">平均红细胞血红蛋白浓度</option>
+                            <option value="rdw-sd" data-unit="fL" data-reference="37-54">红细胞分布宽度(SD)</option>
+                            <option value="rdw-cv" data-unit="%" data-reference="11-16">红细胞分布宽度(CV)</option>
+                            <!-- 血小板相关 -->
+                            <option value="platelet-count" data-unit="×10⁹/L" data-reference="100-300">血小板计数</option>
+                            <option value="pdw" data-unit="fL" data-reference="9-17">血小板分布宽度</option>
+                            <option value="mpv" data-unit="fL" data-reference="9.4-12.5">平均血小板体积</option>
+                            <option value="pct" data-unit="%" data-reference="0.11-0.27">血小板压积</option>
+                            <option value="p-lcr" data-unit="%" data-reference="13-43">大型血小板比率</option>
+                            <option value="custom" data-unit="" data-reference="">自定义项目</option>
+                        </select>
+                        <button type="button" class="remove-btn" onclick="removeBloodTestItem(this)" style="display: none;" onmousedown="try { window.__hapticImpact__ && window.__hapticImpact__('Light'); } catch(_) {}">×</button>
+                    </div>
+                    <div class="custom-input-wrapper" style="display: none;">
+                        <input type="text" class="custom-blood-test-name" placeholder="请输入自定义项目名称" data-index="0">
+                    </div>
+                    <div class="item-input">
+                        <input type="text" class="blood-test-value" placeholder="请输入数值" data-index="0">
+                        <div class="unit-reference">
+                            <span class="unit-display">单位</span>
+                            <span class="reference-display">参考值</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            // 重新初始化血常规检测矩阵
+            initBloodTestMatrix();
+        }
         
         // 重置尿液检测矩阵到初始状态（只保留一个空项目）
         const container = document.getElementById('urinalysis-matrix-container');
@@ -2181,8 +2644,12 @@ function clearAllFormData() {
                             <option value="urine-rbc" data-unit="/μl" data-reference="0.0-30.7">尿红细胞计数</option>
                             <option value="urine-wbc" data-unit="/μl" data-reference="0.0-39.0">尿白细胞计数</option>
                             <option value="urine-epithelial" data-unit="/μl" data-reference="0.0-45.6">尿上皮细胞计数</option>
+                            <option value="custom" data-unit="" data-reference="">自定义项目</option>
                         </select>
                         <button type="button" class="remove-btn" onclick="removeUrinalysisItem(this)" style="display: none;" onmousedown="try { window.__hapticImpact__ && window.__hapticImpact__('Light'); } catch(_) {}">×</button>
+                    </div>
+                    <div class="custom-input-wrapper" style="display: none;">
+                        <input type="text" class="custom-urinalysis-name" placeholder="请输入自定义项目名称" data-index="0">
                     </div>
                     <div class="item-input">
                         <input type="text" class="urinalysis-value" placeholder="请输入数值" data-index="0">
@@ -2241,6 +2708,13 @@ function initJsonSizeDisplay() {
         }
     });
     
+    // 为血常规检测矩阵添加事件监听
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('blood-test-select') || e.target.classList.contains('blood-test-value')) {
+            updateJsonSizeDisplay();
+        }
+    });
+    
     // 为尿液检测矩阵添加事件监听
     document.addEventListener('change', function(e) {
         if (e.target.classList.contains('urinalysis-select') || e.target.classList.contains('urinalysis-value')) {
@@ -2279,6 +2753,22 @@ function updateJsonSizeDisplay() {
                 bleedingData.otherDescription = otherInput.value.trim();
             }
             bleedingPoints.push(bleedingData);
+        }
+    });
+    
+    // 收集血常规检测矩阵数据
+    const bloodTestData = [];
+    const bloodTestItems = document.querySelectorAll('.blood-test-item');
+    bloodTestItems.forEach((item, index) => {
+        const select = item.querySelector('.blood-test-select');
+        const valueInput = item.querySelector('.blood-test-value');
+        
+        if (select && select.value && valueInput && valueInput.value.trim()) {
+            bloodTestData.push({
+                item: select.value,
+                value: valueInput.value.trim(),
+                index: index
+            });
         }
     });
     
@@ -2322,6 +2812,7 @@ function updateJsonSizeDisplay() {
             return Object.keys(bloodData).length > 0 ? bloodData : null;
         })(),
         'bleeding-point': bleedingPoints.length > 0 || bleedingImages.length > 0 ? { bleedingPoints, bleedingImages } : null,
+        'blood-test-matrix': bloodTestData.length > 0 ? { bloodTestMatrix: bloodTestData } : null,
         'urinalysis-matrix': urinalysisData.length > 0 ? { urinalysisMatrix: urinalysisData } : null,
         'self-rating': selfRating && !isNaN(parseInt(selfRating)) ? { selfRating: parseInt(selfRating) } : null,
         timestamp: new Date().toISOString(),

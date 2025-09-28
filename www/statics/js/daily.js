@@ -568,12 +568,25 @@ function searchInMetricsContent(content, keyword) {
     return true;
   }
   
+  // 搜索血常规检测矩阵
+  if (metricsData['blood-test-matrix']?.bloodTestMatrix) {
+    const matrix = metricsData['blood-test-matrix'].bloodTestMatrix;
+    for (const item of matrix) {
+      if (item.item && item.item.toLowerCase().includes(keyword)) return true;
+      if (item.value && item.value.toString().toLowerCase().includes(keyword)) return true;
+      // 搜索自定义项目名称
+      if (item.customName && item.customName.toLowerCase().includes(keyword)) return true;
+    }
+  }
+  
   // 搜索尿液检测矩阵
   if (metricsData['urinalysis-matrix']?.urinalysisMatrix) {
     const matrix = metricsData['urinalysis-matrix'].urinalysisMatrix;
     for (const item of matrix) {
       if (item.item && item.item.toLowerCase().includes(keyword)) return true;
       if (item.value && item.value.toString().toLowerCase().includes(keyword)) return true;
+      // 搜索自定义项目名称
+      if (item.customName && item.customName.toLowerCase().includes(keyword)) return true;
     }
   }
   
@@ -1313,16 +1326,22 @@ function parseCaseSummary(content) {
  */
 function getBleedingPointText(bleedingPoint) {
   const bleedingMap = {
+    'joints': '关节',
+    'thigh': '大腿',
+    'calf': '小腿',
+    'upper-arm': '大臂',
+    'forearm': '小臂',
+    'abdomen': '腹部',
+    'other': '其他',
+    // 保留旧格式的兼容性
     'nose': '鼻子',
     'gums': '牙龈',
     'skin': '皮肤',
-    'joints': '关节',
     'muscles': '肌肉',
     'urine': '尿液',
     'stool': '大便',
     'vomit': '呕吐物',
-    'menstrual': '月经',
-    'other': '其他'
+    'menstrual': '月经'
   };
   return bleedingMap[bleedingPoint] || bleedingPoint;
 }
@@ -1330,7 +1349,12 @@ function getBleedingPointText(bleedingPoint) {
 /**
  * getUrinalysisItemText — 获取尿常规检测项目中文描述
  */
-function getUrinalysisItemText(itemName) {
+function getUrinalysisItemText(itemName, customName = null) {
+  // 如果是自定义项目，返回自定义名称
+  if (itemName === 'custom' && customName) {
+    return customName;
+  }
+  
   const urinalysisMap = {
     // 基本项目
     'color': '颜色',
@@ -1384,6 +1408,47 @@ function getUrinalysisItemText(itemName) {
   // 转换为小写进行匹配
   const lowerItemName = itemName.toLowerCase();
   return urinalysisMap[lowerItemName] || itemName;
+}
+
+/**
+ * getBloodTestItemText — 获取血常规检测项目的中文名称
+ */
+function getBloodTestItemText(item, customName = null) {
+  // 如果是自定义项目，返回自定义名称
+  if (item === 'custom' && customName) {
+    return customName;
+  }
+  
+  const itemMap = {
+    // 白细胞相关
+    'wbc-count': '白细胞计数',
+    'neutrophils-abs': '中性粒细胞(绝对值)',
+    'lymphocytes-abs': '淋巴细胞(绝对值)',
+    'monocytes-abs': '单核细胞(绝对值)',
+    'eosinophils-abs': '嗜酸性粒细胞(绝对值)',
+    'basophils-abs': '嗜碱性粒细胞(绝对值)',
+    'neutrophils-percent': '中性粒细胞(百分比)',
+    'lymphocytes-percent': '淋巴细胞(百分比)',
+    'monocytes-percent': '单核细胞(百分比)',
+    'eosinophils-percent': '嗜酸性粒细胞(百分比)',
+    'basophils-percent': '嗜碱性粒细胞(百分比)',
+    // 红细胞相关
+    'rbc-count': '红细胞计数',
+    'hemoglobin': '血红蛋白',
+    'hematocrit': '红细胞压积',
+    'mcv': '平均红细胞体积',
+    'mch': '平均红细胞血红蛋白量',
+    'mchc': '平均红细胞血红蛋白浓度',
+    'rdw-sd': '红细胞分布宽度(SD)',
+    'rdw-cv': '红细胞分布宽度(CV)',
+    // 血小板相关
+    'platelet-count': '血小板计数',
+    'pdw': '血小板分布宽度',
+    'mpv': '平均血小板体积',
+    'pct': '血小板压积',
+    'p-lcr': '大型血小板比率'
+  };
+  return itemMap[item] || item;
 }
 
 /**
@@ -1560,7 +1625,7 @@ function formatMetricsForDisplay(metricsData, isDarkMode = false) {
     hasContent = true;
   }
   
-  // 血常规
+  // 血常规（旧格式）
   if (metricsData['blood-test']) {
     const blood = metricsData['blood-test'];
     const hasBloodData = blood.wbc || blood.rbc || blood.hb || blood.plt;
@@ -1581,21 +1646,98 @@ function formatMetricsForDisplay(metricsData, isDarkMode = false) {
     }
   }
   
-  // 出血点
-  if (metricsData['bleeding-point']?.bleedingPoint) {
-    const bleeding = metricsData['bleeding-point'];
-    let bleedingText = getBleedingPointText(bleeding.bleedingPoint);
-    if (bleeding.otherDescription) {
-      bleedingText += ` (${bleeding.otherDescription})`;
+  // 血常规检测矩阵（新格式）
+  if (metricsData['blood-test-matrix']?.bloodTestMatrix) {
+    const matrix = metricsData['blood-test-matrix'].bloodTestMatrix;
+    if (matrix.length > 0) {
+      const matrixItemStyle = isDarkMode
+        ? "display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: linear-gradient(135deg, #334155 0%, #1e293b 100%); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); transition: all 0.2s ease; position: relative; overflow: hidden;"
+        : "display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); transition: all 0.2s ease; position: relative; overflow: hidden;";
+        
+      const matrixLabelStyle = isDarkMode
+        ? "color: #94a3b8; font-weight: 600; font-size: 0.9rem; letter-spacing: -0.01em;"
+        : "color: #64748b; font-weight: 600; font-size: 0.9rem; letter-spacing: -0.01em;";
+        
+      const matrixValueStyle = isDarkMode
+        ? "color: #f1f5f9; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;"
+        : "color: #1e293b; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;";
+        
+      html += `
+        <div style="${sectionStyle}">
+          <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
+          <h5 style="${titleStyle}">▶ 血常规检测指标</h5>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 8px;">
+            ${matrix.map(item => `
+              <div style="${matrixItemStyle}">
+                <div style="position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
+                <span style="${matrixLabelStyle}">${getBloodTestItemText(item.item, item.customName)}</span>
+                <span style="${matrixValueStyle}">${item.value}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+      hasContent = true;
     }
-    html += `
-      <div style="${sectionStyle}">
-        <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
-        <h5 style="${titleStyle}">▶ 出血点</h5>
-        <p style="${textStyle}">${bleedingText}</p>
-      </div>
-    `;
-    hasContent = true;
+  }
+  
+  // 出血点
+  if (metricsData['bleeding-point']) {
+    const bleeding = metricsData['bleeding-point'];
+    
+    // 处理出血点数据（支持新的数组格式）
+    let bleedingPoints = [];
+    if (bleeding.bleedingPoints && Array.isArray(bleeding.bleedingPoints)) {
+      // 新格式：数组
+      bleedingPoints = bleeding.bleedingPoints;
+    } else if (bleeding.bleedingPoint) {
+      // 旧格式：单个出血点
+      bleedingPoints = [bleeding];
+    }
+    
+    if (bleedingPoints.length > 0) {
+      const bleedingTexts = bleedingPoints.map(point => {
+        let text = getBleedingPointText(point.bleedingPoint);
+        if (point.otherDescription) {
+          text += ` (${point.otherDescription})`;
+        }
+        return text;
+      });
+      
+      html += `
+        <div style="${sectionStyle}">
+          <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
+          <h5 style="${titleStyle}">▶ 出血点 (${bleedingPoints.length}个)</h5>
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+            ${bleedingTexts.map(text => `<p style="${textStyle}">• ${text}</p>`).join('')}
+          </div>
+        </div>
+      `;
+      hasContent = true;
+    }
+    
+    // 出血点图片展示
+    if (bleeding.bleedingImages && bleeding.bleedingImages.length > 0) {
+      const imageStyle = isDarkMode
+        ? "width: 100%; height: 200px; object-fit: cover; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; border: 2px solid rgba(255, 255, 255, 0.1);"
+        : "width: 100%; height: 200px; object-fit: cover; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; border: 2px solid rgba(0, 0, 0, 0.1);";
+        
+      html += `
+        <div style="${sectionStyle}">
+          <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
+          <h5 style="${titleStyle}">▶ 出血点图片 (${bleeding.bleedingImages.length}张)</h5>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 8px;">
+            ${bleeding.bleedingImages.map((imageSrc, index) => `
+              <div style="position: relative;">
+                <img src="${imageSrc}" alt="出血点图片 ${index + 1}" style="${imageStyle}" onclick="openImageModal('${imageSrc}')" />
+                <div style="position: absolute; top: 8px; right: 8px; background: rgba(0, 0, 0, 0.6); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">${index + 1}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+      hasContent = true;
+    }
   }
   
   // 自我评分
@@ -1634,7 +1776,7 @@ function formatMetricsForDisplay(metricsData, isDarkMode = false) {
             ${matrix.map(item => `
               <div style="${matrixItemStyle}">
                 <div style="position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
-                <span style="${matrixLabelStyle}">${getUrinalysisItemText(item.item)}</span>
+                <span style="${matrixLabelStyle}">${getUrinalysisItemText(item.item, item.customName)}</span>
                 <span style="${matrixValueStyle}">${item.value}</span>
               </div>
             `).join('')}

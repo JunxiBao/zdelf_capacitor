@@ -1,12 +1,58 @@
 // 病例记录页面JavaScript功能
 
+// 震动反馈初始化（兼容性处理）
+(function() {
+  'use strict';
+  // 如果全局震动反馈不存在，提供fallback实现
+  if (!window.__hapticImpact__) {
+    var isNative = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform());
+    function getHaptics() {
+      var C = window.Capacitor || {};
+      return (C.Plugins && C.Plugins.Haptics) || window.Haptics || C.Haptics || null;
+    }
+    window.__hapticImpact__ = function(style){
+      if (!isNative) return;
+      var h = getHaptics();
+      if (!h) return;
+      try { h.impact && h.impact({ style: style }); } catch(_) {}
+    };
+  }
+})();
+
+// 统一的保存状态管理函数
+function initSaveState() {
+    const saveBtn = document.querySelector('.global-save-btn');
+    const spinner = document.getElementById('global-spinner');
+    const btnText = saveBtn.querySelector('.btn-text');
+    
+    return {
+        saveBtn,
+        spinner,
+        btnText,
+        originalText: btnText.textContent
+    };
+}
+
+function showSaveLoading(saveState, loadingText = '保存中...') {
+    saveState.saveBtn.disabled = true;
+    saveState.btnText.textContent = loadingText;
+    saveState.spinner.classList.add('show');
+}
+
+function hideSaveLoading(saveState, originalText = null) {
+    saveState.saveBtn.disabled = false;
+    saveState.btnText.textContent = originalText || saveState.originalText;
+    saveState.spinner.classList.remove('show');
+}
+
 // 返回上一页
 function goBack() {
-    if (window.history.length > 1) {
-        window.history.back();
-    } else {
-        window.location.href = '../index.html';
-    }
+    try {
+        window.__hapticImpact__ && window.__hapticImpact__('Light');
+    } catch(_) {}
+
+    // 返回到选项页面（与其他页面保持一致）
+    window.location.href = 'options.html';
 }
 
 // 图片上传功能
@@ -412,14 +458,9 @@ function saveCaseRecord() {
         return;
     }
     
-    // 显示加载状态
-    const saveBtn = document.querySelector('.global-save-btn');
-    const spinner = document.getElementById('global-spinner');
-    const btnText = document.querySelector('.btn-text');
-    
-    saveBtn.disabled = true;
-    btnText.textContent = '保存中...';
-    spinner.classList.add('show');
+    // 统一的保存状态管理
+    const saveState = initSaveState();
+    showSaveLoading(saveState, '保存中...');
     
     // 收集图片数据
     const images = [];
@@ -479,9 +520,7 @@ function saveCaseRecord() {
             
             if (jsonSizeKB > maxJsonSizeKB) {
                 // 恢复按钮状态
-                saveBtn.disabled = false;
-                btnText.textContent = '保存病例记录';
-                spinner.classList.remove('show');
+                hideSaveLoading(saveState, '保存病例记录');
                 
                 showMessage(`数据过大 (${jsonSizeKB}KB > ${maxJsonSizeKB}KB)！请删除一些图片或减少文本内容`, 'error');
                 return;
@@ -508,9 +547,7 @@ function saveCaseRecord() {
             showMessage('本地保存成功，但服务器同步失败', 'warning');
         } finally {
             // 恢复按钮状态
-            saveBtn.disabled = false;
-            btnText.textContent = '保存病例记录';
-            spinner.classList.remove('show');
+            hideSaveLoading(saveState, '保存病例记录');
             
             // 重置表单
             resetForm();
