@@ -91,13 +91,11 @@ function navigateToDiet() {
 // 跳转到病例页面
 function navigateToCases() {
     try {
-        window.__hapticImpact__ && window.__hapticImpact__('Light');
+        window.__hapticImpact__ && window.__hapticImpact__('Medium');
     } catch(_) {}
 
-    // 这里可以跳转到病例管理页面
-    // 暂时显示提示信息
-    showToast('病例功能开发中...');
-    console.log('跳转到病例页面');
+    // 跳转到病例记录页面
+    window.location.href = 'case_record.html';
 }
 
 // 返回上一页

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>病例记录</title>
+    <link rel="stylesheet" href="../statics/css/case_record.css">
+    <link rel="icon" href="../images/writing.png" type="image/png">
+</head>
+<body>
+    <!-- 顶部图标 -->
+    <div style="position: absolute; top: 15px; left: 15px; z-index: 10;">
+        <img src="../images/writing.png" alt="Writing" style="height: 50px" />
+    </div>
+
+    <!-- 返回按钮 -->
+    <div class="back-button-container">
+        <button class="back-btn" onclick="goBack()">
+            <span>← 返回</span>
+        </button>
+    </div>
+
+    <!-- 页面标题 -->
+    <div class="page-title">
+        病例
+    </div>
+
+    <!-- 病例表单容器 -->
+    <div class="case-container">
+        <!-- 医院信息 -->
+        <div class="form-group">
+            <label class="form-label" for="hospital">医院</label>
+            <input type="text" class="form-input" id="hospital" placeholder="请输入医院名称">
+        </div>
+
+        <!-- 科室信息 -->
+        <div class="form-group">
+            <label class="form-label" for="department">科室</label>
+            <input type="text" class="form-input" id="department" placeholder="请输入科室名称">
+        </div>
+
+        <!-- 医生信息 -->
+        <div class="form-group">
+            <label class="form-label" for="doctor">医生</label>
+            <input type="text" class="form-input" id="doctor" placeholder="请输入医生姓名">
+        </div>
+
+        <!-- 诊断信息 -->
+        <div class="form-group">
+            <label class="form-label" for="diagnosis">诊断</label>
+            <textarea class="form-input form-textarea" id="diagnosis" placeholder="请输入诊断结果" rows="4"></textarea>
+        </div>
+
+        <!-- 医嘱信息 -->
+        <div class="form-group">
+            <label class="form-label" for="prescription">医嘱</label>
+            <textarea class="form-input form-textarea" id="prescription" placeholder="请输入医嘱内容" rows="4"></textarea>
+        </div>
+
+        <!-- 病例单记录 -->
+        <div class="form-group">
+            <label class="form-label">病例单记录</label>
+            <div class="image-upload-container">
+                <div class="image-upload-btn" id="imageUploadBtn">
+                    <div class="upload-icon">+</div>
+                    <div class="upload-text">(上传图片)</div>
+                </div>
+                <input type="file" id="imageInput" accept="image/*" multiple style="display: none;">
+                <div class="uploaded-images" id="uploadedImages"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 保存按钮 -->
+    <div class="global-actions">
+        <button class="global-save-btn" onclick="saveCaseRecord()">
+            <span class="btn-text">保存病例记录</span>
+            <div class="loading-spinner" id="global-spinner"></div>
+        </button>
+    </div>
+
+    <!-- 加载脚本 -->
+    <script src="../statics/js/case_record.js"></script>
+</body>
+</html>

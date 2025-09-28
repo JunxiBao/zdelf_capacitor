@@ -1,0 +1,643 @@
+// 病例记录页面JavaScript功能
+
+// 返回上一页
+function goBack() {
+    if (window.history.length > 1) {
+        window.history.back();
+    } else {
+        window.location.href = '../index.html';
+    }
+}
+
+// 图片上传功能
+document.addEventListener('DOMContentLoaded', function() {
+    const imageUploadBtn = document.getElementById('imageUploadBtn');
+    const imageInput = document.getElementById('imageInput');
+    const uploadedImages = document.getElementById('uploadedImages');
+    
+    // 点击上传按钮触发文件选择
+    imageUploadBtn.addEventListener('click', function() {
+        imageInput.click();
+    });
+    
+    // 文件选择处理
+    imageInput.addEventListener('change', function(e) {
+        const files = e.target.files;
+        if (files.length > 0) {
+            handleImageUpload(files);
+        }
+    });
+    
+    // 绑定表单输入事件，实时更新JSON大小
+    const formInputs = ['hospital', 'department', 'doctor', 'diagnosis', 'prescription'];
+    formInputs.forEach(inputId => {
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.addEventListener('input', updateJsonSizeDisplay);
+        }
+    });
+    
+    // 处理图片上传
+    function handleImageUpload(files) {
+        // 处理所有文件
+        Array.from(files).forEach(file => {
+            // 检查文件类型
+            if (!file.type.startsWith('image/')) {
+                showMessage('请选择图片文件', 'error');
+                return;
+            }
+            
+            // 检查文件大小（原始文件不超过10MB）
+            const maxOriginalSizeMB = 10;
+            if (file.size > maxOriginalSizeMB * 1024 * 1024) {
+                showMessage(`图片文件过大，请选择小于${maxOriginalSizeMB}MB的图片`, 'error');
+                return;
+            }
+            
+            // 显示压缩进度
+            showCompressionProgress(file.name);
+            
+            compressImage(file, (compressedDataUrl) => {
+                hideCompressionProgress();
+                
+                // 添加新图片到容器（不清空现有图片）
+                addImageToContainer(compressedDataUrl, file.name);
+                
+                // 显示压缩成功信息
+                const originalSizeKB = (file.size / 1024).toFixed(1);
+                const compressedSizeKB = ((compressedDataUrl.length * 0.75) / 1024).toFixed(1);
+                const compressionRatio = ((1 - compressedDataUrl.length * 0.75 / file.size) * 100).toFixed(1);
+                
+                showMessage(`图片 ${file.name} 压缩成功！原始: ${originalSizeKB}KB → 压缩后: ${compressedSizeKB}KB (压缩率: ${compressionRatio}%)`, 'success');
+            }, (error) => {
+                hideCompressionProgress();
+                showMessage(`图片 ${file.name} 压缩失败: ${error}`, 'error');
+            }, 500); // 限制为500KB
+        });
+    }
+    
+    // 显示压缩进度
+    function showCompressionProgress(fileName) {
+        const progressHtml = `
+            <div class="compression-progress" style="
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 20px 30px;
+                border-radius: 12px;
+                z-index: 10000;
+                text-align: center;
+                backdrop-filter: blur(8px);
+            ">
+                <div style="margin-bottom: 12px;">
+                    <div style="width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.3); border-top: 3px solid white; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+                </div>
+                <div style="font-size: 0.9rem; color: #ccc;">正在压缩图片...</div>
+                <div style="font-size: 0.8rem; color: #999; margin-top: 4px;">${fileName}</div>
+            </div>
+        `;
+        
+        // 添加动画样式
+        if (!document.getElementById('compression-styles')) {
+            const style = document.createElement('style');
+            style.id = 'compression-styles';
+            style.textContent = `
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        document.body.insertAdjacentHTML('beforeend', progressHtml);
+    }
+    
+    // 隐藏压缩进度
+    function hideCompressionProgress() {
+        const progress = document.querySelector('.compression-progress');
+        if (progress) {
+            progress.remove();
+        }
+    }
+    
+    // 图片压缩函数
+    function compressImage(file, callback, errorCallback, maxSizeKB = 2000) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        
+        img.onload = function() {
+            try {
+                // 计算压缩后的尺寸
+                let { width, height } = calculateCompressedSize(img.width, img.height, maxSizeKB);
+                
+                // 设置canvas尺寸
+                canvas.width = width;
+                canvas.height = height;
+                
+                // 绘制压缩后的图片
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // 尝试不同的质量直到文件大小符合要求
+                compressWithQuality(canvas, file.type, maxSizeKB, callback);
+            } catch (error) {
+                if (errorCallback) {
+                    errorCallback(error.message || '图片处理失败');
+                }
+            }
+        };
+        
+        img.onerror = function() {
+            if (errorCallback) {
+                errorCallback('图片加载失败');
+            }
+        };
+        
+        img.src = URL.createObjectURL(file);
+    }
+    
+    // 计算压缩后的尺寸
+    function calculateCompressedSize(originalWidth, originalHeight, maxSizeKB) {
+        // 对于500KB限制，设置更大的最大尺寸
+        const maxWidth = maxSizeKB <= 500 ? 1600 : 1920;
+        const maxHeight = maxSizeKB <= 500 ? 1200 : 1080;
+        
+        // 先按最大尺寸限制
+        let width = originalWidth;
+        let height = originalHeight;
+        
+        if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height);
+            width = Math.floor(width * ratio);
+            height = Math.floor(height * ratio);
+        }
+        
+        // 对于500KB，使用更高的像素估算
+        const estimatedBytesPerPixel = maxSizeKB <= 500 ? 0.25 : 0.2;
+        const maxPixels = (maxSizeKB * 1024) / estimatedBytesPerPixel;
+        const currentPixels = width * height;
+        
+        if (currentPixels <= maxPixels) {
+            return { width, height };
+        }
+        
+        // 进一步压缩尺寸
+        const ratio = Math.sqrt(maxPixels / currentPixels);
+        return {
+            width: Math.floor(width * ratio),
+            height: Math.floor(height * ratio)
+        };
+    }
+    
+    // 使用不同质量压缩
+    function compressWithQuality(canvas, mimeType, maxSizeKB, callback, quality = null) {
+        // 根据目标大小设置起始质量
+        if (quality === null) {
+            quality = maxSizeKB <= 500 ? 0.8 : 0.8;
+        }
+        
+        const dataUrl = canvas.toDataURL(mimeType, quality);
+        const sizeKB = (dataUrl.length * 0.75) / 1024; // Base64转字节再转KB
+        
+        console.log(`压缩质量: ${quality.toFixed(1)}, 文件大小: ${sizeKB.toFixed(1)}KB`);
+        
+        if (sizeKB <= maxSizeKB || quality <= 0.1) {
+            callback(dataUrl);
+        } else {
+            // 降低质量继续压缩，对于500KB使用适中的步长
+            const step = maxSizeKB <= 500 ? 0.05 : 0.05;
+            compressWithQuality(canvas, mimeType, maxSizeKB, callback, quality - step);
+        }
+    }
+
+    // 添加图片到容器
+    function addImageToContainer(imageSrc, fileName) {
+        const imageItem = document.createElement('div');
+        imageItem.className = 'uploaded-image-item';
+        
+        const img = document.createElement('img');
+        img.src = imageSrc;
+        img.alt = fileName;
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-image-btn';
+        removeBtn.innerHTML = '×';
+        removeBtn.onclick = function() {
+            imageItem.remove();
+            updateJsonSizeDisplay(); // 更新JSON大小显示
+        };
+        
+        imageItem.appendChild(img);
+        imageItem.appendChild(removeBtn);
+        uploadedImages.appendChild(imageItem);
+        
+        // 添加动画效果
+        imageItem.style.opacity = '0';
+        imageItem.style.transform = 'scale(0.8)';
+        setTimeout(() => {
+            imageItem.style.transition = 'all 0.3s ease';
+            imageItem.style.opacity = '1';
+            imageItem.style.transform = 'scale(1)';
+        }, 10);
+        
+        // 添加图片后更新JSON大小显示
+        updateJsonSizeDisplay();
+    }
+});
+
+// 更新JSON大小显示
+function updateJsonSizeDisplay() {
+    // 收集当前数据
+    const hospital = document.getElementById('hospital').value.trim();
+    const department = document.getElementById('department').value.trim();
+    const doctor = document.getElementById('doctor').value.trim();
+    const diagnosis = document.getElementById('diagnosis').value.trim();
+    const prescription = document.getElementById('prescription').value.trim();
+    
+    // 收集图片数据
+    const images = [];
+    const imageItems = document.querySelectorAll('.uploaded-image-item img');
+    imageItems.forEach(img => {
+        images.push(img.src);
+    });
+    
+    // 构建测试数据
+    const testCaseData = {
+        hospital: hospital,
+        department: department,
+        doctor: doctor,
+        diagnosis: diagnosis,
+        prescription: prescription,
+        images: images,
+        timestamp: new Date().toISOString(),
+        id: 'test'
+    };
+    
+    const testPayload = {
+        exportInfo: {
+            exportTime: new Date().toLocaleString('zh-CN'),
+            version: '1.0',
+            appName: '紫癜精灵',
+            dataType: 'case_record'
+        },
+        caseData: testCaseData
+    };
+    
+    // 计算JSON大小
+    const jsonString = JSON.stringify({ user_id: 'test', username: 'test', payload: testPayload });
+    const jsonSizeKB = (new Blob([jsonString]).size / 1024).toFixed(1);
+    const maxJsonSizeKB = 5120; // 5MB限制
+    
+    // 更新显示
+    let sizeDisplay = document.getElementById('json-size-display');
+    if (!sizeDisplay) {
+        sizeDisplay = document.createElement('div');
+        sizeDisplay.id = 'json-size-display';
+        sizeDisplay.style.cssText = `
+            font-size: 0.8em;
+            color: #666;
+            text-align: center;
+            margin-top: 8px;
+            padding: 8px;
+            background: rgba(98, 0, 234, 0.05);
+            border-radius: 8px;
+            border: 1px solid rgba(98, 0, 234, 0.1);
+        `;
+        
+        // 插入到上传容器后面
+        const uploadContainer = document.querySelector('.image-upload-container');
+        uploadContainer.parentNode.insertBefore(sizeDisplay, uploadContainer.nextSibling);
+    }
+    
+    const isOverLimit = jsonSizeKB > maxJsonSizeKB;
+    sizeDisplay.innerHTML = `
+        <div style="color: ${isOverLimit ? '#e74c3c' : '#27ae60'}; font-weight: 600;">
+            当前数据大小: ${jsonSizeKB}KB / ${maxJsonSizeKB}KB
+        </div>
+        ${isOverLimit ? '<div style="color: #e74c3c; margin-top: 4px;">⚠️ 数据过大，请删除一些图片或减少文本内容</div>' : ''}
+    `;
+}
+
+// 保存病例记录
+function saveCaseRecord() {
+    const hospital = document.getElementById('hospital').value.trim();
+    const department = document.getElementById('department').value.trim();
+    const doctor = document.getElementById('doctor').value.trim();
+    const diagnosis = document.getElementById('diagnosis').value.trim();
+    const prescription = document.getElementById('prescription').value.trim();
+    
+    // 基本验证
+    if (!hospital || !department || !doctor || !diagnosis || !prescription) {
+        showMessage('请填写所有必填字段', 'error');
+        return;
+    }
+    
+    // 显示加载状态
+    const saveBtn = document.querySelector('.global-save-btn');
+    const spinner = document.getElementById('global-spinner');
+    const btnText = document.querySelector('.btn-text');
+    
+    saveBtn.disabled = true;
+    btnText.textContent = '保存中...';
+    spinner.classList.add('show');
+    
+    // 收集图片数据
+    const images = [];
+    const imageItems = document.querySelectorAll('.uploaded-image-item img');
+    imageItems.forEach(img => {
+        images.push(img.src);
+    });
+    
+    // 构建病例数据
+    const caseData = {
+        hospital: hospital,
+        department: department,
+        doctor: doctor,
+        diagnosis: diagnosis,
+        prescription: prescription,
+        images: images,
+        timestamp: new Date().toISOString(),
+        id: generateCaseId()
+    };
+    
+    // 保存到本地存储
+    saveCaseToStorage(caseData);
+    
+    // 自动上传到后端（case_files 表）
+    (async function uploadAfterSave(){
+        try {
+            const payload = {
+                exportInfo: {
+                    exportTime: new Date().toLocaleString('zh-CN', { 
+                        timeZone: 'Asia/Shanghai',
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    }),
+                    version: '1.0',
+                    appName: '紫癜精灵',
+                    dataType: 'case_record'
+                },
+                caseData: caseData
+            };
+
+            // 获取身份：优先从本地缓存，缺失时调用 /readdata 补全
+            const identity = await resolveUserIdentity();
+            const user_id = identity.user_id || '';
+            const username = identity.username || '';
+
+            // 检查JSON文件大小
+            const jsonString = JSON.stringify({ user_id, username, payload });
+            const jsonSizeKB = (new Blob([jsonString]).size / 1024).toFixed(1);
+            const maxJsonSizeKB = 5120; // 5MB限制
+            
+            console.log(`JSON文件大小: ${jsonSizeKB}KB`);
+            
+            if (jsonSizeKB > maxJsonSizeKB) {
+                // 恢复按钮状态
+                saveBtn.disabled = false;
+                btnText.textContent = '保存病例记录';
+                spinner.classList.remove('show');
+                
+                showMessage(`数据过大 (${jsonSizeKB}KB > ${maxJsonSizeKB}KB)！请删除一些图片或减少文本内容`, 'error');
+                return;
+            }
+
+            var API_BASE = (typeof window !== 'undefined' && window.__API_BASE__) || 'https://app.zdelf.cn';
+            if (API_BASE && API_BASE.endsWith('/')) API_BASE = API_BASE.slice(0, -1);
+
+            const resp = await fetch(API_BASE + '/uploadjson/case', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id, username, payload })
+            });
+            const resJson = await resp.json();
+            if (!resp.ok || !resJson.success) {
+                console.warn('上传到服务器失败:', resJson.message || '未知错误');
+                showMessage('本地保存成功，但服务器同步失败', 'warning');
+            } else {
+                console.log('病例记录上传成功:', resJson);
+                showMessage('病例记录保存成功！2秒后自动返回首页', 'success');
+                
+                // 延迟2秒后自动跳转到首页
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 2000);
+            }
+        } catch (error) {
+            console.error('上传到服务器失败:', error);
+            showMessage('本地保存成功，但服务器同步失败', 'warning');
+        } finally {
+            // 恢复按钮状态
+            saveBtn.disabled = false;
+            btnText.textContent = '保存病例记录';
+            spinner.classList.remove('show');
+            
+            // 重置表单
+            resetForm();
+        }
+    })();
+}
+
+// 保存到本地存储
+function saveCaseToStorage(caseData) {
+    let cases = JSON.parse(localStorage.getItem('caseRecords') || '[]');
+    cases.unshift(caseData); // 添加到开头
+    localStorage.setItem('caseRecords', JSON.stringify(cases));
+}
+
+// 生成病例ID
+function generateCaseId() {
+    return 'case_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+// 重置表单
+function resetForm() {
+    document.getElementById('hospital').value = '';
+    document.getElementById('department').value = '';
+    document.getElementById('doctor').value = '';
+    document.getElementById('diagnosis').value = '';
+    document.getElementById('prescription').value = '';
+    
+    // 清空图片
+    const uploadedImages = document.getElementById('uploadedImages');
+    uploadedImages.innerHTML = '';
+}
+
+// 显示消息提示
+function showMessage(message, type = 'info') {
+    // 创建消息元素
+    const messageEl = document.createElement('div');
+    messageEl.className = `message-toast message-${type}`;
+    messageEl.textContent = message;
+    
+    // 根据类型选择颜色
+    let backgroundColor;
+    switch(type) {
+        case 'success':
+            backgroundColor = '#4caf50';
+            break;
+        case 'error':
+            backgroundColor = '#f44336';
+            break;
+        case 'warning':
+            backgroundColor = '#ff9800';
+            break;
+        default:
+            backgroundColor = '#2196f3';
+    }
+    
+    // 添加样式
+    messageEl.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: ${backgroundColor};
+        color: white;
+        padding: 16px 24px;
+        border-radius: 8px;
+        font-size: 1em;
+        font-weight: 500;
+        z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        animation: messageSlideIn 0.3s ease-out;
+        max-width: 90vw;
+        word-wrap: break-word;
+    `;
+    
+    // 添加动画样式
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes messageSlideIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+        @keyframes messageSlideOut {
+            from {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            to {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.8);
+            }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // 添加到页面
+    document.body.appendChild(messageEl);
+    
+    // 自动移除
+    setTimeout(() => {
+        messageEl.style.animation = 'messageSlideOut 0.3s ease-in';
+        setTimeout(() => {
+            if (messageEl.parentNode) {
+                messageEl.parentNode.removeChild(messageEl);
+            }
+            if (style.parentNode) {
+                style.parentNode.removeChild(style);
+            }
+        }, 300);
+    }, 3000);
+}
+
+// 解析用户身份：本地缓存优先，不足则通过 /readdata 查询
+async function resolveUserIdentity() {
+    // 1) 本地 user_profile
+    let cached = null;
+    try { cached = JSON.parse(localStorage.getItem('user_profile') || 'null'); } catch(_) { cached = null; }
+
+    let user_id = '';
+    let username = '';
+
+    if (cached) {
+        user_id = (cached.user_id || cached.id || '').toString();
+        // 忽略缓存中的 username，统一通过 user_id 查询服务端获取
+    }
+
+    // 2) 与 me.js 保持一致：优先从 localStorage/sessionStorage 读取 userId/UserID
+    try {
+        const storedId =
+          localStorage.getItem('userId') ||
+          sessionStorage.getItem('userId') ||
+          localStorage.getItem('UserID') ||
+          sessionStorage.getItem('UserID') || '';
+        if (storedId) {
+            user_id = String(storedId);
+        }
+    } catch(_) {}
+
+    // 3) 仅当存在 user_id 时，通过 /readdata 使用 user_id 查询 username
+    if (user_id) {
+        try {
+            var API_BASE = (typeof window !== 'undefined' && window.__API_BASE__) || 'https://app.zdelf.cn';
+            if (API_BASE && API_BASE.endsWith('/')) API_BASE = API_BASE.slice(0, -1);
+
+            const body = { table_name: 'users', user_id: String(user_id) };
+            const res = await fetch(API_BASE + '/readdata', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const json = await res.json();
+            if (res.ok && json && json.success && Array.isArray(json.data) && json.data.length > 0) {
+                const rec = json.data[0] || {};
+                username = (rec.username || '').toString();
+
+                // 回写本地（不覆盖现有 userId 键，仅更新 user_profile 和 username）
+                try {
+                    const merged = Object.assign({}, cached || {}, { user_id, username });
+                    localStorage.setItem('user_profile', JSON.stringify(merged));
+                    if (username) localStorage.setItem('username', username);
+                } catch(_) {}
+
+                return { user_id, username };
+            }
+        } catch (e) {
+            console.warn('resolveUserIdentity 通过 user_id 调用 /readdata 失败:', e);
+        }
+        // 查询失败时，至少返回 user_id，username 留空
+        return { user_id, username: '' };
+    }
+
+    // 兜底为空
+    return { user_id: '', username: '' };
+}
+
+// 页面加载完成后的初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 添加页面加载动画
+    document.body.style.opacity = '0';
+    setTimeout(() => {
+        document.body.style.transition = 'opacity 0.5s ease';
+        document.body.style.opacity = '1';
+    }, 100);
+    
+    // 为输入框添加焦点效果
+    const inputs = document.querySelectorAll('.form-input');
+    inputs.forEach(input => {
+        input.addEventListener('focus', function() {
+            this.parentElement.style.transform = 'translateY(-1px)';
+        });
+        
+        input.addEventListener('blur', function() {
+            this.parentElement.style.transform = 'translateY(0)';
+        });
+    });
+});

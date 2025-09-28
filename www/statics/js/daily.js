@@ -1274,8 +1274,38 @@ function parseDietSummary(content) {
  * parseCaseSummary — 解析病例记录摘要
  */
 function parseCaseSummary(content) {
-  // 这里可以根据实际的病例数据结构来解析
-  return '病例记录数据';
+  const caseData = content.caseData || {};
+  const summaries = [];
+  
+  // 医院信息
+  if (caseData.hospital) {
+    summaries.push(`医院: ${caseData.hospital}`);
+  }
+  
+  // 科室信息
+  if (caseData.department) {
+    summaries.push(`科室: ${caseData.department}`);
+  }
+  
+  // 医生信息
+  if (caseData.doctor) {
+    summaries.push(`医生: ${caseData.doctor}`);
+  }
+  
+  // 诊断信息（截取前30个字符）
+  if (caseData.diagnosis) {
+    const diagnosisPreview = caseData.diagnosis.length > 30 
+      ? caseData.diagnosis.substring(0, 30) + '...' 
+      : caseData.diagnosis;
+    summaries.push(`诊断: ${diagnosisPreview}`);
+  }
+  
+  // 图片数量
+  if (caseData.images && caseData.images.length > 0) {
+    summaries.push(`图片: ${caseData.images.length}张`);
+  }
+  
+  return summaries.length > 0 ? summaries.join(' | ') : '病例记录';
 }
 
 /**
@@ -1817,6 +1847,154 @@ function formatDate(dateString) {
  * destroyDaily — Tear down listeners and observers for a clean unmount.
  * 清理监听与观察者，便于无痕卸载。
  */
+/**
+ * formatCaseForDisplay — 格式化病例记录用于显示
+ */
+function formatCaseForDisplay(content, isDarkMode = false) {
+  const caseData = content.caseData || {};
+  
+  if (!caseData.hospital && !caseData.department && !caseData.doctor && !caseData.diagnosis && !caseData.prescription) {
+    return '<p>暂无病例记录</p>';
+  }
+  
+  // 根据深色模式选择样式
+  const sectionStyle = isDarkMode
+    ? "background: linear-gradient(135deg, #334155 0%, #1e293b 100%); border-radius: 16px; padding: 24px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); position: relative; overflow: hidden; transition: all 0.3s ease; margin-bottom: 20px;"
+    : "background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 16px; padding: 24px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); position: relative; overflow: hidden; transition: all 0.3s ease; margin-bottom: 20px;";
+    
+  const titleStyle = isDarkMode
+    ? "margin: 0 0 16px 0; color: #f1f5f9; font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; letter-spacing: -0.01em;"
+    : "margin: 0 0 16px 0; color: #1e293b; font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; letter-spacing: -0.01em;";
+    
+  const textStyle = isDarkMode
+    ? "margin: 0; color: #cbd5e1; font-size: 0.95rem; line-height: 1.6; font-weight: 500;"
+    : "margin: 0; color: #475569; font-size: 0.95rem; line-height: 1.6; font-weight: 500;";
+    
+  const gridItemStyle = isDarkMode
+    ? "display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: linear-gradient(135deg, #334155 0%, #1e293b 100%); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); transition: all 0.2s ease;"
+    : "display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); transition: all 0.2s ease;";
+    
+  const gridLabelStyle = isDarkMode
+    ? "color: #94a3b8; font-weight: 600; font-size: 0.9rem; letter-spacing: -0.01em;"
+    : "color: #64748b; font-weight: 600; font-size: 0.9rem; letter-spacing: -0.01em;";
+    
+  const gridValueStyle = isDarkMode
+    ? "color: #f1f5f9; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;"
+    : "color: #1e293b; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;";
+    
+  const imageStyle = isDarkMode
+    ? "max-width: 100%; height: auto; border-radius: 12px; border: 2px solid rgba(255, 255, 255, 0.1); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); margin: 8px 0; cursor: pointer; transition: all 0.3s ease;"
+    : "max-width: 100%; height: auto; border-radius: 12px; border: 2px solid rgba(0, 0, 0, 0.1); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); margin: 8px 0; cursor: pointer; transition: all 0.3s ease;";
+  
+  let html = '<div style="display: flex; flex-direction: column; gap: 20px;">';
+  
+  // 基本信息
+  html += `
+    <div style="${sectionStyle}">
+      <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
+      <h5 style="${titleStyle}">▶ 基本信息</h5>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-top: 8px;">
+        ${caseData.hospital ? `<div style="${gridItemStyle}"><span style="${gridLabelStyle}">医院:</span><span style="${gridValueStyle}">${caseData.hospital}</span></div>` : ''}
+        ${caseData.department ? `<div style="${gridItemStyle}"><span style="${gridLabelStyle}">科室:</span><span style="${gridValueStyle}">${caseData.department}</span></div>` : ''}
+        ${caseData.doctor ? `<div style="${gridItemStyle}"><span style="${gridLabelStyle}">医生:</span><span style="${gridValueStyle}">${caseData.doctor}</span></div>` : ''}
+      </div>
+    </div>
+  `;
+  
+  // 诊断信息
+  if (caseData.diagnosis) {
+    html += `
+      <div style="${sectionStyle}">
+        <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
+        <h5 style="${titleStyle}">▶ 诊断结果</h5>
+        <p style="${textStyle}">${caseData.diagnosis}</p>
+      </div>
+    `;
+  }
+  
+  // 医嘱信息
+  if (caseData.prescription) {
+    html += `
+      <div style="${sectionStyle}">
+        <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
+        <h5 style="${titleStyle}">▶ 医嘱</h5>
+        <p style="${textStyle}">${caseData.prescription}</p>
+      </div>
+    `;
+  }
+  
+  // 图片展示
+  if (caseData.images && caseData.images.length > 0) {
+    html += `
+      <div style="${sectionStyle}">
+        <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
+        <h5 style="${titleStyle}">▶ 病例单图片 (${caseData.images.length}张)</h5>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 8px;">
+          ${caseData.images.map((imageSrc, index) => `
+            <div style="position: relative;">
+              <img src="${imageSrc}" alt="病例单图片 ${index + 1}" style="${imageStyle}" onclick="openImageModal('${imageSrc}')" />
+              <div style="position: absolute; top: 8px; right: 8px; background: rgba(0, 0, 0, 0.6); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">${index + 1}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+  
+  html += '</div>';
+  return html;
+}
+
+/**
+ * openImageModal — 打开图片查看模态框
+ */
+function openImageModal(imageSrc) {
+  // 检测深色模式
+  const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  
+  // 创建图片查看弹窗
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 999999 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 20px !important;
+    box-sizing: border-box !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    margin: 0 !important;
+  `;
+  
+  const backdropStyle = isDarkMode 
+    ? "background: rgba(0, 0, 0, 0.9); backdrop-filter: blur(12px);"
+    : "background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(12px);";
+  
+  modal.innerHTML = `
+    <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; ${backdropStyle}"></div>
+    <div style="position: relative; max-width: 90vw; max-height: 90vh; display: flex; align-items: center; justify-content: center;">
+      <img src="${imageSrc}" style="max-width: 100%; max-height: 100%; border-radius: 12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);" />
+      <button style="position: absolute; top: 20px; right: 20px; background: rgba(0, 0, 0, 0.6); border: none; color: white; font-size: 2rem; cursor: pointer; padding: 8px 16px; border-radius: 8px;">&times;</button>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  document.body.style.overflow = 'hidden';
+  
+  const closeModal = () => {
+    document.body.style.overflow = '';
+    modal.remove();
+  };
+  
+  modal.querySelector('button').addEventListener('click', closeModal);
+  modal.querySelector('div[style*="backdrop-filter"]').addEventListener('click', closeModal);
+}
+
 function destroyDaily() {
   // 中止在途请求
   abortInFlight();
@@ -1834,4 +2012,5 @@ function destroyDaily() {
 // -----------------------------
 window.initDaily = initDaily;
 window.destroyDaily = destroyDaily;
+window.openImageModal = openImageModal;
 })();
