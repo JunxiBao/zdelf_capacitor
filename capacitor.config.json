@@ -2,6 +2,7 @@
   "appId": "com.junxibao.healthapp",
   "appName": "紫癜精灵",
   "webDir": "www",
+  "language": "zh-CN",
   "plugins": {
     "LocalNotifications": {
       "smallIcon": "ic_stat_icon_config_sample",
