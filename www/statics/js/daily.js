@@ -96,37 +96,6 @@ function updateDateDisplay(dateString) {
   }
 }
 
-/**
- * showLoadingState — 显示统一的加载状态
- * 在屏幕中央显示加载动画
- */
-function showLoadingState() {
-  const loadingHtml = `
-    <div class="loading-container">
-      <div class="loading-spinner"></div>
-      <div class="loading-text">正在加载您的数据...</div>
-    </div>
-  `;
-  
-  // 在页面容器中添加加载状态
-  const pageContainer = dailyRoot.querySelector('.page-container');
-  if (pageContainer) {
-    pageContainer.insertAdjacentHTML('beforeend', loadingHtml);
-  }
-}
-
-/**
- * hideLoadingState — 隐藏加载状态
- */
-function hideLoadingState() {
-  const loadingContainer = dailyRoot.querySelector('.loading-container');
-  if (loadingContainer) {
-    loadingContainer.style.opacity = '0';
-    setTimeout(() => {
-      loadingContainer.remove();
-    }, 300);
-  }
-}
 
 /**
  * showLocalLoadingState — 显示局部加载状态
@@ -281,9 +250,6 @@ function initDaily(shadowRoot) {
   // 启动前中止可能在途的请求
   abortInFlight();
 
-  // 显示统一的加载状态
-  showLoadingState();
-
   // 初始化日期选择器
   initDatePicker();
 
@@ -296,14 +262,11 @@ function initDaily(shadowRoot) {
   // 初始化数据类型切换器
   initDataTypeSwitcher();
 
-  // 并行加载问候语和数据卡片
+  // 并行加载问候语和数据卡片（移除全局加载动画，保留局部加载）
   Promise.all([
     loadUsername(),
     loadUserDataCards()
-  ]).finally(() => {
-    // 隐藏加载状态
-    hideLoadingState();
-  });
+  ]);
 }
 
 // 缓存数据卡片，避免重复请求
