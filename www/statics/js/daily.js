@@ -852,40 +852,156 @@ async function renderTimelineItems(items, container) {
     // 如果没有传入任何项目，显示无数据消息
     let message;
     
-    if (selectedDate && searchKeyword) {
-      message = `
-        <div class="no-data-message">
-          <div class="no-data-icon">🔍</div>
-          <h3>未找到匹配的记录</h3>
-          <p>在 ${selectedDate} 中没有找到包含 "${searchKeyword}" 的记录</p>
-          <p>尝试调整搜索条件或清除筛选</p>
-        </div>
-      `;
-    } else if (selectedDate) {
-      message = `
-        <div class="no-data-message">
-          <div class="no-data-icon">📅</div>
-          <h3>该日期无数据记录</h3>
-          <p>选择其他日期或清除筛选查看所有记录</p>
-        </div>
-      `;
-    } else if (searchKeyword) {
-      message = `
-        <div class="no-data-message">
-          <div class="no-data-icon">🔍</div>
-          <h3>未找到匹配的记录</h3>
-          <p>没有找到包含 "${searchKeyword}" 的记录</p>
-          <p>尝试其他关键字或清除搜索</p>
-        </div>
-      `;
+    // 根据当前选择的数据类型显示不同的无数据提示
+    if (selectedDataType === 'metrics') {
+      if (selectedDate && searchKeyword) {
+        message = `
+          <div class="no-data-message">
+            <div class="no-data-icon">🔍</div>
+            <h3>未找到匹配的健康指标</h3>
+            <p>在 ${formatDateDisplay(selectedDate)} 中没有找到包含 "${searchKeyword}" 的健康指标记录</p>
+            <p>尝试调整搜索条件或清除筛选</p>
+          </div>
+        `;
+      } else if (selectedDate) {
+        message = `
+          <div class="no-data-message">
+            <div class="no-data-icon">📊</div>
+            <h3>${formatDateDisplay(selectedDate)}无健康记录</h3>
+            <p>该日期暂无健康指标数据</p>
+            <p>选择其他日期或开始记录健康数据</p>
+          </div>
+        `;
+      } else if (searchKeyword) {
+        message = `
+          <div class="no-data-message">
+            <div class="no-data-icon">🔍</div>
+            <h3>未找到匹配的健康指标</h3>
+            <p>没有找到包含 "${searchKeyword}" 的健康指标记录</p>
+            <p>尝试其他关键字或清除搜索</p>
+          </div>
+        `;
+      } else {
+        message = `
+          <div class="no-data-message">
+            <div class="no-data-icon">📊</div>
+            <h3>暂无健康指标记录</h3>
+            <p>开始记录您的健康数据吧</p>
+          </div>
+        `;
+      }
+    } else if (selectedDataType === 'case') {
+      if (selectedDate && searchKeyword) {
+        message = `
+          <div class="no-data-message">
+            <div class="no-data-icon">🔍</div>
+            <h3>未找到匹配的病例记录</h3>
+            <p>在 ${formatDateDisplay(selectedDate)} 中没有找到包含 "${searchKeyword}" 的病例记录</p>
+            <p>尝试调整搜索条件或清除筛选</p>
+          </div>
+        `;
+      } else if (selectedDate) {
+        message = `
+          <div class="no-data-message">
+            <div class="no-data-icon">📋</div>
+            <h3>${formatDateDisplay(selectedDate)}无病例记录</h3>
+            <p>该日期暂无个人病例数据</p>
+            <p>选择其他日期或添加病例记录</p>
+          </div>
+        `;
+      } else if (searchKeyword) {
+        message = `
+          <div class="no-data-message">
+            <div class="no-data-icon">🔍</div>
+            <h3>未找到匹配的病例记录</h3>
+            <p>没有找到包含 "${searchKeyword}" 的病例记录</p>
+            <p>尝试其他关键字或清除搜索</p>
+          </div>
+        `;
+      } else {
+        message = `
+          <div class="no-data-message">
+            <div class="no-data-icon">📋</div>
+            <h3>暂无病例记录</h3>
+            <p>开始记录您的病例数据吧</p>
+          </div>
+        `;
+      }
+    } else if (selectedDataType === 'diet') {
+      if (selectedDate && searchKeyword) {
+        message = `
+          <div class="no-data-message">
+            <div class="no-data-icon">🔍</div>
+            <h3>未找到匹配的饮食记录</h3>
+            <p>在 ${formatDateDisplay(selectedDate)} 中没有找到包含 "${searchKeyword}" 的饮食记录</p>
+            <p>尝试调整搜索条件或清除筛选</p>
+          </div>
+        `;
+      } else if (selectedDate) {
+        message = `
+          <div class="no-data-message">
+            <div class="no-data-icon">🍽️</div>
+            <h3>${formatDateDisplay(selectedDate)}无饮食记录</h3>
+            <p>该日期暂无饮食数据</p>
+            <p>选择其他日期或添加饮食记录</p>
+          </div>
+        `;
+      } else if (searchKeyword) {
+        message = `
+          <div class="no-data-message">
+            <div class="no-data-icon">🔍</div>
+            <h3>未找到匹配的饮食记录</h3>
+            <p>没有找到包含 "${searchKeyword}" 的饮食记录</p>
+            <p>尝试其他关键字或清除搜索</p>
+          </div>
+        `;
+      } else {
+        message = `
+          <div class="no-data-message">
+            <div class="no-data-icon">🍽️</div>
+            <h3>暂无饮食记录</h3>
+            <p>开始记录您的饮食数据吧</p>
+          </div>
+        `;
+      }
     } else {
-      message = `
-        <div class="no-data-message">
-          <div class="no-data-icon">📝</div>
-          <h3>暂无数据记录</h3>
-          <p>开始记录您的健康数据吧</p>
-        </div>
-      `;
+      // 通用的无数据提示（用于搜索所有类型或未指定类型的情况）
+      if (selectedDate && searchKeyword) {
+        message = `
+          <div class="no-data-message">
+            <div class="no-data-icon">🔍</div>
+            <h3>未找到匹配的记录</h3>
+            <p>在 ${formatDateDisplay(selectedDate)} 中没有找到包含 "${searchKeyword}" 的记录</p>
+            <p>尝试调整搜索条件或清除筛选</p>
+          </div>
+        `;
+      } else if (selectedDate) {
+        message = `
+          <div class="no-data-message">
+            <div class="no-data-icon">📅</div>
+            <h3>${formatDateDisplay(selectedDate)}无数据记录</h3>
+            <p>该日期暂无任何记录</p>
+            <p>选择其他日期或开始记录数据</p>
+          </div>
+        `;
+      } else if (searchKeyword) {
+        message = `
+          <div class="no-data-message">
+            <div class="no-data-icon">🔍</div>
+            <h3>未找到匹配的记录</h3>
+            <p>没有找到包含 "${searchKeyword}" 的记录</p>
+            <p>尝试其他关键字或清除搜索</p>
+          </div>
+        `;
+      } else {
+        message = `
+          <div class="no-data-message">
+            <div class="no-data-icon">📝</div>
+            <h3>暂无数据记录</h3>
+            <p>开始记录您的健康数据吧</p>
+          </div>
+        `;
+      }
     }
     
     container.innerHTML = message;
@@ -939,13 +1055,46 @@ async function renderTimelineItems(items, container) {
  */
 async function renderDietTimeline(items, container) {
   if (!items || items.length === 0) {
-    container.innerHTML = `
-      <div class="no-data-message">
-        <div class="no-data-icon">📝</div>
-        <h3>暂无饮食记录</h3>
-        <p>开始记录您的饮食数据吧</p>
-      </div>
-    `;
+    // 根据搜索条件和日期筛选显示不同的无数据提示
+    let message;
+    if (selectedDate && searchKeyword) {
+      message = `
+        <div class="no-data-message">
+          <div class="no-data-icon">🔍</div>
+          <h3>未找到匹配的饮食记录</h3>
+          <p>在 ${formatDateDisplay(selectedDate)} 中没有找到包含 "${searchKeyword}" 的饮食记录</p>
+          <p>尝试调整搜索条件或清除筛选</p>
+        </div>
+      `;
+    } else if (selectedDate) {
+      message = `
+        <div class="no-data-message">
+          <div class="no-data-icon">🍽️</div>
+          <h3>${formatDateDisplay(selectedDate)}无饮食记录</h3>
+          <p>该日期暂无饮食数据</p>
+          <p>选择其他日期或添加饮食记录</p>
+        </div>
+      `;
+    } else if (searchKeyword) {
+      message = `
+        <div class="no-data-message">
+          <div class="no-data-icon">🔍</div>
+          <h3>未找到匹配的饮食记录</h3>
+          <p>没有找到包含 "${searchKeyword}" 的饮食记录</p>
+          <p>尝试其他关键字或清除搜索</p>
+        </div>
+      `;
+    } else {
+      message = `
+        <div class="no-data-message">
+          <div class="no-data-icon">🍽️</div>
+          <h3>暂无饮食记录</h3>
+          <p>开始记录您的饮食数据吧</p>
+        </div>
+      `;
+    }
+    
+    container.innerHTML = message;
     return;
   }
 
@@ -998,13 +1147,46 @@ async function renderDietTimeline(items, container) {
   }
 
   if (mealEvents.length === 0) {
-    container.innerHTML = `
-      <div class="no-data-message">
-        <div class="no-data-icon">📝</div>
-        <h3>暂无饮食记录</h3>
-        <p>开始记录您的饮食数据吧</p>
-      </div>
-    `;
+    // 根据搜索条件和日期筛选显示不同的无数据提示
+    let message;
+    if (selectedDate && searchKeyword) {
+      message = `
+        <div class="no-data-message">
+          <div class="no-data-icon">🔍</div>
+          <h3>未找到匹配的饮食记录</h3>
+          <p>在 ${formatDateDisplay(selectedDate)} 中没有找到包含 "${searchKeyword}" 的饮食记录</p>
+          <p>尝试调整搜索条件或清除筛选</p>
+        </div>
+      `;
+    } else if (selectedDate) {
+      message = `
+        <div class="no-data-message">
+          <div class="no-data-icon">🍽️</div>
+          <h3>${formatDateDisplay(selectedDate)}无饮食记录</h3>
+          <p>该日期暂无饮食数据</p>
+          <p>选择其他日期或添加饮食记录</p>
+        </div>
+      `;
+    } else if (searchKeyword) {
+      message = `
+        <div class="no-data-message">
+          <div class="no-data-icon">🔍</div>
+          <h3>未找到匹配的饮食记录</h3>
+          <p>没有找到包含 "${searchKeyword}" 的饮食记录</p>
+          <p>尝试其他关键字或清除搜索</p>
+        </div>
+      `;
+    } else {
+      message = `
+        <div class="no-data-message">
+          <div class="no-data-icon">🍽️</div>
+          <h3>暂无饮食记录</h3>
+          <p>开始记录您的饮食数据吧</p>
+        </div>
+      `;
+    }
+    
+    container.innerHTML = message;
     return;
   }
 

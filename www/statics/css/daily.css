@@ -1011,24 +1011,67 @@ body {
   text-align: center;
   padding: 60px 20px;
   color: #666;
+  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  border-radius: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  margin: 20px 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.no-data-message::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #6200ea, #a78bfa);
+  opacity: 0.7;
 }
 
 .no-data-icon {
   font-size: 4rem;
   margin-bottom: 20px;
-  opacity: 0.6;
+  opacity: 0.8;
+  display: block;
+  transition: all 0.3s ease;
+}
+
+/* 不同类型的图标样式 */
+.no-data-message:has(.no-data-icon:contains("📊")) .no-data-icon {
+  filter: hue-rotate(200deg) brightness(1.1);
+}
+
+.no-data-message:has(.no-data-icon:contains("📋")) .no-data-icon {
+  filter: hue-rotate(30deg) brightness(1.1);
+}
+
+.no-data-message:has(.no-data-icon:contains("🍽️")) .no-data-icon {
+  filter: hue-rotate(120deg) brightness(1.1);
 }
 
 .no-data-message h3 {
   margin: 0 0 12px 0;
   font-size: 1.5rem;
   color: #333;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .no-data-message p {
-  margin: 0;
+  margin: 0 0 8px 0;
   font-size: 1rem;
   color: #666;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.no-data-message p:last-child {
+  margin-bottom: 0;
+  font-size: 0.9rem;
+  opacity: 0.8;
 }
 
 /* 卡片图标 */
@@ -1637,6 +1680,16 @@ body {
   .card-footer {
     background: rgba(167, 139, 250, 0.05);
     border-color: rgba(167, 139, 250, 0.1);
+  }
+
+  .no-data-message {
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    border-color: rgba(167, 139, 250, 0.2);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  }
+
+  .no-data-message::before {
+    background: linear-gradient(90deg, #a78bfa, #c4b5fd);
   }
 
   .no-data-message h3 {
