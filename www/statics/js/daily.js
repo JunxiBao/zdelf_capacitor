@@ -128,6 +128,52 @@ function hideLoadingState() {
   }
 }
 
+/**
+ * showLocalLoadingState — 显示局部加载状态
+ * @param {HTMLElement} container - 要显示加载动画的容器
+ * @param {string} dataType - 数据类型 (metrics, diet, case)
+ * @param {string} message - 加载提示信息
+ */
+function showLocalLoadingState(container, dataType = '', message = '正在加载数据...') {
+  if (!container) return;
+  
+  const loadingMessages = {
+    'metrics': '正在加载健康指标...',
+    'diet': '正在加载饮食记录...',
+    'case': '正在加载个人病例...'
+  };
+  
+  const loadingMessage = loadingMessages[dataType] || message;
+  
+  const loadingHtml = `
+    <div class="local-loading ${dataType}">
+      <div class="local-loading-spinner"></div>
+      <div class="local-loading-text">${loadingMessage}</div>
+    </div>
+  `;
+  
+  container.innerHTML = loadingHtml;
+}
+
+/**
+ * hideLocalLoadingState — 隐藏局部加载状态
+ * @param {HTMLElement} container - 包含加载动画的容器
+ */
+function hideLocalLoadingState(container) {
+  if (!container) return;
+  
+  const localLoading = container.querySelector('.local-loading');
+  if (localLoading) {
+    localLoading.style.opacity = '0';
+    setTimeout(() => {
+      // 只移除加载动画，不清空整个容器
+      if (localLoading.parentNode) {
+        localLoading.remove();
+      }
+    }, 300);
+  }
+}
+
 // 缓存用户名，避免重复请求
 let cachedUsername = null;
 let usernameLoadPromise = null;
@@ -361,8 +407,16 @@ function initDataTypeSwitcher() {
       
       console.log(`🔄 切换到数据类型: ${dataType}`);
       
+      // 显示局部加载动画并重新过滤渲染卡片
+      const cardsContainer = dailyRoot.querySelector('#data-cards-container');
+      if (cardsContainer) {
+        showLocalLoadingState(cardsContainer, selectedDataType, '正在切换数据类型...');
+      }
+      
       // 重新过滤并渲染卡片
-      filterAndRenderCards();
+      setTimeout(() => {
+        filterAndRenderCards();
+      }, 50); // 短暂延迟让加载动画显示
     });
   });
   
@@ -447,14 +501,15 @@ function initDatePicker() {
     clearBtn.classList.add('hidden');
     
     // 切换日期时，重新从后端按天拉取数据
-    showLoadingState();
+    const cardsContainer = dailyRoot.querySelector('#data-cards-container');
+    if (cardsContainer) {
+      showLocalLoadingState(cardsContainer, selectedDataType, '正在加载新日期数据...');
+    }
+    
     abortInFlight();
     loadUserDataCards()
       .then(() => {
         filterAndRenderCards();
-      })
-      .finally(() => {
-        hideLoadingState();
       });
   });
 
@@ -497,49 +552,55 @@ function filterAndRenderCards() {
     return;
   }
 
-  let filteredCards = cachedDataCards;
+  // 显示局部加载动画
+  showLocalLoadingState(cardsContainer, selectedDataType, '正在筛选数据...');
 
-  // 如果选择了日期，进行日期过滤
-  if (selectedDate) {
-    // 饮食/指标/病例均基于其内容内的记录日期过滤：
-    // - 饮食：在 renderDietTimeline 内按每餐的 date/timestamp 过滤
-    // - 指标/病例：在 updateTimelineDetails 内按 exportInfo.recordDate 过滤
-    // 因此此处不再按 created_at 预过滤，避免漏掉“补录”的数据
-  }
+  // 使用 setTimeout 来模拟异步操作，让加载动画有时间显示
+  setTimeout(() => {
+    let filteredCards = cachedDataCards;
 
-  // 如果有搜索关键字，进行搜索过滤
-  if (searchKeyword) {
-    filteredCards = filteredCards.filter(item => {
-      return searchInCardData(item, searchKeyword);
+    // 如果选择了日期，进行日期过滤
+    if (selectedDate) {
+      // 饮食/指标/病例均基于其内容内的记录日期过滤：
+      // - 饮食：在 renderDietTimeline 内按每餐的 date/timestamp 过滤
+      // - 指标/病例：在 updateTimelineDetails 内按 exportInfo.recordDate 过滤
+      // 因此此处不再按 created_at 预过滤，避免漏掉"补录"的数据
+    }
+
+    // 如果有搜索关键字，进行搜索过滤
+    if (searchKeyword) {
+      filteredCards = filteredCards.filter(item => {
+        return searchInCardData(item, searchKeyword);
+      });
+      
+      console.log(`🔍 按关键字 "${searchKeyword}" 过滤，从 ${cachedDataCards.length} 条记录中筛选出 ${filteredCards.length} 条`);
+    }
+
+    // 按数据类型过滤
+    if (selectedDataType) {
+      filteredCards = filteredCards.filter(item => {
+        return item.dataType === selectedDataType;
+      });
+      
+      console.log(`🏷️ 按数据类型 "${selectedDataType}" 过滤，从 ${cachedDataCards.length} 条记录中筛选出 ${filteredCards.length} 条`);
+    }
+
+    // 渲染过滤后的卡片
+    const renderPromise = selectedDataType === 'diet'
+      ? renderDietTimeline(filteredCards, cardsContainer)
+      : renderTimelineItems(filteredCards, cardsContainer);
+
+    renderPromise.catch(err => {
+      console.error('渲染过滤后的卡片失败:', err);
+      cardsContainer.innerHTML = `
+        <div class="no-data-message">
+          <div class="no-data-icon">⚠️</div>
+          <h3>筛选失败</h3>
+          <p>请刷新页面重试</p>
+        </div>
+      `;
     });
-    
-    console.log(`🔍 按关键字 "${searchKeyword}" 过滤，从 ${cachedDataCards.length} 条记录中筛选出 ${filteredCards.length} 条`);
-  }
-
-  // 按数据类型过滤
-  if (selectedDataType) {
-    filteredCards = filteredCards.filter(item => {
-      return item.dataType === selectedDataType;
-    });
-    
-    console.log(`🏷️ 按数据类型 "${selectedDataType}" 过滤，从 ${cachedDataCards.length} 条记录中筛选出 ${filteredCards.length} 条`);
-  }
-
-  // 渲染过滤后的卡片
-  const renderPromise = selectedDataType === 'diet'
-    ? renderDietTimeline(filteredCards, cardsContainer)
-    : renderTimelineItems(filteredCards, cardsContainer);
-
-  renderPromise.catch(err => {
-    console.error('渲染过滤后的卡片失败:', err);
-    cardsContainer.innerHTML = `
-      <div class="no-data-message">
-        <div class="no-data-icon">⚠️</div>
-        <h3>筛选失败</h3>
-        <p>请刷新页面重试</p>
-      </div>
-    `;
-  });
+  }, 100); // 短暂延迟让加载动画显示
 }
 
 /**
@@ -752,6 +813,9 @@ function loadUserDataCards() {
       resolve();
       return;
     }
+
+    // 显示局部加载动画
+    showLocalLoadingState(cardsContainer, selectedDataType, '正在加载数据...');
 
     // 如果正在加载中，等待加载完成
     if (dataCardsLoadPromise) {
@@ -1373,7 +1437,11 @@ async function generateTimelineItems(groupedData) {
   
   // 然后异步加载详细信息并更新内容
   setTimeout(async () => {
-    await updateTimelineDetails(groupedData);
+    try {
+      await updateTimelineDetails(groupedData);
+    } catch (error) {
+      console.error('更新时间线详情失败:', error);
+    }
   }, 100);
   
   return basicHTML;

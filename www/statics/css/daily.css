@@ -871,6 +871,153 @@ body {
   }
 }
 
+/* 局部加载动画 */
+.local-loading {
+  position: relative;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  margin: 16px 0;
+  transition: all 0.3s ease;
+}
+
+.local-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(98, 0, 234, 0.1);
+  border-top: 3px solid #6200ea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(98, 0, 234, 0.2);
+}
+
+.local-loading-text {
+  color: #666;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: center;
+  opacity: 0.8;
+  letter-spacing: -0.01em;
+}
+
+/* 数据类型特定的局部加载样式 */
+.local-loading.metrics {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-color: rgba(59, 130, 246, 0.1);
+}
+
+.local-loading.metrics .local-loading-spinner {
+  border: 3px solid rgba(59, 130, 246, 0.1);
+  border-top: 3px solid #3b82f6;
+  box-shadow: 0 2px 12px rgba(59, 130, 246, 0.2);
+}
+
+.local-loading.metrics .local-loading-text {
+  color: #1e40af;
+}
+
+.local-loading.diet {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border-color: rgba(16, 185, 129, 0.1);
+}
+
+.local-loading.diet .local-loading-spinner {
+  border: 3px solid rgba(16, 185, 129, 0.1);
+  border-top: 3px solid #10b981;
+  box-shadow: 0 2px 12px rgba(16, 185, 129, 0.2);
+}
+
+.local-loading.diet .local-loading-text {
+  color: #047857;
+}
+
+.local-loading.case {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border-color: rgba(245, 158, 11, 0.1);
+}
+
+.local-loading.case .local-loading-spinner {
+  border: 3px solid rgba(245, 158, 11, 0.1);
+  border-top: 3px solid #f59e0b;
+  box-shadow: 0 2px 12px rgba(245, 158, 11, 0.2);
+}
+
+.local-loading.case .local-loading-text {
+  color: #92400e;
+}
+
+/* 深色模式局部加载样式 */
+@media (prefers-color-scheme: dark) {
+  .local-loading {
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  
+  .local-loading-spinner {
+    border: 3px solid rgba(167, 139, 250, 0.1);
+    border-top: 3px solid #a78bfa;
+    box-shadow: 0 2px 12px rgba(167, 139, 250, 0.3);
+  }
+  
+  .local-loading-text {
+    color: #d1d5db;
+  }
+  
+  /* 深色模式数据类型特定样式 */
+  .local-loading.metrics {
+    background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+    border-color: rgba(96, 165, 250, 0.2);
+  }
+  
+  .local-loading.metrics .local-loading-spinner {
+    border: 3px solid rgba(96, 165, 250, 0.1);
+    border-top: 3px solid #60a5fa;
+    box-shadow: 0 2px 12px rgba(96, 165, 250, 0.3);
+  }
+  
+  .local-loading.metrics .local-loading-text {
+    color: #dbeafe;
+  }
+  
+  .local-loading.diet {
+    background: linear-gradient(135deg, #064e3b 0%, #065f46 100%);
+    border-color: rgba(52, 211, 153, 0.2);
+  }
+  
+  .local-loading.diet .local-loading-spinner {
+    border: 3px solid rgba(52, 211, 153, 0.1);
+    border-top: 3px solid #34d399;
+    box-shadow: 0 2px 12px rgba(52, 211, 153, 0.3);
+  }
+  
+  .local-loading.diet .local-loading-text {
+    color: #d1fae5;
+  }
+  
+  .local-loading.case {
+    background: linear-gradient(135deg, #92400e 0%, #b45309 100%);
+    border-color: rgba(251, 191, 36, 0.2);
+  }
+  
+  .local-loading.case .local-loading-spinner {
+    border: 3px solid rgba(251, 191, 36, 0.1);
+    border-top: 3px solid #fbbf24;
+    box-shadow: 0 2px 12px rgba(251, 191, 36, 0.3);
+  }
+  
+  .local-loading.case .local-loading-text {
+    color: #fef3c7;
+  }
+}
+
 /* 移除旧的卡片网格样式，使用时间线布局 */
 
 /* 统一卡片样式 */
