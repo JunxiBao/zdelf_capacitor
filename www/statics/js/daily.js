@@ -217,6 +217,9 @@ function initDaily(shadowRoot) {
   // 初始化搜索框
   initSearchBox();
 
+  // 初始化数据类型切换器
+  initDataTypeSwitcher();
+
   // 并行加载问候语和数据卡片
   Promise.all([
     loadUsername(),
@@ -236,6 +239,9 @@ let selectedDate = null;
 
 // 当前搜索关键字
 let searchKeyword = '';
+
+// 当前选择的数据类型
+let selectedDataType = 'metrics';
 
 /**
  * initSearchBox — 初始化搜索框
@@ -294,6 +300,46 @@ function initSearchBox() {
 }
 
 /**
+ * initDataTypeSwitcher — 初始化数据类型切换器
+ */
+function initDataTypeSwitcher() {
+  const switcherButtons = dailyRoot.querySelectorAll('.type-switch-btn');
+  
+  if (!switcherButtons.length) {
+    console.warn('⚠️ 未找到数据类型切换器按钮');
+    return;
+  }
+
+  // 为每个切换按钮添加点击事件
+  switcherButtons.forEach(button => {
+    button.addEventListener('click', (e) => {
+      e.preventDefault();
+      
+      // 添加震动反馈
+      if (window.__hapticImpact__) {
+        window.__hapticImpact__('Medium');
+      }
+      
+      const dataType = button.dataset.type;
+      
+      // 更新选中状态
+      switcherButtons.forEach(btn => btn.classList.remove('active'));
+      button.classList.add('active');
+      
+      // 更新当前选择的数据类型
+      selectedDataType = dataType;
+      
+      console.log(`🔄 切换到数据类型: ${dataType}`);
+      
+      // 重新过滤并渲染卡片
+      filterAndRenderCards();
+    });
+  });
+  
+  console.log('✅ 数据类型切换器初始化完成');
+}
+
+/**
  * initDatePicker — 初始化日期选择器
  */
 function initDatePicker() {
@@ -306,7 +352,13 @@ function initDatePicker() {
     return;
   }
 
-  // 初始隐藏清除按钮
+  // 设置默认日期为当前日期
+  const today = new Date();
+  const todayString = today.toISOString().split('T')[0];
+  datePicker.value = todayString;
+  selectedDate = todayString;
+  
+  // 隐藏清除按钮（不再显示叉叉）
   clearBtn.classList.add('hidden');
 
   // 点击图标触发日期选择器
@@ -354,24 +406,27 @@ function initDatePicker() {
     selectedDate = e.target.value;
     console.log('📅 选择日期:', selectedDate);
     
-    // 显示清除按钮
-    clearBtn.classList.remove('hidden');
+    // 保持清除按钮隐藏（不再显示叉叉）
+    clearBtn.classList.add('hidden');
     
     // 过滤并重新渲染卡片
     filterAndRenderCards();
   });
 
-  // 清除日期按钮事件
+  // 清除日期按钮事件（重置为当前日期）
   clearBtn.addEventListener('click', () => {
     // 添加震动反馈
     if (window.__hapticImpact__) {
       window.__hapticImpact__('Light');
     }
     
-    selectedDate = null;
-    datePicker.value = '';
+    // 重置为当前日期
+    const today = new Date();
+    const todayString = today.toISOString().split('T')[0];
+    selectedDate = todayString;
+    datePicker.value = todayString;
     clearBtn.classList.add('hidden');
-    console.log('🗑️ 清除日期筛选');
+    console.log('🔄 重置为当前日期');
     
     // 重新渲染所有卡片
     filterAndRenderCards();
@@ -418,8 +473,21 @@ function filterAndRenderCards() {
     console.log(`🔍 按关键字 "${searchKeyword}" 过滤，从 ${cachedDataCards.length} 条记录中筛选出 ${filteredCards.length} 条`);
   }
 
+  // 按数据类型过滤
+  if (selectedDataType) {
+    filteredCards = filteredCards.filter(item => {
+      return item.dataType === selectedDataType;
+    });
+    
+    console.log(`🏷️ 按数据类型 "${selectedDataType}" 过滤，从 ${cachedDataCards.length} 条记录中筛选出 ${filteredCards.length} 条`);
+  }
+
   // 渲染过滤后的卡片
-  renderUnifiedCards(filteredCards, cardsContainer).catch(err => {
+  const renderPromise = selectedDataType === 'diet'
+    ? renderDietTimeline(filteredCards, cardsContainer)
+    : renderTimelineItems(filteredCards, cardsContainer);
+
+  renderPromise.catch(err => {
     console.error('渲染过滤后的卡片失败:', err);
     cardsContainer.innerHTML = `
       <div class="no-data-message">
@@ -647,7 +715,7 @@ function loadUserDataCards() {
       console.log('⏳ 等待数据卡片加载完成...');
       dataCardsLoadPromise.then(() => {
         if (cachedDataCards) {
-          renderUnifiedCards(cachedDataCards, cardsContainer).catch(err => {
+          renderTimelineItems(cachedDataCards, cardsContainer).catch(err => {
             console.error('渲染缓存卡片失败:', err);
           });
         }
@@ -720,156 +788,11 @@ function loadUserDataCards() {
 }
 
 /**
- * renderUnifiedCards — 渲染统一的数据卡片（异步获取完整数据）
+ * renderTimelineItems — 渲染时间线项目（异步获取完整数据）
  */
-async function renderUnifiedCards(items, container) {
+async function renderTimelineItems(items, container) {
   if (items.length === 0) {
     // 如果没有传入任何项目，显示无数据消息
-    const message = `
-      <div class="no-data-message">
-        <div class="no-data-icon">📝</div>
-        <h3>暂无数据记录</h3>
-        <p>开始记录您的健康数据吧</p>
-      </div>
-    `;
-    container.innerHTML = message;
-    return;
-  }
-
-  // 异步获取每个卡片的完整数据
-  const cardPromises = items.map(async (item) => {
-    try {
-      const response = await fetch(`${__API_BASE__}/getjson/${item.dataType}/${item.id}`);
-      const detailData = await response.json();
-      
-      if (detailData.success) {
-        const content = detailData.data.content || {};
-        const exportInfo = content.exportInfo || {};
-        
-        // 如果有搜索关键字，检查详细内容是否匹配
-        if (searchKeyword) {
-          const matches = searchInCardContent(content, item.dataType, searchKeyword);
-          console.log(`🔍 搜索 "${searchKeyword}" 在 ${item.dataType} 记录 ${item.id}:`, matches);
-          if (!matches) {
-            return null; // 不匹配搜索条件，返回null
-          }
-        }
-        
-        const summary = parseContentToSummary(content, item.dataType);
-        
-        // 使用exportTime或created_at
-        let displayTime;
-        if (exportInfo.exportTime) {
-          displayTime = formatDate(exportInfo.exportTime);
-        } else {
-          // 直接转换created_at为北京时间
-          const date = new Date(item.created_at);
-          displayTime = date.toLocaleString('zh-CN', {
-            timeZone: 'Asia/Shanghai',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false
-          });
-        }
-    
-    return `
-      <div class="unified-card" data-file-id="${item.id}" data-type="${item.dataType}">
-        <div class="card-header">
-          <div class="card-type-badge">${getTypeTitle(item.dataType)}</div>
-              <div class="card-date">${displayTime}</div>
-        </div>
-        <div class="card-content">
-          <div class="card-summary">
-            ${summary}
-          </div>
-        </div>
-        <div class="card-footer">
-          <div class="card-actions">
-            <button class="view-detail-btn">查看详情</button>
-          </div>
-        </div>
-      </div>
-    `;
-      } else {
-        // 如果详情API失败，使用原始数据
-        const date = new Date(item.created_at);
-        const displayTime = date.toLocaleString('zh-CN', {
-          timeZone: 'Asia/Shanghai',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false
-        });
-        
-        return `
-          <div class="unified-card" data-file-id="${item.id}" data-type="${item.dataType}">
-            <div class="card-header">
-              <div class="card-type-badge">${getTypeTitle(item.dataType)}</div>
-              <div class="card-date">${displayTime}</div>
-            </div>
-            <div class="card-content">
-              <div class="card-summary">
-                <p>数据加载中...</p>
-              </div>
-            </div>
-            <div class="card-footer">
-              <div class="card-actions">
-                <button class="view-detail-btn">查看详情</button>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-    } catch (err) {
-      console.error('获取详情失败:', err);
-      // 如果API失败，使用原始数据
-      const date = new Date(item.created_at);
-      const displayTime = date.toLocaleString('zh-CN', {
-        timeZone: 'Asia/Shanghai',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      });
-      
-      return `
-        <div class="unified-card" data-file-id="${item.id}" data-type="${item.dataType}">
-          <div class="card-header">
-            <div class="card-type-badge">${getTypeTitle(item.dataType)}</div>
-            <div class="card-date">${displayTime}</div>
-          </div>
-          <div class="card-content">
-            <div class="card-summary">
-              <p>数据加载失败</p>
-            </div>
-          </div>
-          <div class="card-footer">
-            <div class="card-actions">
-              <button class="view-detail-btn">查看详情</button>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-  });
-
-  // 等待所有卡片数据加载完成
-  const cardsHtml = await Promise.all(cardPromises);
-  // 过滤掉null值（不匹配搜索条件的卡片）
-  const validCardsHtml = cardsHtml.filter(html => html !== null);
-  
-  // 如果没有有效的卡片，显示相应的消息
-  if (validCardsHtml.length === 0) {
     let message;
     
     if (selectedDate && searchKeyword) {
@@ -911,11 +834,350 @@ async function renderUnifiedCards(items, container) {
     container.innerHTML = message;
     return;
   }
-  
-  container.innerHTML = validCardsHtml.join('');
 
-  // 绑定点击事件
-  bindUnifiedCardEvents(container);
+  console.log(`🎨 开始渲染 ${items.length} 个时间线项目`);
+
+  // 按时间分组数据
+  const groupedData = groupDataByTime(items);
+  
+  // 创建时间线容器
+  const timelineHTML = `
+    <div class="timeline-container">
+      <div class="timeline-line"></div>
+      ${await generateTimelineItems(groupedData)}
+    </div>
+  `;
+  
+  container.innerHTML = timelineHTML;
+  
+  // 添加点击事件监听器
+  container.querySelectorAll('.timeline-content').forEach(content => {
+    // 饮食记录/个人病例按需求直接在时间线上完全展开，不再弹出详情
+    if (content.dataset.type === 'diet' || content.dataset.type === 'case') return;
+    
+    content.addEventListener('click', () => {
+      const fileId = content.dataset.fileId;
+      const dataType = content.dataset.type;
+      console.log(`点击时间线项目: ${dataType} - ${fileId}`);
+      
+      // 添加震动反馈
+      if (window.__hapticImpact__) {
+        window.__hapticImpact__('Medium');
+      }
+      
+      // 显示详情模态框
+      showDetailModal(fileId, dataType);
+    });
+  });
+  
+  console.log(`✅ 成功渲染时间线，包含 ${Object.keys(groupedData).length} 个时间组`);
+}
+
+/**
+ * renderDietTimeline — 将饮食记录拆分到每一餐各自的时间点
+ * 规则：
+ * - 仍按记录的 created_at 对原始文件聚合排序，以保证时间线顺序稳定
+ * - 但每条饮食记录会被拆分为多条"餐事件"，各自用餐时间 HH:mm 作为时间点
+ * - 紫色时间显示用餐时间，内容展示该餐的详情
+ */
+async function renderDietTimeline(items, container) {
+  if (!items || items.length === 0) {
+    container.innerHTML = `
+      <div class="no-data-message">
+        <div class="no-data-icon">📝</div>
+        <h3>暂无饮食记录</h3>
+        <p>开始记录您的饮食数据吧</p>
+      </div>
+    `;
+    return;
+  }
+
+  // 1) 先按 created_at 排序原始条目，保证拆分后的餐事件顺序稳定
+  const sorted = items.slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+  // 2) 拉取详情并拆分为餐事件
+  const mealEvents = [];
+  for (const item of sorted) {
+    try {
+      const res = await fetch(`${__API_BASE__}/getjson/${item.dataType}/${item.id}`);
+      const detail = await res.json();
+      if (!detail.success) continue;
+      const content = detail.data?.content || {};
+      const dietData = content.dietData || {};
+      Object.values(dietData).forEach((meal) => {
+        if (!meal || !meal.time) return;
+        mealEvents.push({
+          timeHM: String(meal.time).slice(0,5),
+          food: meal.food || '',
+          fileId: item.id,
+        });
+      });
+    } catch (_) {}
+  }
+
+  if (mealEvents.length === 0) {
+    container.innerHTML = '<p>暂无饮食记录</p>';
+    return;
+  }
+
+  // 3) 按餐时间升序分组
+  const grouped = {};
+  mealEvents
+    .sort((a,b)=>{
+      const [ah,am]=a.timeHM.split(':').map(Number); const [bh,bm]=b.timeHM.split(':').map(Number);
+      return (ah*60+am)-(bh*60+bm);
+    })
+    .forEach(ev=>{
+      if(!grouped[ev.timeHM]) grouped[ev.timeHM]=[];
+      grouped[ev.timeHM].push(ev);
+    });
+
+  // 4) 生成时间线HTML（适配深色模式）
+  const isDark = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const mealCardStyle = isDark
+    ? "background: linear-gradient(135deg, #334155 0%, #1e293b 100%); border-radius: 12px; padding: 16px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);"
+    : "background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 12px; padding: 16px; border: 1px solid rgba(0, 0, 0, 0.06); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);";
+  const foodTextStyle = isDark ? "margin:0; color:#cbd5e1;" : "margin:0; color:#475569;";
+
+  let html = '<div class="timeline-container">\n  <div class="timeline-line"></div>';
+  Object.entries(grouped).forEach(([time, events])=>{
+    const itemsHtml = events.map((ev)=>{
+      return `
+        <div class="timeline-content" data-type="diet" data-file-id="${ev.fileId}">
+          <div class="content-summary">
+            <div style="${mealCardStyle}">
+              ${ev.food ? `<p style=\"${foodTextStyle}\"><strong>食物：</strong>${ev.food}</p>` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    html += `
+      <div class="timeline-item">
+        <div class="timeline-node"></div>
+        <div class="timeline-time">${time}</div>
+        ${itemsHtml}
+      </div>
+    `;
+  });
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
+/**
+ * groupDataByTime — 按时间分组数据
+ */
+function groupDataByTime(items) {
+  const groups = {};
+  
+  items.forEach(item => {
+    const timeKey = getTimeHMFromCreatedAt(item.created_at);
+    
+    if (!groups[timeKey]) {
+      groups[timeKey] = [];
+    }
+    groups[timeKey].push(item);
+  });
+  
+  // 按 HH:mm 升序排序，且在同一时间点内按创建时间稳定排序
+  const sortedGroups = {};
+  Object.keys(groups)
+    .sort((a, b) => {
+      const [ah, am] = a.split(':').map(Number);
+      const [bh, bm] = b.split(':').map(Number);
+      return (ah * 60 + am) - (bh * 60 + bm);
+    })
+    .forEach(time => {
+      sortedGroups[time] = groups[time].slice().sort((i1, i2) => {
+        const t1 = getTimeHMFromCreatedAt(i1.created_at);
+        const t2 = getTimeHMFromCreatedAt(i2.created_at);
+        const [h1, m1] = t1.split(':').map(Number);
+        const [h2, m2] = t2.split(':').map(Number);
+        return (h1 * 60 + m1) - (h2 * 60 + m2);
+      });
+    });
+  
+  return sortedGroups;
+}
+
+/**
+ * getTimeHMFromCreatedAt — 稳定地从 created_at 提取北京时间 HH:mm
+ * 兼容多种后端时间格式，避免被浏览器当作 UTC 导致+8小时偏移
+ */
+function getTimeHMFromCreatedAt(createdAt) {
+  if (!createdAt) return '00:00';
+  if (typeof createdAt === 'string') {
+    // 1) 直接是北京时间字符串: 2025/09/21 09:34:43
+    const slashFmt = /^(\d{4})\/(\d{1,2})\/(\d{1,2}) (\d{1,2}):(\d{2}):(\d{2})$/;
+    const m1 = createdAt.match(slashFmt);
+    if (m1) {
+      const hh = m1[4].padStart(2, '0');
+      const mm = m1[5].padStart(2, '0');
+      return `${hh}:${mm}`;
+    }
+    // 2) MySQL 常见格式: 2025-09-21 09:34:43（按本地时间处理，不做时区换算）
+    const mysqlFmt = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/;
+    const m2 = createdAt.match(mysqlFmt);
+    if (m2) {
+      const hh = m2[4];
+      const mm = m2[5];
+      return `${hh}:${mm}`;
+    }
+  }
+  // 3) 其他如 ISO 字符串，使用 Asia/Shanghai 规范化
+  try {
+    const d = new Date(createdAt);
+    return d.toLocaleString('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  } catch (_) {
+    return '00:00';
+  }
+}
+
+/**
+ * generateTimelineItems — 生成时间线项目HTML（优化版本）
+ */
+async function generateTimelineItems(groupedData) {
+  const timelineItems = [];
+  
+  for (const [time, items] of Object.entries(groupedData)) {
+    // 先快速生成基础HTML，不等待API请求
+    const itemHTMLs = items.map(item => {
+      return `
+        <div class="timeline-content" data-file-id="${item.id}" data-type="${item.dataType}">
+          <div class="content-type-badge ${item.dataType}">${getTypeTitle(item.dataType)}</div>
+          <div class="content-summary">正在加载详细信息...</div>
+        </div>
+      `;
+    });
+    
+    timelineItems.push(`
+      <div class="timeline-item">
+        <div class="timeline-node"></div>
+        <div class="timeline-time">${time}</div>
+        ${itemHTMLs.join('')}
+      </div>
+    `);
+  }
+  
+  // 先返回基础HTML，让用户立即看到时间线结构
+  const basicHTML = timelineItems.join('');
+  
+  // 然后异步加载详细信息并更新内容
+  setTimeout(async () => {
+    await updateTimelineDetails(groupedData);
+  }, 100);
+  
+  return basicHTML;
+}
+
+/**
+ * updateTimelineDetails — 异步更新时间线详细信息
+ */
+async function updateTimelineDetails(groupedData) {
+  const timelineContainer = dailyRoot.querySelector('.timeline-container');
+  if (!timelineContainer) return;
+  
+  for (const [time, items] of Object.entries(groupedData)) {
+    // 找到对应的时间线项目
+    const timelineItems = timelineContainer.querySelectorAll('.timeline-item');
+    let targetTimelineItem = null;
+    
+    for (const timelineItem of timelineItems) {
+      const timeElement = timelineItem.querySelector('.timeline-time');
+      if (timeElement && timeElement.textContent.trim() === time) {
+        targetTimelineItem = timelineItem;
+        break;
+      }
+    }
+    
+    if (!targetTimelineItem) continue;
+    
+    const contentElements = targetTimelineItem.querySelectorAll('.timeline-content');
+    
+    // 若为饮食/病例视图，紫色时间应显示"上传时间(exportInfo.exportTime)"
+    // 这里预留一个变量，在循环中获取后统一写回
+    let overrideUploadHHMM = null;
+    
+    for (let i = 0; i < items.length && i < contentElements.length; i++) {
+      const item = items[i];
+      const contentElement = contentElements[i];
+      
+      try {
+        // 获取完整数据
+        const response = await fetch(`${__API_BASE__}/getjson/${item.dataType}/${item.id}`);
+        const detailData = await response.json();
+        
+        if (detailData.success) {
+          const content = detailData.data.content || {};
+          
+          // 如果有搜索关键字，检查详细内容是否匹配
+          if (searchKeyword) {
+            const matches = searchInCardContent(content, item.dataType, searchKeyword);
+            if (!matches) {
+              contentElement.style.display = 'none';
+              continue;
+            }
+          }
+          
+          // 饮食记录：直接在时间线上完全展开，不使用摘要
+          const summaryElement = contentElement.querySelector('.content-summary');
+          if (summaryElement) {
+            if (item.dataType === 'diet') {
+              // 移除类型角标，保持简洁
+              const badge = contentElement.querySelector('.content-type-badge');
+              if (badge) badge.remove();
+              const isDark = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+              summaryElement.innerHTML = formatDietForDisplay(content, isDark);
+              // 从导出信息里拿上传时间（北京时间字符串），用作时间线紫色时间
+              const exportTime = detailData.data?.exportInfo?.exportTime || content.exportInfo?.exportTime;
+              if (exportTime) {
+                overrideUploadHHMM = getTimeHMFromCreatedAt(exportTime);
+              }
+            } else if (item.dataType === 'case') {
+              // 病例记录：在时间线上完全展开
+              const badge = contentElement.querySelector('.content-type-badge');
+              if (badge) badge.remove();
+              const isDark = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+              summaryElement.innerHTML = formatCaseForDisplay(content, isDark);
+              const exportTime = detailData.data?.exportInfo?.exportTime || content.exportInfo?.exportTime;
+              if (exportTime) {
+                overrideUploadHHMM = getTimeHMFromCreatedAt(exportTime);
+              }
+            } else {
+              const summary = parseContentToSummary(content, item.dataType);
+              summaryElement.innerHTML = summary;
+              // 健康指标：若有上传时间，则用于覆盖时间线标签
+              if (item.dataType === 'metrics') {
+                const exportTime = detailData.data?.exportInfo?.exportTime || content.exportInfo?.exportTime;
+                if (exportTime) {
+                  overrideUploadHHMM = getTimeHMFromCreatedAt(exportTime);
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('获取详情失败:', err);
+        const summaryElement = contentElement.querySelector('.content-summary');
+        if (summaryElement) {
+          summaryElement.innerHTML = '数据加载失败';
+        }
+      }
+    }
+    
+    // 如果当前是饮食/病例/健康指标视图，并且拿到了上传时间，则用其更新时间线标签
+    if ((selectedDataType === 'diet' || selectedDataType === 'case' || selectedDataType === 'metrics') && overrideUploadHHMM) {
+      const timeEl = targetTimelineItem.querySelector('.timeline-time');
+      if (timeEl) timeEl.textContent = overrideUploadHHMM;
+    }
+  }
 }
 
 /**
