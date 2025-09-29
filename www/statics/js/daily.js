@@ -652,13 +652,42 @@ function searchInCardContent(content, dataType, keyword) {
 }
 
 /**
+ * getSymptomTypeText — 将症状类型代码转换为中文文本
+ */
+function getSymptomTypeText(type) {
+  const typeMap = {
+    'skin-type': '皮肤型紫癜',
+    'joint-type': '关节型紫癜',
+    'abdominal-type': '腹型紫癜',
+    'renal-type': '肾型紫癜',
+    'other': '其他',
+    'none': '无'
+  };
+  return typeMap[type] || type;
+}
+
+/**
  * searchInMetricsContent — 在健康指标内容中搜索
  */
 function searchInMetricsContent(content, keyword) {
   const metricsData = content.metricsData || {};
   
-  // 搜索症状
-  if (metricsData.symptoms?.symptoms && metricsData.symptoms.symptoms.toLowerCase().includes(keyword)) {
+  // 搜索症状（支持新格式）
+  if (metricsData.symptoms?.items && Array.isArray(metricsData.symptoms.items)) {
+    for (const symptom of metricsData.symptoms.items) {
+      // 搜索症状类型
+      const symptomTypeText = getSymptomTypeText(symptom.type);
+      if (symptomTypeText.toLowerCase().includes(keyword)) {
+        return true;
+      }
+      // 搜索自定义描述
+      if (symptom.description && symptom.description.toLowerCase().includes(keyword)) {
+        return true;
+      }
+    }
+  }
+  // 兼容旧格式
+  else if (metricsData.symptoms?.symptoms && metricsData.symptoms.symptoms.toLowerCase().includes(keyword)) {
     return true;
   }
   
@@ -1806,8 +1835,21 @@ function parseContentToSummary(content, dataType) {
 function parseMetricsSummary(metricsData) {
   const summaries = [];
   
-  // 症状
-  if (metricsData.symptoms?.symptoms) {
+  // 症状（支持新格式）
+  if (metricsData.symptoms?.items && Array.isArray(metricsData.symptoms.items)) {
+    const symptomTexts = metricsData.symptoms.items.map(symptom => {
+      const typeText = getSymptomTypeText(symptom.type);
+      if (symptom.type === 'other' && symptom.description) {
+        return `${typeText}(${symptom.description})`;
+      }
+      return typeText;
+    });
+    if (symptomTexts.length > 0) {
+      summaries.push(`症状: ${symptomTexts.join('、')}`);
+    }
+  }
+  // 兼容旧格式
+  else if (metricsData.symptoms?.symptoms) {
     summaries.push(`症状: ${metricsData.symptoms.symptoms}`);
   }
   
@@ -2188,8 +2230,29 @@ function formatMetricsForDisplay(metricsData, isDarkMode = false) {
     ? "color: #f1f5f9; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;"
     : "color: #1e293b; font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;";
 
-  // 症状
-  if (metricsData.symptoms?.symptoms) {
+  // 症状（支持新格式）
+  if (metricsData.symptoms?.items && Array.isArray(metricsData.symptoms.items)) {
+    const symptomItems = metricsData.symptoms.items.map(symptom => {
+      const typeText = getSymptomTypeText(symptom.type);
+      if (symptom.type === 'other' && symptom.description) {
+        return `<span style="display: inline-block; margin: 2px 6px 2px 0; padding: 4px 8px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 12px; font-size: 0.85em;">${typeText}: ${symptom.description}</span>`;
+      }
+      return `<span style="display: inline-block; margin: 2px 6px 2px 0; padding: 4px 8px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 12px; font-size: 0.85em;">${typeText}</span>`;
+    }).join('');
+    
+    if (symptomItems) {
+      html += `
+        <div style="${sectionStyle}">
+          <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
+          <h5 style="${titleStyle}">▶ 症状记录</h5>
+          <div style="${textStyle}">${symptomItems}</div>
+        </div>
+      `;
+      hasContent = true;
+    }
+  }
+  // 兼容旧格式
+  else if (metricsData.symptoms?.symptoms) {
     html += `
       <div style="${sectionStyle}">
         <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
