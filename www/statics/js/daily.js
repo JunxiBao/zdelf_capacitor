@@ -70,6 +70,33 @@ function displayGreeting(username, root = dailyRoot) {
 }
 
 /**
+ * formatDateDisplay — 格式化日期为中文显示
+ * @param {string} dateString - ISO date string (YYYY-MM-DD)
+ * @returns {string} - 格式化的中文日期 (YYYY年MM月DD日)
+ */
+function formatDateDisplay(dateString) {
+  if (!dateString) return '今天';
+  
+  const date = new Date(dateString + 'T00:00:00');
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  
+  return `${year}年${month}月${day}日`;
+}
+
+/**
+ * updateDateDisplay — 更新日期显示文本
+ * @param {string} dateString - ISO date string (YYYY-MM-DD)
+ */
+function updateDateDisplay(dateString) {
+  const dateDisplayText = dailyRoot.querySelector('#date-display');
+  if (dateDisplayText) {
+    dateDisplayText.textContent = formatDateDisplay(dateString);
+  }
+}
+
+/**
  * showLoadingState — 显示统一的加载状态
  * 在屏幕中央显示加载动画
  */
@@ -214,6 +241,9 @@ function initDaily(shadowRoot) {
   // 初始化日期选择器
   initDatePicker();
 
+  // 初始化日历按钮
+  initCalendarButton();
+
   // 初始化搜索框
   initSearchBox();
 
@@ -344,10 +374,11 @@ function initDataTypeSwitcher() {
  */
 function initDatePicker() {
   const datePicker = dailyRoot.querySelector('#date-picker');
-  const datePickerIcon = dailyRoot.querySelector('#date-picker-icon');
+  const datePickerDisplay = dailyRoot.querySelector('#date-picker-display');
+  const dateDisplayText = dailyRoot.querySelector('#date-display');
   const clearBtn = dailyRoot.querySelector('#clear-date-btn');
   
-  if (!datePicker || !datePickerIcon || !clearBtn) {
+  if (!datePicker || !datePickerDisplay || !dateDisplayText || !clearBtn) {
     console.warn('⚠️ 未找到日期选择器元素');
     return;
   }
@@ -358,11 +389,14 @@ function initDatePicker() {
   datePicker.value = todayString;
   selectedDate = todayString;
   
+  // 更新日期显示文本
+  updateDateDisplay(todayString);
+  
   // 隐藏清除按钮（不再显示叉叉）
   clearBtn.classList.add('hidden');
 
-  // 点击图标触发日期选择器
-  datePickerIcon.addEventListener('click', (e) => {
+  // 点击显示按钮触发日期选择器
+  datePickerDisplay.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
     
@@ -406,6 +440,9 @@ function initDatePicker() {
     selectedDate = e.target.value;
     console.log('📅 选择日期:', selectedDate);
     
+    // 更新日期显示文本
+    updateDateDisplay(selectedDate);
+    
     // 保持清除按钮隐藏（不再显示叉叉）
     clearBtn.classList.add('hidden');
     
@@ -433,6 +470,10 @@ function initDatePicker() {
     const todayString = today.toISOString().split('T')[0];
     selectedDate = todayString;
     datePicker.value = todayString;
+    
+    // 更新日期显示文本
+    updateDateDisplay(todayString);
+    
     clearBtn.classList.add('hidden');
     console.log('🔄 重置为当前日期');
     
@@ -2523,6 +2564,50 @@ function destroyDaily() {
 
   dailyRoot = document;
   console.log('🧹 destroyDaily 清理完成');
+}
+
+/**
+ * initCalendarButton — 初始化日历按钮
+ */
+function initCalendarButton() {
+  const calendarBtn = dailyRoot.querySelector('#calendar-btn');
+  
+  if (!calendarBtn) {
+    console.warn('⚠️ 未找到日历按钮元素');
+    return;
+  }
+
+  // 日历按钮点击事件
+  calendarBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // 添加震动反馈
+    if (window.__hapticImpact__) {
+      window.__hapticImpact__('Medium');
+    }
+    
+    // 跳转到日历页面
+    openCalendarPage();
+    
+    console.log('📅 打开日历页面');
+  });
+  
+  console.log('✅ 日历按钮初始化完成');
+}
+
+/**
+ * openCalendarPage — 打开日历页面
+ */
+function openCalendarPage() {
+  // 获取当前选中的日期
+  const currentDate = selectedDate || new Date().toISOString().split('T')[0];
+  
+  // 跳转到日历页面
+  const calendarUrl = `${window.location.origin}${window.location.pathname.replace('/index.html', '').replace('/daily.html', '')}/src/calendar.html?date=${currentDate}`;
+  
+  console.log('🔗 跳转到日历页面:', calendarUrl);
+  window.location.href = calendarUrl;
 }
 
 // -----------------------------

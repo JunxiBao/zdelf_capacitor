@@ -17,23 +17,26 @@ body {
 
 .greeting-container {
   position: fixed;
-  top: 20px;
+  top: 100px;
   left: 20px;
   z-index: 1000;
+  text-align: left;
 }
 
 #greeting {
-  font-size: 2rem;
-  font-weight: bold;
+  font-size: 1.75rem;
+  font-weight: 700;
   margin: 0;
   color: #333;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
 }
 
-/* 搜索框容器 - 问候语和卡片正中央 */
+/* 搜索框容器 - 屏幕最上方 */
 .search-container {
   position: fixed;
-  top: 90px;
+  top: 24px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
@@ -43,9 +46,9 @@ body {
 
 .search-box {
   background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-  border-radius: 20px;
-  padding: 4px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border-radius: 18px;
+  padding: 3px;
+  box-shadow: 0 3px 16px rgba(0, 0, 0, 0.08);
   border: 1px solid rgba(0, 0, 0, 0.05);
   position: relative;
   overflow: hidden;
@@ -97,10 +100,10 @@ body {
 
 .search-input {
   width: 100%;
-  padding: 16px 16px 16px 52px;
+  padding: 14px 16px 14px 48px;
   border: none;
   background: transparent;
-  font-size: 1rem;
+  font-size: 0.95rem;
   color: #1f2937;
   outline: none;
   font-weight: 500;
@@ -170,15 +173,15 @@ body {
   display: none;
 }
 
-/* 日期选择器容器 - 屏幕最右边 */
+/* 日期选择器容器 - 问候语正下方，左对齐 */
 .date-picker-container {
   position: fixed;
-  top: 20px;
-  right: 20px;
+  top: 155px;
+  left: 20px;
   z-index: 1000;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 /* 日期选择器输入框 - 隐藏但保持功能 */
@@ -186,80 +189,97 @@ body {
   position: absolute;
   opacity: 0;
   pointer-events: auto;
-  width: 48px;
-  height: 48px;
+  width: 100%;
+  height: 100%;
   border: none;
   background: transparent;
   cursor: pointer;
-  z-index: 1;
+  z-index: 2;
 }
 
-/* 日期选择器图标按钮 */
-.date-picker-icon {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: none;
-  border-radius: 16px;
-  padding: 12px;
+/* 日期选择器显示按钮 */
+.date-picker-display {
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 10px 16px;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-width: 48px;
-  height: 48px;
-  color: white;
+  gap: 10px;
+  color: #374151;
+  font-size: 0.9rem;
+  font-weight: 600;
   position: relative;
+  min-height: 40px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   overflow: hidden;
 }
 
-.date-picker-icon::before {
+.date-picker-display::before {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, transparent 50%, rgba(255,255,255,0.05) 100%);
+  background: linear-gradient(45deg, rgba(102, 126, 234, 0.05) 0%, transparent 50%, rgba(102, 126, 234, 0.03) 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
 }
 
-.date-picker-icon:hover {
-  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
-  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
-  transform: translateY(-2px) scale(1.05);
+.date-picker-display:hover {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  border-color: rgba(102, 126, 234, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
 }
 
-.date-picker-icon:hover::before {
+.date-picker-display:hover::before {
   opacity: 1;
 }
 
-.date-picker-icon:active {
-  transform: translateY(0) scale(0.95);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+.date-picker-display:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
-.date-picker-icon svg {
+.menu-icon {
+  color: #667eea;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+}
+
+.date-picker-display:hover .menu-icon {
+  color: #5a67d8;
+  transform: scale(1.1);
+}
+
+.date-text {
+  color: #374151;
+  font-weight: 600;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
   position: relative;
   z-index: 1;
 }
 
 /* 清除日期按钮 */
 .clear-date-btn {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  border: none;
-  color: white;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #ef4444;
   cursor: pointer;
   padding: 8px;
-  border-radius: 12px;
+  border-radius: 10px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  min-width: 36px;
-  height: 36px;
+  min-width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+  box-shadow: 0 1px 4px rgba(239, 68, 68, 0.1);
   position: relative;
   overflow: hidden;
 }
@@ -271,15 +291,17 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, transparent 50%, rgba(255,255,255,0.05) 100%);
+  background: linear-gradient(45deg, rgba(239, 68, 68, 0.1) 0%, transparent 50%, rgba(239, 68, 68, 0.05) 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
 }
 
 .clear-date-btn:hover {
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-  transform: scale(1.1);
-  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #dc2626;
+  box-shadow: 0 3px 8px rgba(239, 68, 68, 0.15);
+  transform: translateY(-1px);
 }
 
 .clear-date-btn:hover::before {
@@ -287,8 +309,8 @@ body {
 }
 
 .clear-date-btn:active {
-  transform: scale(0.95);
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+  transform: translateY(0) scale(0.95);
+  box-shadow: 0 1px 4px rgba(239, 68, 68, 0.1);
 }
 
 .clear-date-btn svg {
@@ -298,6 +320,70 @@ body {
 
 .clear-date-btn.hidden {
   display: none;
+}
+
+/* 日历按钮容器 */
+.calendar-button-container {
+  position: fixed;
+  top: 100px;
+  right: 20px;
+  z-index: 1000;
+}
+
+/* 日历按钮 */
+.calendar-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  color: white;
+  cursor: pointer;
+  padding: 12px;
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 44px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.calendar-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, rgba(255,255,255,0.15) 0%, transparent 50%, rgba(255,255,255,0.08) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.calendar-btn:hover {
+  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.35);
+  transform: translateY(-2px) scale(1.05);
+}
+
+.calendar-btn:hover::before {
+  opacity: 1;
+}
+
+.calendar-btn:active {
+  transform: translateY(0) scale(0.95);
+  box-shadow: 0 3px 8px rgba(102, 126, 234, 0.2);
+}
+
+.calendar-btn svg {
+  position: relative;
+  z-index: 1;
+  transition: all 0.3s ease;
+}
+
+.calendar-btn:hover svg {
+  transform: scale(1.1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -358,31 +444,69 @@ body {
   }
 
   /* 深色模式日期选择器 */
-  .date-picker-icon {
-    background: linear-gradient(135deg, #a78bfa 0%, #c4b5fd 100%);
-    box-shadow: 0 4px 16px rgba(167, 139, 250, 0.4);
+  .date-picker-display {
+    background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+    border-color: rgba(167, 139, 250, 0.2);
+    color: #f9fafb;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 
-  .date-picker-icon:hover {
-    background: linear-gradient(135deg, #9333ea 0%, #a855f7 100%);
-    box-shadow: 0 8px 24px rgba(167, 139, 250, 0.5);
+  .date-picker-display::before {
+    background: linear-gradient(45deg, rgba(167, 139, 250, 0.1) 0%, transparent 50%, rgba(167, 139, 250, 0.05) 100%);
+  }
+
+  .date-picker-display:hover {
+    background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+    border-color: rgba(167, 139, 250, 0.4);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  .menu-icon {
+    color: #a78bfa;
+  }
+
+  .date-picker-display:hover .menu-icon {
+    color: #c4b5fd;
+  }
+
+  .date-text {
+    color: #f9fafb;
   }
 
   .clear-date-btn {
-    background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
-    box-shadow: 0 4px 12px rgba(248, 113, 113, 0.4);
+    background: linear-gradient(135deg, #4c1d1d 0%, #3c1515 100%);
+    border-color: rgba(248, 113, 113, 0.3);
+    color: #f87171;
+    box-shadow: 0 1px 4px rgba(248, 113, 113, 0.2);
+  }
+
+  .clear-date-btn::before {
+    background: linear-gradient(45deg, rgba(248, 113, 113, 0.15) 0%, transparent 50%, rgba(248, 113, 113, 0.08) 100%);
   }
 
   .clear-date-btn:hover {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-    box-shadow: 0 6px 16px rgba(248, 113, 113, 0.5);
+    background: linear-gradient(135deg, #5c2323 0%, #4c1d1d 100%);
+    border-color: rgba(248, 113, 113, 0.4);
+    color: #fca5a5;
+    box-shadow: 0 3px 8px rgba(248, 113, 113, 0.25);
+  }
+
+  /* 深色模式日历按钮 */
+  .calendar-btn {
+    background: linear-gradient(135deg, #a78bfa 0%, #c4b5fd 100%);
+    box-shadow: 0 4px 12px rgba(167, 139, 250, 0.3);
+  }
+
+  .calendar-btn:hover {
+    background: linear-gradient(135deg, #9333ea 0%, #a855f7 100%);
+    box-shadow: 0 6px 20px rgba(167, 139, 250, 0.4);
   }
 }
 
 /* 数据类型切换器 */
 .data-type-switcher {
   position: fixed;
-  top: 150px;
+  top: 270px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
@@ -407,7 +531,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px 24px;
+  padding: 10px 20px;
   border: none;
   background: transparent;
   border-radius: 0;
@@ -416,7 +540,7 @@ body {
   position: relative;
   overflow: hidden;
   color: #666;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 500;
   border-bottom: 2px solid transparent;
 }
@@ -486,9 +610,9 @@ body {
   bottom: auto;
   overflow-y: visible;
   z-index: 100;
-  margin-top: 220px;
+  margin-top: 275px;
   margin-bottom: 100px;
-  min-height: calc(100vh - 360px);
+  min-height: calc(100vh - 415px);
   padding: 0 20px;
 }
 
@@ -496,25 +620,25 @@ body {
 .timeline-container {
   position: relative;
   padding-left: 40px;
-  padding-top: 60px;
+  padding-top: 30px;
 }
 
 /* 时间线主线 */
 .timeline-line {
   position: absolute;
   left: 20px;
-  top: 60px;
+  top: 30px;
   bottom: 0;
-  width: 3px;
+  width: 2px;
   background: linear-gradient(to bottom, #6200ea 0%, #a78bfa 50%, #c4b5fd 100%);
-  border-radius: 2px;
-  box-shadow: 0 0 10px rgba(98, 0, 234, 0.2);
+  border-radius: 1px;
+  box-shadow: 0 0 8px rgba(98, 0, 234, 0.15);
 }
 
 /* 时间线项目 */
 .timeline-item {
   position: relative;
-  margin-bottom: 30px;
+  margin-bottom: 24px;
   padding-left: 20px;
 }
 
@@ -522,13 +646,13 @@ body {
 .timeline-node {
   position: absolute;
   left: -20px;
-  top: 8px;
-  width: 14px;
-  height: 14px;
+  top: 6px;
+  width: 12px;
+  height: 12px;
   background: linear-gradient(135deg, #6200ea 0%, #7c3aed 100%);
   border-radius: 50%;
-  border: 3px solid white;
-  box-shadow: 0 3px 12px rgba(98, 0, 234, 0.4), 0 0 0 4px rgba(98, 0, 234, 0.1);
+  border: 2px solid white;
+  box-shadow: 0 2px 8px rgba(98, 0, 234, 0.3), 0 0 0 3px rgba(98, 0, 234, 0.08);
   z-index: 2;
   transform: translateX(-50%);
   transition: all 0.3s ease;
@@ -541,17 +665,17 @@ body {
 
 /* 时间标签 */
 .timeline-time {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: #6200ea;
-  margin-bottom: 12px;
-  background: linear-gradient(135deg, rgba(98, 0, 234, 0.1) 0%, rgba(124, 58, 237, 0.15) 100%);
-  padding: 6px 14px;
-  border-radius: 16px;
+  margin-bottom: 10px;
+  background: linear-gradient(135deg, rgba(98, 0, 234, 0.08) 0%, rgba(124, 58, 237, 0.12) 100%);
+  padding: 5px 12px;
+  border-radius: 14px;
   display: inline-block;
-  border: 1px solid rgba(98, 0, 234, 0.2);
-  box-shadow: 0 2px 8px rgba(98, 0, 234, 0.1);
-  letter-spacing: 0.5px;
+  border: 1px solid rgba(98, 0, 234, 0.15);
+  box-shadow: 0 1px 6px rgba(98, 0, 234, 0.08);
+  letter-spacing: 0.3px;
   transition: all 0.3s ease;
 }
 
@@ -564,14 +688,14 @@ body {
 /* 时间线内容卡片 */
 .timeline-content {
   background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-  border-radius: 18px;
-  padding: 18px;
-  box-shadow: 0 3px 16px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.05);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.05);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .timeline-content::before {
@@ -1627,16 +1751,16 @@ body {
 
 @media (max-width: 768px) {
   .greeting-container {
-    top: 15px;
+    top: 90px;
     left: 15px;
   }
 
   #greeting {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
   }
 
   .search-container {
-    top: 80px;
+    top: 20px;
     width: calc(100% - 20px);
     max-width: none;
   }
@@ -1670,9 +1794,49 @@ body {
   }
 
   .date-picker-container {
-    top: 15px;
+    top: 140px;
+    left: 15px;
+    gap: 10px;
+  }
+
+  .date-picker-display {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    min-height: 36px;
+    border-radius: 10px;
+  }
+
+  .menu-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .clear-date-btn {
+    min-width: 28px;
+    height: 28px;
+    padding: 6px;
+    border-radius: 8px;
+  }
+
+  .clear-date-btn svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .calendar-button-container {
+    top: 90px;
     right: 15px;
-    gap: 6px;
+  }
+
+  .calendar-btn {
+    min-width: 40px;
+    height: 40px;
+    padding: 10px;
+  }
+
+  .calendar-btn svg {
+    width: 18px;
+    height: 18px;
   }
 
   .date-picker-icon {
@@ -1697,15 +1861,20 @@ body {
     height: 14px;
   }
 
+  .data-type-switcher {
+    top: 230px;
+    width: calc(100% - 20px);
+  }
+
   .data-cards-container {
     top: 0;
     left: 50%;
     transform: translateX(-50%);
     width: calc(100% - 20px);
     bottom: auto;
-    margin-top: 130px;
+    margin-top: 240px;
     margin-bottom: 80px;
-    min-height: calc(100vh - 230px);
+    min-height: calc(100vh - 340px);
     grid-template-columns: 1fr;
     gap: 16px;
     padding: 16px;
