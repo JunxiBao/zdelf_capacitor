@@ -663,7 +663,8 @@ function getSymptomTypeText(type) {
     'other': '其他',
     'none': '无'
   };
-  return typeMap[type] || type;
+  // 确保所有症状都显示中文，未知类型显示为"未知症状"
+  return typeMap[type] || '未知症状';
 }
 
 /**
@@ -2005,7 +2006,8 @@ function getBleedingPointText(bleedingPoint) {
     'vomit': '呕吐物',
     'menstrual': '月经'
   };
-  return bleedingMap[bleedingPoint] || bleedingPoint;
+  // 确保所有出血点都显示中文，未知部位显示为"未知部位"
+  return bleedingMap[bleedingPoint] || '未知部位';
 }
 
 /**
@@ -2069,7 +2071,8 @@ function getUrinalysisItemText(itemName, customName = null) {
   
   // 转换为小写进行匹配
   const lowerItemName = itemName.toLowerCase();
-  return urinalysisMap[lowerItemName] || itemName;
+  // 确保所有尿常规项目都显示中文，未知项目显示为"未知检测项目"
+  return urinalysisMap[lowerItemName] || '未知检测项目';
 }
 
 /**
@@ -2110,7 +2113,8 @@ function getBloodTestItemText(item, customName = null) {
     'pct': '血小板压积',
     'p-lcr': '大型血小板比率'
   };
-  return itemMap[item] || item;
+  // 确保所有血常规项目都显示中文，未知项目显示为"未知检测项目"
+  return itemMap[item] || '未知检测项目';
 }
 
 /**
