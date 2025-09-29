@@ -409,8 +409,16 @@ function initDatePicker() {
     // 保持清除按钮隐藏（不再显示叉叉）
     clearBtn.classList.add('hidden');
     
-    // 过滤并重新渲染卡片
-    filterAndRenderCards();
+    // 切换日期时，重新从后端按天拉取数据
+    showLoadingState();
+    abortInFlight();
+    loadUserDataCards()
+      .then(() => {
+        filterAndRenderCards();
+      })
+      .finally(() => {
+        hideLoadingState();
+      });
   });
 
   // 清除日期按钮事件（重置为当前日期）
@@ -452,16 +460,10 @@ function filterAndRenderCards() {
 
   // 如果选择了日期，进行日期过滤
   if (selectedDate) {
-    const targetDate = new Date(selectedDate);
-    const targetDateStr = targetDate.toISOString().split('T')[0]; // YYYY-MM-DD格式
-    
-    filteredCards = filteredCards.filter(item => {
-      const itemDate = new Date(item.created_at);
-      const itemDateStr = itemDate.toISOString().split('T')[0];
-      return itemDateStr === targetDateStr;
-    });
-    
-    console.log(`📅 按日期 ${selectedDate} 过滤，从 ${cachedDataCards.length} 条记录中筛选出 ${filteredCards.length} 条`);
+    // 饮食/指标/病例均基于其内容内的记录日期过滤：
+    // - 饮食：在 renderDietTimeline 内按每餐的 date/timestamp 过滤
+    // - 指标/病例：在 updateTimelineDetails 内按 exportInfo.recordDate 过滤
+    // 因此此处不再按 created_at 预过滤，避免漏掉“补录”的数据
   }
 
   // 如果有搜索关键字，进行搜索过滤
@@ -726,10 +728,11 @@ function loadUserDataCards() {
 
     // 创建加载Promise
     dataCardsLoadPromise = new Promise((resolveLoad) => {
-      // 并行加载所有类型的数据
+      // 并行加载所有类型的数据（带所选日期筛选，后端做初筛）
       const dataTypes = ['metrics', 'diet', 'case'];
+      const dateParam = selectedDate ? `&date=${encodeURIComponent(getDateYMD(String(selectedDate)))}` : '';
       const promises = dataTypes.map(type => 
-        fetch(`${__API_BASE__}/getjson/${type}?user_id=${encodeURIComponent(userId)}&limit=50`)
+        fetch(`${__API_BASE__}/getjson/${type}?user_id=${encodeURIComponent(userId)}&limit=50${dateParam}`)
           .then(res => res.json())
           .then(data => ({ type, data }))
           .catch(err => {
@@ -738,13 +741,13 @@ function loadUserDataCards() {
           })
       );
 
-      Promise.all(promises).then(results => {
-        // 合并所有数据并按时间排序
-        const allItems = [];
+      Promise.all(promises).then(async results => {
+        // 合并所有数据
+        const baseItems = [];
         results.forEach(({ type, data }) => {
           if (data.success && data.data) {
             data.data.forEach(item => {
-              allItems.push({
+              baseItems.push({
                 ...item,
                 dataType: type
               });
@@ -752,11 +755,24 @@ function loadUserDataCards() {
           }
         });
 
-        // 按创建时间降序排序
-        allItems.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        
+        // 预取每条记录的 exportInfo 以获得排序用的 recordTime（回退 exportTime 或 created_at）
+        const augmented = await Promise.all(baseItems.map(async (it) => {
+          try {
+            const res = await fetch(`${__API_BASE__}/getjson/${it.dataType}/${it.id}`);
+            const detail = await res.json();
+            const exp = (detail && detail.data && detail.data.exportInfo) || {};
+            const sortTime = exp.recordTime || exp.exportTime || it.created_at;
+            return { ...it, sortTime };
+          } catch (_) {
+            return { ...it, sortTime: it.created_at };
+          }
+        }));
+
+        // 按记录时间（recordTime 优先）降序排序
+        augmented.sort((a, b) => new Date(b.sortTime) - new Date(a.sortTime));
+
         // 缓存数据
-        cachedDataCards = allItems;
+        cachedDataCards = augmented;
         resolveLoad();
       }).catch(err => {
         console.error('加载数据失败:', err);
@@ -892,10 +908,14 @@ async function renderDietTimeline(items, container) {
     return;
   }
 
-  // 1) 先按 created_at 排序原始条目，保证拆分后的餐事件顺序稳定
-  const sorted = items.slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  // 1) 先按记录时间排序（餐事件自身仍按餐时间展示）
+  const sorted = items.slice().sort((a, b) => {
+    const ta = a.sortTime || a.created_at;
+    const tb = b.sortTime || b.created_at;
+    return new Date(ta) - new Date(tb);
+  });
 
-  // 2) 拉取详情并拆分为餐事件
+  // 2) 拉取详情并拆分为餐事件（使用每餐的日期/时间进行过滤）
   const mealEvents = [];
   for (const item of sorted) {
     try {
@@ -904,20 +924,46 @@ async function renderDietTimeline(items, container) {
       if (!detail.success) continue;
       const content = detail.data?.content || {};
       const dietData = content.dietData || {};
+      const exportInfo = content.exportInfo || {};
+      // 解析页面选择的 targetDateStr（严格字符串，不做时区换算）
+      const targetDateStr = selectedDate ? getDateYMD(String(selectedDate)) : null;
+
       Object.values(dietData).forEach((meal) => {
         if (!meal || !meal.time) return;
+        // 取每餐的日期优先级：meal.date -> meal.timestamp(YYYY-MM-DD 开头) -> exportInfo.recordTime 的日期部分
+        let mealDateStr = '';
+        if (meal.date && /^\d{4}-\d{2}-\d{2}$/.test(meal.date)) {
+          mealDateStr = meal.date;
+        } else if (meal.timestamp && /^\d{4}-\d{2}-\d{2}/.test(meal.timestamp)) {
+          mealDateStr = meal.timestamp.slice(0,10);
+        } else if (exportInfo && (exportInfo.recordTime || exportInfo.exportTime)) {
+          mealDateStr = getDateYMD(exportInfo.recordTime || exportInfo.exportTime);
+        }
+
+        // 若选择了日期，仅保留匹配该日期的餐事件（严格匹配，缺失日期的餐次不纳入该日）
+        if (targetDateStr) {
+          if (mealDateStr !== targetDateStr) return;
+        }
+
         mealEvents.push({
           timeHM: String(meal.time).slice(0,5),
           food: meal.food || '',
           images: Array.isArray(meal.images) ? meal.images : [],
           fileId: item.id,
+          date: mealDateStr || ''
         });
       });
     } catch (_) {}
   }
 
   if (mealEvents.length === 0) {
-    container.innerHTML = '<p>暂无饮食记录</p>';
+    container.innerHTML = `
+      <div class="no-data-message">
+        <div class="no-data-icon">📝</div>
+        <h3>暂无饮食记录</h3>
+        <p>开始记录您的饮食数据吧</p>
+      </div>
+    `;
     return;
   }
 
@@ -984,7 +1030,8 @@ function groupDataByTime(items) {
   const groups = {};
   
   items.forEach(item => {
-    const timeKey = getTimeHMFromCreatedAt(item.created_at);
+    const baseTime = item.sortTime || item.created_at;
+    const timeKey = getTimeHMFromCreatedAt(baseTime);
     
     if (!groups[timeKey]) {
       groups[timeKey] = [];
@@ -992,7 +1039,7 @@ function groupDataByTime(items) {
     groups[timeKey].push(item);
   });
   
-  // 按 HH:mm 升序排序，且在同一时间点内按创建时间稳定排序
+  // 按 HH:mm 升序排序，且在同一时间点内按记录时间稳定排序
   const sortedGroups = {};
   Object.keys(groups)
     .sort((a, b) => {
@@ -1002,8 +1049,8 @@ function groupDataByTime(items) {
     })
     .forEach(time => {
       sortedGroups[time] = groups[time].slice().sort((i1, i2) => {
-        const t1 = getTimeHMFromCreatedAt(i1.created_at);
-        const t2 = getTimeHMFromCreatedAt(i2.created_at);
+        const t1 = getTimeHMFromCreatedAt(i1.sortTime || i1.created_at);
+        const t2 = getTimeHMFromCreatedAt(i2.sortTime || i2.created_at);
         const [h1, m1] = t1.split(':').map(Number);
         const [h2, m2] = t2.split(':').map(Number);
         return (h1 * 60 + m1) - (h2 * 60 + m2);
@@ -1052,6 +1099,27 @@ function getTimeHMFromCreatedAt(createdAt) {
 }
 
 /**
+ * getDateYMD — 将任意日期/时间值安全提取为 YYYY-MM-DD（使用 Asia/Shanghai）
+ */
+function getDateYMD(value) {
+  if (!value) return '';
+  if (typeof value === 'string') {
+    // 直接从字符串头部提取 yyyy-mm-dd 或 yyyy/mm/dd 或 yyyy.mm.dd
+    const m = value.match(/^(\d{4})[-/.](\d{2})[-/.](\d{2})/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  }
+  try {
+    const d = new Date(value);
+    const y = d.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric' });
+    const mo = d.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', month: '2-digit' });
+    const da = d.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', day: '2-digit' });
+    return `${y}-${mo}-${da}`;
+  } catch (_) {
+    return '';
+  }
+}
+
+/**
  * generateTimelineItems — 生成时间线项目HTML（优化版本）
  */
 async function generateTimelineItems(groupedData) {
@@ -1094,6 +1162,11 @@ async function generateTimelineItems(groupedData) {
 async function updateTimelineDetails(groupedData) {
   const timelineContainer = dailyRoot.querySelector('.timeline-container');
   if (!timelineContainer) return;
+  // 统一解析日期筛选目标
+  let targetDateStr = null;
+  if (selectedDate) {
+    targetDateStr = getDateYMD(String(selectedDate));
+  }
   
   for (const [time, items] of Object.entries(groupedData)) {
     // 找到对应的时间线项目
@@ -1112,9 +1185,10 @@ async function updateTimelineDetails(groupedData) {
     
     const contentElements = targetTimelineItem.querySelectorAll('.timeline-content');
     
-    // 若为饮食/病例视图，紫色时间应显示"上传时间(exportInfo.exportTime)"
-    // 这里预留一个变量，在循环中获取后统一写回
-    let overrideUploadHHMM = null;
+    // 若为饮食/病例/指标视图，紫色时间显示记录时间：
+  // - 饮食：在 renderDietTimeline 已用每餐时间
+  // - 病例/指标：使用 exportInfo.recordTime（若不可用，退回 exportTime）
+    let overrideTimeHM = null;
     
     for (let i = 0; i < items.length && i < contentElements.length; i++) {
       const item = items[i];
@@ -1127,6 +1201,25 @@ async function updateTimelineDetails(groupedData) {
         
         if (detailData.success) {
           const content = detailData.data.content || {};
+
+          // 指标/病例：按记录日期过滤
+          // - 病例：严格使用 exportInfo.recordTime 的日期部分，缺失则在选中日期时不展示
+          // - 指标：使用 exportInfo.recordTime 的日期部分；缺失时回退 exportTime，再回退 created_at
+          if (targetDateStr && (item.dataType === 'metrics' || item.dataType === 'case')) {
+            const exp = detailData.data?.exportInfo || content.exportInfo || {};
+            if (item.dataType === 'case') {
+              const rt = exp.recordTime;
+              if (!rt) { contentElement.style.display = 'none'; continue; }
+              const rtDate = getDateYMD(rt);
+              if (rtDate !== targetDateStr) { contentElement.style.display = 'none'; continue; }
+            } else {
+              const primary = exp.recordTime || '';
+              const fallback1 = exp.exportTime || '';
+              let candidate = primary || fallback1 || item.created_at || '';
+              const candidateDate = getDateYMD(candidate);
+              if (candidateDate && candidateDate !== targetDateStr) { contentElement.style.display = 'none'; continue; }
+            }
+          }
           
           // 如果有搜索关键字，检查详细内容是否匹配
           if (searchKeyword) {
@@ -1146,29 +1239,29 @@ async function updateTimelineDetails(groupedData) {
               if (badge) badge.remove();
               const isDark = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
               summaryElement.innerHTML = formatDietForDisplay(content, isDark);
-              // 从导出信息里拿上传时间（北京时间字符串），用作时间线紫色时间
-              const exportTime = detailData.data?.exportInfo?.exportTime || content.exportInfo?.exportTime;
-              if (exportTime) {
-                overrideUploadHHMM = getTimeHMFromCreatedAt(exportTime);
-              }
+              // 饮食在 renderDietTimeline 已按餐时间渲染，不改紫色时间
             } else if (item.dataType === 'case') {
               // 病例记录：在时间线上完全展开
               const badge = contentElement.querySelector('.content-type-badge');
               if (badge) badge.remove();
               const isDark = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
               summaryElement.innerHTML = formatCaseForDisplay(content, isDark);
-              const exportTime = detailData.data?.exportInfo?.exportTime || content.exportInfo?.exportTime;
-              if (exportTime) {
-                overrideUploadHHMM = getTimeHMFromCreatedAt(exportTime);
+              const recordTime = detailData.data?.exportInfo?.recordTime || content.exportInfo?.recordTime;
+              const fallback = detailData.data?.exportInfo?.exportTime || content.exportInfo?.exportTime;
+              const useTime = recordTime || fallback;
+              if (useTime) {
+                overrideTimeHM = getTimeHMFromCreatedAt(useTime);
               }
             } else {
               const summary = parseContentToSummary(content, item.dataType);
               summaryElement.innerHTML = summary;
-              // 健康指标：若有上传时间，则用于覆盖时间线标签
+              // 健康指标：优先 recordTime，其次 exportTime
               if (item.dataType === 'metrics') {
-                const exportTime = detailData.data?.exportInfo?.exportTime || content.exportInfo?.exportTime;
-                if (exportTime) {
-                  overrideUploadHHMM = getTimeHMFromCreatedAt(exportTime);
+                const recordTime = detailData.data?.exportInfo?.recordTime || content.exportInfo?.recordTime;
+                const fallback = detailData.data?.exportInfo?.exportTime || content.exportInfo?.exportTime;
+                const useTime = recordTime || fallback;
+                if (useTime) {
+                  overrideTimeHM = getTimeHMFromCreatedAt(useTime);
                 }
               }
             }
@@ -1183,10 +1276,10 @@ async function updateTimelineDetails(groupedData) {
       }
     }
     
-    // 如果当前是饮食/病例/健康指标视图，并且拿到了上传时间，则用其更新时间线标签
-    if ((selectedDataType === 'diet' || selectedDataType === 'case' || selectedDataType === 'metrics') && overrideUploadHHMM) {
+    // 如果当前是非饮食视图，并拿到记录时间，则更新紫色时间
+    if ((selectedDataType === 'case' || selectedDataType === 'metrics') && overrideTimeHM) {
       const timeEl = targetTimelineItem.querySelector('.timeline-time');
-      if (timeEl) timeEl.textContent = overrideUploadHHMM;
+      if (timeEl) timeEl.textContent = overrideTimeHM;
     }
   }
 }

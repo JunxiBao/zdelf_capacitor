@@ -70,6 +70,22 @@ function initMetricsPage() {
         });
     }
 
+    // 初始化记录日期/时间默认值
+    try {
+        const dateInput = document.getElementById('record-date-input');
+        const timeInput = document.getElementById('record-time-input');
+        const now = new Date();
+        if (dateInput && !dateInput.value) {
+            dateInput.value = now.toISOString().slice(0,10);
+        }
+        if (timeInput && !timeInput.value) {
+            const hh = String(now.getHours()).padStart(2, '0');
+            const mm = String(now.getMinutes()).padStart(2, '0');
+            const ss = String(now.getSeconds()).padStart(2, '0');
+            timeInput.value = `${hh}:${mm}:${ss}`;
+        }
+    } catch (_) {}
+
     // 初始化出血点选择功能
     initBleedingPointSelection();
     
@@ -328,6 +344,29 @@ function saveAllMetrics() {
         // 自动上传到后端（metrics 表）
         (async function uploadAfterSave(){
             try {
+                // 读取 add 页面选择的日期（YYYY-MM-DD），若无则使用今日
+                function getSelectedDate() {
+                    var el = document.getElementById('record-date-input');
+                    var val = (el && el.value) ? el.value : '';
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+                    var now = new Date();
+                    return now.toISOString().slice(0,10);
+                }
+                function getSelectedHms() {
+                    var el = document.getElementById('record-time-input');
+                    var val = (el && el.value) ? el.value : '';
+                    if (/^\d{2}:\d{2}(:\d{2})?$/.test(val)) {
+                        var parts = val.split(':');
+                        return parts.length === 2 ? (parts[0].padStart(2,'0')+':'+parts[1].padStart(2,'0')+':00') : (parts[0].padStart(2,'0')+':'+parts[1].padStart(2,'0')+':'+String(parts[2]||'00').padStart(2,'0'));
+                    }
+                    var now = new Date();
+                    var hh = String(now.getHours()).padStart(2,'0');
+                    var mm = String(now.getMinutes()).padStart(2,'0');
+                    var ss = String(now.getSeconds()).padStart(2,'0');
+                    return hh+':'+mm+':'+ss;
+                }
+                const selectedDate = getSelectedDate();
+                const currentHms = getSelectedHms();
                 const payload = {
                     exportInfo: {
                         exportTime: new Date().toLocaleString('zh-CN', { 
@@ -340,6 +379,7 @@ function saveAllMetrics() {
                             second: '2-digit',
                             hour12: false
                         }),
+                        recordTime: selectedDate + ' ' + currentHms,
                         version: '1.0',
                         appName: '紫癜精灵',
                         dataType: 'health_metrics'
@@ -379,9 +419,13 @@ function saveAllMetrics() {
                 if (!resp.ok || !resJson.success) {
                     console.warn('指标上传失败:', resJson);
                     showToast('已保存本地，云端上传失败');
+                    // 清空加页选择的日期
+                    try { localStorage.removeItem('health_record_data'); } catch(_) {}
                 } else {
                     console.log('指标上传成功:', resJson);
                     showToast('已保存并上传云端');
+                    // 清空加页选择的日期
+                    try { localStorage.removeItem('health_record_data'); } catch(_) {}
                     
                     // 清除表单数据和本地存储
                     clearAllFormData();
@@ -397,6 +441,8 @@ function saveAllMetrics() {
             } catch (e) {
                 console.warn('上传异常:', e);
                 showToast('已保存本地，云端上传异常');
+                // 清空加页选择的日期
+                try { localStorage.removeItem('health_record_data'); } catch(_) {}
             }
         })();
 

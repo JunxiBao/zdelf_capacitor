@@ -469,6 +469,30 @@ function saveCaseRecord() {
         images.push(img.src);
     });
     
+    // 读取顶部选择的日期与时间
+    function getSelectedDate() {
+        var el = document.getElementById('record-date-input');
+        var val = (el && el.value) ? el.value : '';
+        if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+        var now = new Date();
+        return now.toISOString().slice(0,10);
+    }
+    function getSelectedHms() {
+        var el = document.getElementById('record-time-input');
+        var val = (el && el.value) ? el.value : '';
+        if (/^\d{2}:\d{2}(:\d{2})?$/.test(val)) {
+            var p = val.split(':');
+            return p.length === 2 ? (p[0].padStart(2,'0')+':'+p[1].padStart(2,'0')+':00') : (p[0].padStart(2,'0')+':'+p[1].padStart(2,'0')+':'+String(p[2]||'00').padStart(2,'0'));
+        }
+        var now = new Date();
+        var hh = String(now.getHours()).padStart(2,'0');
+        var mm = String(now.getMinutes()).padStart(2,'0');
+        var ss = String(now.getSeconds()).padStart(2,'0');
+        return hh+':'+mm+':'+ss;
+    }
+    const __selectedDate = getSelectedDate();
+    const __selectedHms = getSelectedHms();
+
     // 构建病例数据
     const caseData = {
         hospital: hospital,
@@ -477,7 +501,7 @@ function saveCaseRecord() {
         diagnosis: diagnosis,
         prescription: prescription,
         images: images,
-        timestamp: new Date().toISOString(),
+        timestamp: __selectedDate + ' ' + __selectedHms,
         id: generateCaseId()
     };
     
@@ -499,6 +523,7 @@ function saveCaseRecord() {
                         second: '2-digit',
                         hour12: false
                     }),
+                    recordTime: __selectedDate + ' ' + __selectedHms,
                     version: '1.0',
                     appName: '紫癜精灵',
                     dataType: 'case_record'
@@ -741,6 +766,22 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.style.transition = 'opacity 0.5s ease';
         document.body.style.opacity = '1';
     }, 100);
+    
+    // 初始化日期和时间选择器为当前日期和时间
+    const dateInput = document.getElementById('record-date-input');
+    const timeInput = document.getElementById('record-time-input');
+    
+    if (dateInput) {
+        const today = new Date();
+        const dateString = today.toISOString().slice(0, 10);
+        dateInput.value = dateString;
+    }
+    
+    if (timeInput) {
+        const now = new Date();
+        const timeString = now.toTimeString().slice(0, 8);
+        timeInput.value = timeString;
+    }
     
     // 为输入框添加焦点效果
     const inputs = document.querySelectorAll('.form-input');

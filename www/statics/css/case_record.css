@@ -15,6 +15,40 @@ body {
         background: #121212;
         color: #eee;
     }
+
+    /* 深色模式下的日期时间选择器样式 */
+    .date-time-picker {
+        background: #1e1e1e !important;
+        border-color: #444 !important;
+        color: #eee !important;
+    }
+
+    .date-time-picker:hover {
+        border-color: #bb86fc !important;
+        background: #2b2b2b !important;
+        box-shadow: 0 8px 24px rgba(187, 134, 252, 0.2) !important;
+    }
+
+    .picker-label {
+        color: #bb86fc !important;
+    }
+
+    .picker-input {
+        background: #1e1e1e !important;
+        border-color: #444 !important;
+        color: #eee !important;
+    }
+
+    .picker-input:focus {
+        border-color: #bb86fc !important;
+        background: #2b2b2b !important;
+        box-shadow: 0 0 0 3px rgba(187, 134, 252, 0.2) !important;
+    }
+
+    .picker-input:hover {
+        border-color: #a78bfa !important;
+        box-shadow: 0 4px 12px rgba(187, 134, 252, 0.15) !important;
+    }
 }
 
 /* 指标卡片样式（从指标页面复制） */
@@ -126,6 +160,81 @@ body {
     margin: 80px 20px 30px 20px;
     letter-spacing: 1px;
     padding-top: 10px;
+}
+
+/* 记录控制区域样式 */
+.record-controls {
+    max-width: 800px;
+    margin: 0 auto 24px auto;
+    padding: 0 20px;
+}
+
+.date-time-picker {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border: 2px solid #e0e0e0;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.date-time-picker:hover {
+    border-color: #6200ea;
+    background: #faf7ff;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(98, 0, 234, 0.15);
+}
+
+.picker-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.picker-label {
+    font-size: 0.9em;
+    font-weight: 600;
+    color: #6200ea;
+    text-align: center;
+    margin-bottom: 4px;
+    letter-spacing: 0.5px;
+}
+
+.picker-input {
+    width: calc(100% - 16px);
+    max-width: 200px;
+    padding: 12px 16px;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    font-size: 1em;
+    font-family: inherit;
+    background: #fff;
+    color: #333;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    text-align: center;
+    margin: 0 8px;
+}
+
+.picker-input:focus {
+    border-color: #6200ea;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(98, 0, 234, 0.1);
+    background: #faf7ff;
+}
+
+.picker-input:hover {
+    border-color: #8b5cf6;
+    box-shadow: 0 4px 12px rgba(98, 0, 234, 0.1);
 }
 
 /* 病例容器样式 */
@@ -628,6 +737,27 @@ body {
 
     .metric-description {
         font-size: 0.85em;
+    }
+
+    /* 移动端日期时间选择器适配 */
+    .record-controls {
+        padding: 0 16px;
+    }
+
+    .date-time-picker {
+        flex-direction: column;
+        gap: 16px;
+        padding: 20px;
+    }
+
+    .picker-group {
+        width: 100%;
+    }
+
+    .picker-input {
+        max-width: none;
+        width: calc(100% - 16px);
+        margin: 0 8px;
     }
 }
 

@@ -65,6 +65,14 @@ function initDietPage() {
     // 从本地存储加载已保存的数据
     loadDietData();
 
+    // 初始化顶部日期默认值
+    try {
+        const dInput = document.getElementById('diet-record-date-input');
+        if (dInput && !dInput.value) {
+            dInput.value = new Date().toISOString().slice(0,10);
+        }
+    } catch(_) {}
+
     // 为第一个餐次设置默认时间
     setDefaultTimeForFirstMeal();
 
@@ -314,7 +322,32 @@ async function saveAllMeals() {
         // 保存到本地存储
         localStorage.setItem('health_diet_data', JSON.stringify(dietData));
 
-        // 创建导出数据对象
+        // 创建导出数据对象（顶部日期为整天记录归属）
+        function getDietSelectedDate() {
+            try {
+                var el = document.getElementById('diet-record-date-input');
+                var val = (el && el.value) ? el.value : '';
+                if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+            } catch(_) {}
+            var now = new Date();
+            return now.toISOString().slice(0,10);
+        }
+        const __dietSelectedDate = getDietSelectedDate();
+
+        // 统一为每一餐补齐 date 与 timestamp（用于日常页严格按天展示）
+        try {
+            Object.keys(allMealsData).forEach((key) => {
+                const meal = allMealsData[key] || {};
+                const timeStr = String(meal.time || '00:00:00');
+                const parts = timeStr.split(':');
+                const hm = parts.length===2
+                    ? (parts[0].padStart(2,'0')+':' + parts[1].padStart(2,'0')+':00')
+                    : (parts[0].padStart(2,'0')+':' + (parts[1]||'00').padStart(2,'0')+':' + String(parts[2]||'00').padStart(2,'0'));
+                meal.date = __dietSelectedDate;
+                meal.timestamp = __dietSelectedDate + ' ' + hm;
+                allMealsData[key] = meal;
+            });
+        } catch(_) {}
         const exportData = {
             exportInfo: {
                 exportTime: new Date().toLocaleString('zh-CN', { 
@@ -327,6 +360,22 @@ async function saveAllMeals() {
                     second: '2-digit',
                     hour12: false
                 }),
+                recordTime: (function(){
+                    // 选用首餐的时间作为 recordTime
+                    try {
+                        const first = Object.values(allMealsData)[0];
+                        let hm = '00:00:00';
+                        if (first && first.time) {
+                            const parts = String(first.time).split(':');
+                            hm = parts.length===2 ? (parts[0].padStart(2,'0')+':'+parts[1].padStart(2,'0')+':00') : (parts[0].padStart(2,'0')+':'+parts[1].padStart(2,'0')+':'+String(parts[2]||'00').padStart(2,'0'));
+                        } else {
+                            const n=new Date(); hm = String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0');
+                        }
+                        return __dietSelectedDate + ' ' + hm;
+                    } catch(_) {
+                        return __dietSelectedDate + ' 00:00:00';
+                    }
+                })(),
                 version: '1.0',
                 appName: '紫癜精灵',
                 dataType: 'diet_record'
@@ -341,6 +390,7 @@ async function saveAllMeals() {
             
             // 清除表单数据和本地存储
             clearAllDietData();
+            try { localStorage.removeItem('health_record_data'); } catch(_) {}
             
             // 强制清除全局数据变量
             dietData = {};
