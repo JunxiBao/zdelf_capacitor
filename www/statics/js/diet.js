@@ -2,6 +2,7 @@
 let mealCounter = 1; // 餐次计数器
 let dietData = {}; // 存储饮食数据
 let pendingDeleteMealId = null; // 待删除的餐次ID
+let dietImagesMap = {}; // { mealId: [dataUrl,...] }
 
 // 统一的保存状态管理函数
 function initSaveState() {
@@ -82,6 +83,9 @@ function initDietPage() {
         });
     }
 
+    // 初始化第一个餐次的图片上传按钮
+    initDietImageUploadForMeal(1);
+
     console.log('食物记录页面初始化完成');
 }
 
@@ -129,6 +133,16 @@ function addNewMeal() {
             <div class="meal-content">
                 <textarea id="food-${mealId}" placeholder="记录您摄入的食物..." rows="4"></textarea>
             </div>
+            <div class="image-upload-section">
+                <h4 class="upload-title">上传图片</h4>
+                <div class="image-upload-container">
+                    <div class="image-upload-btn" id="dietImageUploadBtn-${mealId}">
+                        <div class="upload-icon">+</div>
+                        <div class="upload-text">(上传图片)</div>
+                    </div>
+                    <div class="uploaded-images" id="dietUploadedImages-${mealId}"></div>
+                </div>
+            </div>
             <div class="meal-actions">
                 <button class="delete-meal-btn" onclick="deleteMeal(${mealId})">删除</button>
             </div>
@@ -149,6 +163,9 @@ function addNewMeal() {
     if (mealCounter > 1) {
         document.querySelector('.delete-meal-btn[style*="display: none"]').style.display = 'block';
     }
+
+    // 初始化该餐次的图片上传
+    initDietImageUploadForMeal(mealId);
 
     console.log(`添加新餐次: ${mealId}`);
 }
@@ -260,13 +277,15 @@ async function saveAllMeals() {
             const mealId = mealElement.dataset.mealId;
             const timeValue = document.getElementById(`time-${mealId}`).value;
             const foodValue = document.getElementById(`food-${mealId}`).value.trim();
+            const images = Array.isArray(dietImagesMap[mealId]) ? dietImagesMap[mealId] : [];
 
             // 检查是否有食物内容
-            if (foodValue) {
+            if (foodValue || images.length > 0) {
                 const mealData = {
                     time: timeValue,
                     food: foodValue,
-                    mealId: parseInt(mealId)
+                    mealId: parseInt(mealId),
+                    images
                 };
 
                 allMealsData[`meal_${mealId}`] = mealData;
@@ -279,7 +298,7 @@ async function saveAllMeals() {
 
         // 验证输入
         if (validMealsCount === 0) {
-            showToast('请至少记录一餐的食物信息');
+            showToast('请至少记录一餐的食物或上传图片');
             return;
         }
 
@@ -353,6 +372,151 @@ async function saveAllMeals() {
     }
 }
 
+// =========== 图片上传相关（与 metrics 保持一致的流程） ==========
+
+function initDietImageUploadForMeal(mealId) {
+    try { window.__hapticImpact__ && window.__hapticImpact__('Light'); } catch(_) {}
+    const btn = document.getElementById(`dietImageUploadBtn-${mealId}`);
+    if (!btn) return;
+    btn.addEventListener('click', async function() {
+        try {
+            // 权限（原生时）
+            const permissions = await window.cameraUtils.checkPermissions();
+            if (permissions.camera === 'denied' || permissions.photos === 'denied') {
+                const newPermissions = await window.cameraUtils.requestPermissions();
+                if (newPermissions.camera === 'denied' || newPermissions.photos === 'denied') {
+                    showToast('需要相机和相册权限才能上传图片');
+                    return;
+                }
+            }
+
+            await window.cameraUtils.showImageOptions(
+                (dataUrl) => handleDietImageDataUrl(mealId, dataUrl),
+                (err) => showToast('图片选择失败: ' + err)
+            );
+        } catch (e) {
+            console.error('[diet] 图片选择异常:', e);
+            showToast('图片上传失败: ' + (e?.message || e));
+        }
+    });
+}
+
+function handleDietImageDataUrl(mealId, dataUrl) {
+    showDietCompressionProgress('图片处理中...');
+    dataURLToFile(dataUrl, `diet-image-${mealId}.jpg`).then(file => {
+        compressImage(file, (compressedDataUrl) => {
+            hideDietCompressionProgress();
+            addDietImageToMeal(mealId, compressedDataUrl, file.name);
+        }, (error) => {
+            hideDietCompressionProgress();
+            showToast('图片压缩失败: ' + error);
+        }, 500);
+    }).catch(err => {
+        hideDietCompressionProgress();
+        showToast('图片处理失败: ' + (err?.message || err));
+    });
+}
+
+// 复用 metrics 中的方法（复制轻量实现，避免依赖）
+function dataURLToFile(dataUrl, filename) {
+    return new Promise((resolve, reject) => {
+        try {
+            const arr = dataUrl.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) u8arr[n] = bstr.charCodeAt(n);
+            const file = new File([u8arr], filename, { type: mime });
+            resolve(file);
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+function compressImage(file, callback, errorCallback, maxSizeKB = 500) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.onload = function() {
+        try {
+            let { width, height } = calculateCompressedSize(img.width, img.height, maxSizeKB);
+            canvas.width = width; canvas.height = height;
+            ctx.drawImage(img, 0, 0, width, height);
+            compressWithQuality(canvas, file.type, maxSizeKB, callback);
+        } catch (err) { errorCallback && errorCallback(err.message || '图片处理失败'); }
+    };
+    img.onerror = function() { errorCallback && errorCallback('图片加载失败'); };
+    img.src = URL.createObjectURL(file);
+}
+
+function calculateCompressedSize(originalWidth, originalHeight, maxSizeKB) {
+    const maxWidth = maxSizeKB <= 500 ? 1200 : 1920;
+    const maxHeight = maxSizeKB <= 500 ? 900 : 1080;
+    let width = originalWidth, height = originalHeight;
+    if (width > maxWidth || height > maxHeight) {
+        const ratio = Math.min(maxWidth / width, maxHeight / height);
+        width = Math.floor(width * ratio);
+        height = Math.floor(height * ratio);
+    }
+    const estimatedBytesPerPixel = maxSizeKB <= 500 ? 0.3 : 0.2;
+    const maxPixels = (maxSizeKB * 1024) / estimatedBytesPerPixel;
+    const currentPixels = width * height;
+    if (currentPixels <= maxPixels) return { width, height };
+    const ratio = Math.sqrt(maxPixels / currentPixels);
+    return { width: Math.floor(width * ratio), height: Math.floor(height * ratio) };
+}
+
+function compressWithQuality(canvas, mimeType, maxSizeKB, callback, quality = null) {
+    if (quality === null) quality = maxSizeKB <= 500 ? 0.6 : 0.8;
+    const dataUrl = canvas.toDataURL(mimeType, quality);
+    const sizeKB = (dataUrl.length * 0.75) / 1024;
+    if (sizeKB <= maxSizeKB || quality <= 0.1) {
+        callback(dataUrl);
+    } else {
+        const step = maxSizeKB <= 500 ? 0.1 : 0.05;
+        compressWithQuality(canvas, mimeType, maxSizeKB, callback, quality - step);
+    }
+}
+
+function addDietImageToMeal(mealId, imageSrc, fileName) {
+    if (!dietImagesMap[mealId]) dietImagesMap[mealId] = [];
+    dietImagesMap[mealId].push(imageSrc);
+    const container = document.getElementById(`dietUploadedImages-${mealId}`);
+    if (!container) return;
+    const item = document.createElement('div');
+    item.className = 'uploaded-image-item';
+    const img = document.createElement('img');
+    img.src = imageSrc; img.alt = fileName || '';
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-image-btn';
+    removeBtn.innerHTML = '×';
+    removeBtn.onclick = function() {
+        item.remove();
+        dietImagesMap[mealId] = (dietImagesMap[mealId] || []).filter(u => u !== imageSrc);
+        try { window.__hapticImpact__ && window.__hapticImpact__('Medium'); } catch(_) {}
+    };
+    item.appendChild(img); item.appendChild(removeBtn); container.appendChild(item);
+    item.style.opacity = '0'; item.style.transform = 'scale(0.8)';
+    setTimeout(()=>{ item.style.transition='all 0.3s ease'; item.style.opacity='1'; item.style.transform='scale(1)'; },10);
+}
+
+function showDietCompressionProgress(fileName) {
+    const html = `
+        <div class="diet-compression-progress" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: #fff; padding: 20px 30px; border-radius: 12px; z-index: 10000; text-align: center; backdrop-filter: blur(8px);">
+            <div style="margin-bottom: 12px;"><div style="width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.3); border-top: 3px solid white; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div></div>
+            <div style="font-size: 0.9rem; color: #ccc;">正在压缩图片...</div>
+            <div style="font-size: 0.8rem; color: #999; margin-top: 4px;">${fileName}</div>
+        </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function hideDietCompressionProgress() {
+    const el = document.querySelector('.diet-compression-progress');
+    if (el) el.remove();
+}
+
 // 从本地存储加载数据
 function loadDietData() {
     try {
@@ -369,6 +533,9 @@ function loadDietData() {
             for (let i = 1; i < mealRecords.length; i++) {
                 mealRecords[i].remove();
             }
+
+            // 重置图片映射
+            dietImagesMap = {};
 
             // 重新创建餐次
             sortedMeals.forEach((mealData, index) => {
@@ -402,6 +569,10 @@ function fillMealData(mealId, data) {
         if (data.food) {
             document.getElementById(`food-${mealId}`).value = data.food;
         }
+        // 恢复图片
+        if (Array.isArray(data.images) && data.images.length > 0) {
+            data.images.forEach(src => addDietImageToMeal(mealId.toString(), src, ''));
+        }
     } catch (error) {
         console.error(`填充餐次${mealId}数据失败:`, error);
     }
@@ -410,7 +581,19 @@ function fillMealData(mealId, data) {
 // 保存饮食数据到本地存储
 function saveDietData() {
     try {
-        localStorage.setItem('health_diet_data', JSON.stringify(dietData));
+        // 从DOM收集当前表单与图片（便于中途离开也能恢复）
+        const mealRecords = document.querySelectorAll('.meal-record');
+        const draft = {};
+        mealRecords.forEach((el) => {
+            const mealId = el.dataset.mealId;
+            const timeValue = document.getElementById(`time-${mealId}`)?.value || '';
+            const foodValue = document.getElementById(`food-${mealId}`)?.value?.trim() || '';
+            const images = Array.isArray(dietImagesMap[mealId]) ? dietImagesMap[mealId] : [];
+            if (timeValue || foodValue || images.length > 0) {
+                draft[`meal_${mealId}`] = { time: timeValue, food: foodValue, mealId: parseInt(mealId), images };
+            }
+        });
+        localStorage.setItem('health_diet_data', JSON.stringify(draft));
     } catch (error) {
         console.error('保存饮食数据到本地存储失败:', error);
     }
@@ -681,6 +864,9 @@ function clearAllDietData() {
                     const foodTextarea = record.querySelector('textarea');
                     if (timeInput) timeInput.value = '';
                     if (foodTextarea) foodTextarea.value = '';
+                    // 清除第一餐图片
+                    const firstImages = record.querySelector(`#dietUploadedImages-1`);
+                    if (firstImages) firstImages.innerHTML = '';
                 }
             });
             
@@ -699,6 +885,7 @@ function clearAllDietData() {
         
         // 强制清除全局数据变量
         dietData = {};
+        dietImagesMap = {};
         
         console.log('所有饮食记录表单数据已清除');
     } catch (error) {

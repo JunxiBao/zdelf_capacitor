@@ -909,6 +909,7 @@ async function renderDietTimeline(items, container) {
         mealEvents.push({
           timeHM: String(meal.time).slice(0,5),
           food: meal.food || '',
+          images: Array.isArray(meal.images) ? meal.images : [],
           fileId: item.id,
         });
       });
@@ -946,7 +947,17 @@ async function renderDietTimeline(items, container) {
         <div class="timeline-content" data-type="diet" data-file-id="${ev.fileId}">
           <div class="content-summary">
             <div style="${mealCardStyle}">
-              ${ev.food ? `<p style=\"${foodTextStyle}\"><strong>食物：</strong>${ev.food}</p>` : ''}
+              ${ev.food ? `<p style="${foodTextStyle}"><strong>食物：</strong>${ev.food}</p>` : ''}
+              ${ev.images && ev.images.length ? `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-top: 8px;">
+                  ${ev.images.map((src, i) => `
+                    <div style="position: relative;"> 
+                      <img src="${src}" alt="饮食图片 ${i+1}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 10px; cursor: pointer; border: 1px solid rgba(0,0,0,0.08);" onclick="openImageModal('${src}')" />
+                      <div style="position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.55); color: #fff; padding: 2px 6px; border-radius: 6px; font-size: 12px;">${i+1}</div>
+                    </div>
+                  `).join('')}
+                </div>
+              ` : ''}
             </div>
           </div>
         </div>
@@ -2120,6 +2131,16 @@ function formatDietForDisplay(content, isDarkMode = false) {
         <div style="${contentStyle}">
           ${meal.time ? `<p style="${timeStyle}"><strong>时间:</strong> ${meal.time}</p>` : ''}
           ${meal.food ? `<p style="${foodStyle}"><strong>食物:</strong> ${meal.food}</p>` : ''}
+          ${Array.isArray(meal.images) && meal.images.length > 0 ? `
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 8px;">
+              ${meal.images.map((src, i) => `
+                <div style=\"position: relative;\"> 
+                  <img src=\"${src}\" alt=\"饮食图片 ${i+1}\" style=\"width: 100%; height: 140px; object-fit: cover; border-radius: 10px; cursor: pointer; border: 1px solid rgba(0,0,0,0.08);\" onclick=\"openImageModal('${src}')\" />
+                  <div style=\"position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.55); color: #fff; padding: 2px 6px; border-radius: 6px; font-size: 12px;\">${i+1}</div>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
         </div>
       </div>
     `;
