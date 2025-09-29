@@ -685,6 +685,10 @@ function searchInMetricsContent(content, keyword) {
       if (symptom.description && symptom.description.toLowerCase().includes(keyword)) {
         return true;
       }
+      // 搜索症状详细信息
+      if (symptom.detail && symptom.detail.toLowerCase().includes(keyword)) {
+        return true;
+      }
     }
   }
   // 兼容旧格式
@@ -1840,10 +1844,18 @@ function parseMetricsSummary(metricsData) {
   if (metricsData.symptoms?.items && Array.isArray(metricsData.symptoms.items)) {
     const symptomTexts = metricsData.symptoms.items.map(symptom => {
       const typeText = getSymptomTypeText(symptom.type);
+      let displayText = typeText;
+      
       if (symptom.type === 'other' && symptom.description) {
-        return `${typeText}(${symptom.description})`;
+        displayText = `${typeText}(${symptom.description})`;
       }
-      return typeText;
+      
+      // 如果有详细信息，添加简短提示
+      if (symptom.detail && symptom.detail.trim()) {
+        displayText += '*';  // 用星号表示有详细信息
+      }
+      
+      return displayText;
     });
     if (symptomTexts.length > 0) {
       summaries.push(`症状: ${symptomTexts.join('、')}`);
@@ -2238,10 +2250,20 @@ function formatMetricsForDisplay(metricsData, isDarkMode = false) {
   if (metricsData.symptoms?.items && Array.isArray(metricsData.symptoms.items)) {
     const symptomItems = metricsData.symptoms.items.map(symptom => {
       const typeText = getSymptomTypeText(symptom.type);
+      let symptomHtml = '';
+      
       if (symptom.type === 'other' && symptom.description) {
-        return `<span style="display: inline-block; margin: 2px 6px 2px 0; padding: 4px 8px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 12px; font-size: 0.85em;">${typeText}: ${symptom.description}</span>`;
+        symptomHtml = `<span style="display: inline-block; margin: 2px 6px 2px 0; padding: 4px 8px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 12px; font-size: 0.85em;">${typeText}: ${symptom.description}</span>`;
+      } else {
+        symptomHtml = `<span style="display: inline-block; margin: 2px 6px 2px 0; padding: 4px 8px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 12px; font-size: 0.85em;">${typeText}</span>`;
       }
-      return `<span style="display: inline-block; margin: 2px 6px 2px 0; padding: 4px 8px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 12px; font-size: 0.85em;">${typeText}</span>`;
+      
+      // 如果有详细信息，添加到症状下方
+      if (symptom.detail && symptom.detail.trim()) {
+        symptomHtml += `<div style="margin: 6px 0 8px 0; padding: 8px 12px; background: rgba(102, 126, 234, 0.1); border-left: 3px solid #667eea; border-radius: 4px; font-size: 0.9em; color: #4a5568; line-height: 1.4;">详细信息：${symptom.detail}</div>`;
+      }
+      
+      return symptomHtml;
     }).join('');
     
     if (symptomItems) {

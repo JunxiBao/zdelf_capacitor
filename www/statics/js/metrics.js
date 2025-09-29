@@ -166,6 +166,14 @@ function saveAllMetrics() {
                                 }
                             }
                             
+                            // 获取症状详细信息（适用于所有症状类型，除了"无"）
+                            if (symptomType !== 'none') {
+                                const detailInput = item.querySelector('.symptoms-detail-input');
+                                if (detailInput && detailInput.value.trim()) {
+                                    symptomEntry.detail = detailInput.value.trim();
+                                }
+                            }
+                            
                             symptomsData.push(symptomEntry);
                         }
                     });
@@ -522,7 +530,7 @@ function fillFormData(type, data) {
                         
                         // 重新添加每个症状项目
                         data.items.forEach((item, index) => {
-                            addSymptomsItem(item.type, item.description || '', index);
+                            addSymptomsItem(item.type, item.description || '', item.detail || '', index);
                         });
                     }
                 } else if (data.symptoms) {
@@ -2174,6 +2182,7 @@ function toggleCustomInput(selectElement) {
     
     const customWrapper = itemDiv.querySelector('.custom-input-wrapper');
     const itemInput = itemDiv.querySelector('.item-input');
+    const symptomsDetailWrapper = itemDiv.querySelector('.symptoms-detail-wrapper');
     const selectedValue = selectElement.value;
     
     // 对于血常规和尿常规，控制数值输入框的显示
@@ -2196,6 +2205,28 @@ function toggleCustomInput(selectElement) {
                 if (valueInput) {
                     valueInput.value = '';
                 }
+            }
+        }
+    }
+    
+    // 对于症状，控制详细信息输入框的显示
+    if (itemDiv.classList.contains('symptoms-item') && symptomsDetailWrapper) {
+        if (selectedValue && selectedValue !== '' && selectedValue !== 'none') {
+            symptomsDetailWrapper.style.display = 'block';
+            // 添加动画效果
+            symptomsDetailWrapper.style.opacity = '0';
+            symptomsDetailWrapper.style.transform = 'translateY(-10px)';
+            setTimeout(() => {
+                symptomsDetailWrapper.style.transition = 'all 0.3s ease';
+                symptomsDetailWrapper.style.opacity = '1';
+                symptomsDetailWrapper.style.transform = 'translateY(0)';
+            }, 10);
+        } else {
+            symptomsDetailWrapper.style.display = 'none';
+            // 清除详细信息输入框的值
+            const detailInput = symptomsDetailWrapper.querySelector('input');
+            if (detailInput) {
+                detailInput.value = '';
             }
         }
     }
@@ -2629,6 +2660,14 @@ function exportMetricsData() {
                     const customInput = item.querySelector('.custom-symptoms-name');
                     if (customInput && customInput.value.trim()) {
                         symptomEntry.description = customInput.value.trim();
+                    }
+                }
+                
+                // 获取症状详细信息（适用于所有症状类型，除了"无"）
+                if (symptomType !== 'none') {
+                    const detailInput = item.querySelector('.symptoms-detail-input');
+                    if (detailInput && detailInput.value.trim()) {
+                        symptomEntry.detail = detailInput.value.trim();
                     }
                 }
                 
@@ -3090,6 +3129,13 @@ function updateJsonSizeDisplay() {
                     symptomEntry.description = customInput.value.trim();
                 }
             }
+            // 获取症状详细信息
+            if (symptomType !== 'none') {
+                const detailInput = item.querySelector('.symptoms-detail-input');
+                if (detailInput && detailInput.value.trim()) {
+                    symptomEntry.detail = detailInput.value.trim();
+                }
+            }
             symptomsData.push(symptomEntry);
         }
     });
@@ -3316,7 +3362,7 @@ function compressWithQuality(canvas, mimeType, maxSizeKB, callback, quality = nu
 }
 
 // 症状管理函数
-function addSymptomsItem(selectedSymptom = '', customDescription = '', index = null) {
+function addSymptomsItem(selectedSymptom = '', customDescription = '', detailDescription = '', index = null) {
     const container = document.getElementById('symptoms-matrix-container');
     if (!container) return;
     
@@ -3374,6 +3420,9 @@ function addSymptomsItem(selectedSymptom = '', customDescription = '', index = n
         </div>
         <div class="custom-input-wrapper" style="display: ${selectedSymptom === 'other' ? 'block' : 'none'};">
             <input type="text" class="custom-symptoms-name" placeholder="请描述其他症状" data-index="${itemIndex}" value="${customDescription || ''}">
+        </div>
+        <div class="symptoms-detail-wrapper" style="display: ${selectedSymptom && selectedSymptom !== '' && selectedSymptom !== 'none' ? 'block' : 'none'};">
+            <input type="text" class="symptoms-detail-input" placeholder="请填写该症状的详细信息" data-index="${itemIndex}" value="${detailDescription || ''}">
         </div>
     `;
     
