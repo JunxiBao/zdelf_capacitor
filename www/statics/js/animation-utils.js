@@ -544,6 +544,129 @@
     // 获取最佳性能的动画属性
     getPerformantProperties() {
       return ['transform', 'opacity'];
+    },
+
+    // 表单验证动画
+    showFormError(element, message) {
+      if (!element) return;
+      
+      // 添加错误样式
+      element.classList.add('form-error');
+      
+      // 移除其他状态
+      element.classList.remove('form-success', 'form-warning');
+      
+      // 显示错误消息
+      if (message) {
+        this.showMessage(element, message, 'error');
+      }
+      
+      // 自动清除动画类
+      setTimeout(() => {
+        element.classList.remove('form-error');
+      }, 1500);
+    },
+
+    showFormSuccess(element, message) {
+      if (!element) return;
+      
+      element.classList.add('form-success');
+      element.classList.remove('form-error', 'form-warning');
+      
+      if (message) {
+        this.showMessage(element, message, 'success');
+      }
+      
+      setTimeout(() => {
+        element.classList.remove('form-success');
+      }, 1500);
+    },
+
+    showFormWarning(element, message) {
+      if (!element) return;
+      
+      element.classList.add('form-warning');
+      element.classList.remove('form-error', 'form-success');
+      
+      if (message) {
+        this.showMessage(element, message, 'warning');
+      }
+      
+      setTimeout(() => {
+        element.classList.remove('form-warning');
+      }, 1500);
+    },
+
+    showMessage(element, message, type = 'error') {
+      const existingMessage = element.parentNode.querySelector('.validation-message');
+      if (existingMessage) {
+        existingMessage.remove();
+      }
+      
+      const messageEl = document.createElement('div');
+      messageEl.className = `validation-message ${type}-message`;
+      messageEl.textContent = message;
+      messageEl.style.cssText = `
+        font-size: 12px;
+        margin-top: 4px;
+        opacity: 0;
+        transform: translateY(-10px);
+        transition: all 0.3s ease;
+      `;
+      
+      element.parentNode.appendChild(messageEl);
+      
+      // 触发动画
+      requestAnimationFrame(() => {
+        messageEl.style.opacity = '1';
+        messageEl.style.transform = 'translateY(0)';
+      });
+      
+      // 自动移除
+      setTimeout(() => {
+        if (messageEl.parentNode) {
+          messageEl.style.opacity = '0';
+          messageEl.style.transform = 'translateY(-10px)';
+          setTimeout(() => {
+            if (messageEl.parentNode) {
+              messageEl.remove();
+            }
+          }, 300);
+        }
+      }, 3000);
+    },
+
+    // 数据可视化动画
+    animateChart(element, type = 'bar') {
+      if (!element || prefersReducedMotion) return;
+      
+      element.classList.add('chart-enter');
+      
+      if (type === 'line') {
+        const lines = element.querySelectorAll('path, line');
+        lines.forEach(line => {
+          line.classList.add('chart-line');
+        });
+      } else if (type === 'bar') {
+        const bars = element.querySelectorAll('rect, .bar');
+        bars.forEach((bar, index) => {
+          bar.style.animationDelay = `${index * 100}ms`;
+          bar.classList.add('chart-bar');
+        });
+      }
+      
+      // 数字动画
+      const numbers = element.querySelectorAll('.chart-number, .metric-value');
+      numbers.forEach((num, index) => {
+        num.style.animationDelay = `${index * 150}ms`;
+        num.classList.add('chart-number');
+      });
+    },
+
+    // 创建骨架屏 - 已禁用，避免创建不必要的DOM元素
+    createSkeleton(type = 'card') {
+      console.warn('createSkeleton has been disabled to prevent rendering issues');
+      return document.createElement('div'); // 返回空div避免错误
     }
   };
 
@@ -551,17 +674,17 @@
   // 自动初始化
   // =========================================================
   document.addEventListener('DOMContentLoaded', () => {
-    // 自动初始化滚动揭示动画
-    const scrollReveal = new ScrollReveal();
-    scrollReveal.observeAll('.scroll-reveal, .scroll-reveal-left, .scroll-reveal-right, .scroll-reveal-up, .scroll-reveal-down');
+    // 简化初始化，只保留必要功能
+    console.log('Animation utils loaded with minimal features');
+    
+    // 禁用自动滚动揭示动画，避免潜在问题
+    // const scrollReveal = new ScrollReveal();
+    // scrollReveal.observeAll('.scroll-reveal, .scroll-reveal-left, .scroll-reveal-right, .scroll-reveal-up, .scroll-reveal-down');
 
-    // 自动为有ripple类的元素添加涟漪效果
-    document.querySelectorAll('.ripple, .rippleable').forEach(element => {
-      new RippleEffect(element);
-    });
-
-    // 存储实例以便清理
-    window.__scrollReveal__ = scrollReveal;
+    // 禁用自动涟漪效果
+    // document.querySelectorAll('.ripple, .rippleable').forEach(element => {
+    //   new RippleEffect(element);
+    // });
   });
 
   // 页面卸载时清理

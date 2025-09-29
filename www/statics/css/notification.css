@@ -13,6 +13,16 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
+  /* 防止深色模式闪烁 */
+  color-scheme: light dark;
+}
+
+/* 立即应用深色模式样式 */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #121212 !important;
+    color: #eee !important;
+  }
 }
 
 /* 确保在Shadow DOM中也能正常工作 */
@@ -89,6 +99,7 @@ body {
 .reminder-card {
   background: linear-gradient(145deg, #ffffff 0%, #fafbfc 100%);
   border: 2px solid #e0e0e0;
+  color: #222;
   border-radius: 16px;
   padding: 20px;
   margin-bottom: 0;
@@ -98,6 +109,17 @@ body {
   overflow: hidden;
   transform: translateZ(0); /* GPU加速 */
   will-change: transform, box-shadow;
+  /* 防止深色模式闪烁 */
+  color-scheme: light dark;
+}
+
+/* 立即应用深色模式样式 */
+@media (prefers-color-scheme: dark) {
+  .reminder-card {
+    background: #1e1f22 !important;
+    border-color: rgba(255,255,255,0.08) !important;
+    color: #eee !important;
+  }
 }
 
 .reminder-card::before {
@@ -351,6 +373,17 @@ body {
   border: 2px dashed #e0e0e0;
   border-radius: 16px;
   margin: 20px 0;
+  /* 防止深色模式闪烁 */
+  color-scheme: light dark;
+}
+
+/* 立即应用深色模式样式 */
+@media (prefers-color-scheme: dark) {
+  .empty-state {
+    background: #1e1f22 !important;
+    border-color: rgba(255,255,255,0.08) !important;
+    color: #bbb !important;
+  }
 }
 
 .empty-hint {
@@ -582,6 +615,13 @@ body {
   animation: modalFadeIn 0.3s ease;
 }
 
+/* 立即应用深色模式样式 */
+@media (prefers-color-scheme: dark) {
+  .modal {
+    background: rgba(0, 0, 0, 0.8) !important;
+  }
+}
+
 .modal.show {
   display: flex;
 }
@@ -599,6 +639,7 @@ body {
 
 .modal-content {
   background: #fff;
+  color: #222;
   border-radius: 20px;
   padding: 28px;
   width: 92%;
@@ -610,6 +651,18 @@ body {
   animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   margin: 20px;
+  /* 防止深色模式闪烁 */
+  color-scheme: light dark;
+}
+
+/* 立即应用深色模式样式 */
+@media (prefers-color-scheme: dark) {
+  .modal-content {
+    background: #1e1f22 !important;
+    color: #eee !important;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4) !important;
+    border-color: rgba(98, 0, 234, 0.2) !important;
+  }
 }
 
 @keyframes modalSlideIn {

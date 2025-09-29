@@ -159,16 +159,109 @@
       
       // 减少悬停效果（移动设备不需要）
       const style = document.createElement('style');
+      style.id = 'mobile-animation-optimizations';
       style.textContent = `
         @media (hover: none) {
           .hover-lift:hover,
           .hover-scale:hover,
-          .card-hover:hover {
+          .card-hover:hover,
+          .btn-enhanced:hover,
+          .nav-item-enhanced:hover {
+            transform: none !important;
+            box-shadow: inherit !important;
+          }
+          
+          /* 移动设备上的触摸反馈 */
+          .hover-lift:active,
+          .card-hover:active {
+            transform: translateY(-1px) !important;
+            transition-duration: 0.1s !important;
+          }
+          
+          .hover-scale:active {
+            transform: scale(0.98) !important;
+            transition-duration: 0.1s !important;
+          }
+        }
+        
+        @media (max-width: 768px) {
+          /* 减少移动端动画复杂度 */
+          .animate-bounceIn,
+          .animate-bounceInUp,
+          .animate-wobble,
+          .animate-swing {
+            animation: fadeInUp 0.2s ease both !important;
+          }
+          
+          /* 优化涟漪效果 */
+          .ripple-effect {
+            animation-duration: 0.3s !important;
+          }
+          
+          /* 简化页面转场 */
+          .page-transition-enter {
+            animation-duration: 0.2s !important;
+          }
+          
+          .page-transition-exit {
+            animation-duration: 0.15s !important;
+          }
+          
+          /* 减少阴影效果 */
+          .card-hover:hover,
+          .btn-enhanced:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          /* 超小屏幕进一步优化 */
+          * {
+            animation-duration: 0.1s !important;
+            transition-duration: 0.1s !important;
+          }
+          
+          .loading-skeleton {
+            animation-duration: 1s !important;
+          }
+          
+          /* 禁用视差效果 */
+          [data-parallax] {
             transform: none !important;
           }
         }
       `;
       document.head.appendChild(style);
+      
+      // 优化滚动性能
+      this.optimizeScrollPerformance();
+      
+      // 限制并发动画
+      this.thresholds.maxAnimations = 3;
+    }
+
+    optimizeScrollPerformance() {
+      // 使用 passive 监听器
+      const passiveEvents = ['scroll', 'touchstart', 'touchmove', 'touchend'];
+      passiveEvents.forEach(event => {
+        document.addEventListener(event, () => {}, { passive: true });
+      });
+      
+      // 节流滚动事件
+      let scrollTimeout;
+      const originalScrollHandler = window.onscroll;
+      
+      window.addEventListener('scroll', () => {
+        if (scrollTimeout) {
+          clearTimeout(scrollTimeout);
+        }
+        
+        scrollTimeout = setTimeout(() => {
+          if (originalScrollHandler) {
+            originalScrollHandler();
+          }
+        }, 16); // 约60fps
+      }, { passive: true });
     }
 
     applyMemoryOptimizations() {

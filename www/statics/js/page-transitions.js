@@ -57,18 +57,15 @@
       }
 
       try {
-        // 阶段1：淡出当前内容
+        // 简化的页面转场：只做基本的淡入淡出
         await this.fadeOutContent(content);
-        
-        // 阶段2：等待新内容加载（这里会被原有的loadPage处理）
-        // 我们只是添加一个短暂的延迟来确保内容更新
         await this.wait(50);
-        
-        // 阶段3：淡入新内容
         await this.fadeInContent(content);
         
       } catch (error) {
         console.warn('Page transition error:', error);
+        content.style.opacity = '1';
+        content.style.transform = 'translateY(0)';
       } finally {
         this.isTransitioning = false;
       }
@@ -163,88 +160,27 @@
     }
   }
 
-  // 卡片堆叠动画
+  // 简化的卡片动画 - 移除可能导致问题的复杂逻辑
   class CardStackAnimation {
     constructor(containerSelector = '.timeline-container, .reminders-container, .data-cards-container') {
-      this.containers = document.querySelectorAll(containerSelector);
-      this.init();
+      // 禁用自动动画，避免产生不必要的元素
+      console.log('CardStackAnimation disabled to prevent rendering issues');
     }
 
     init() {
-      this.containers.forEach(container => {
-        this.setupCardAnimations(container);
-      });
-
-      // 监听新卡片的添加
-      this.observeNewCards();
+      // 空实现
     }
 
-    setupCardAnimations(container) {
-      const cards = container.querySelectorAll('.timeline-item, .reminder-card, .unified-card, .metric-card, .form-group');
-      
-      cards.forEach((card, index) => {
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-          return;
-        }
-
-        // 设置初始状态
-        card.style.opacity = '0';
-        card.style.transform = 'translateY(30px) scale(0.95)';
-        card.style.transition = 'all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)';
-
-        // 延迟动画
-        setTimeout(() => {
-          card.style.opacity = '1';
-          card.style.transform = 'translateY(0) scale(1)';
-        }, index * 100 + 200);
-      });
+    setupCardAnimations() {
+      // 空实现
     }
 
     observeNewCards() {
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          mutation.addedNodes.forEach((node) => {
-            if (node.nodeType === 1) {
-              const newCards = node.querySelectorAll ? 
-                node.querySelectorAll('.timeline-item, .reminder-card, .unified-card, .metric-card, .form-group') : 
-                [];
-              
-              if (node.matches && node.matches('.timeline-item, .reminder-card, .unified-card, .metric-card, .form-group')) {
-                this.animateNewCard(node);
-              }
-
-              newCards.forEach(card => this.animateNewCard(card));
-            }
-          });
-        });
-      });
-
-      this.containers.forEach(container => {
-        observer.observe(container, {
-          childList: true,
-          subtree: true
-        });
-      });
+      // 空实现
     }
 
-    animateNewCard(card) {
-      if (!card || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        return;
-      }
-
-      // 设置初始状态
-      card.style.opacity = '0';
-      card.style.transform = 'translateY(30px) scale(0.95)';
-      card.style.transition = 'all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)';
-
-      // 强制重排
-      card.offsetHeight;
-
-      // 执行动画
-      requestAnimationFrame(() => {
-        card.style.opacity = '1';
-        card.style.transform = 'translateY(0) scale(1)';
-      });
+    animateNewCard() {
+      // 空实现
     }
   }
 
@@ -367,36 +303,8 @@
     }
 
     createClickRipple(event, element) {
-      const ripple = document.createElement('div');
-      const rect = element.getBoundingClientRect();
-      const size = Math.max(rect.width, rect.height);
-      const x = event.clientX - rect.left - size / 2;
-      const y = event.clientY - rect.top - size / 2;
-
-      ripple.style.cssText = `
-        position: absolute;
-        width: ${size}px;
-        height: ${size}px;
-        left: ${x}px;
-        top: ${y}px;
-        background: rgba(255, 255, 255, 0.4);
-        border-radius: 50%;
-        pointer-events: none;
-        z-index: 1000;
-        animation: clickRipple 0.6s ease-out forwards;
-      `;
-
-      // 确保元素有相对定位
-      const computedStyle = getComputedStyle(element);
-      if (computedStyle.position === 'static') {
-        element.style.position = 'relative';
-      }
-
-      element.appendChild(ripple);
-
-      ripple.addEventListener('animationend', () => {
-        ripple.remove();
-      });
+      // 禁用涟漪效果，避免创建额外DOM元素
+      return;
     }
 
     enhanceFocusRing(element) {
@@ -476,17 +384,17 @@
     document.head.appendChild(style);
   };
 
-  // 初始化
+  // 初始化 - 简化版本
   document.addEventListener('DOMContentLoaded', () => {
     injectAnimationCSS();
     
-    // 初始化各个组件
+    // 只初始化基本的页面转场，禁用可能导致问题的组件
     window.pageTransitionManager = new PageTransitionManager();
-    window.cardStackAnimation = new CardStackAnimation();
-    window.scrollParallax = new ScrollParallax();
-    window.microInteractions = new MicroInteractions();
+    // window.cardStackAnimation = new CardStackAnimation(); // 已禁用
+    // window.scrollParallax = new ScrollParallax(); // 暂时禁用
+    // window.microInteractions = new MicroInteractions(); // 暂时禁用
     
-    console.log('🎨 页面转场动画系统已初始化');
+    console.log('🎨 简化的页面转场系统已初始化');
   });
 
   // 导出到全局
