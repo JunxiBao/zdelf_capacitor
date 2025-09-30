@@ -843,7 +843,51 @@ function searchInCardContent(content, dataType, keyword) {
     return true;
   }
   
+  // 最后尝试：模糊搜索
+  if (fuzzySearchInContent(content, lowerKeyword)) {
+    console.log(`✅ ${dataType} 模糊搜索找到匹配: "${lowerKeyword}"`);
+    return true;
+  }
+  
   console.log(`❌ ${dataType} 搜索未找到匹配: "${lowerKeyword}"`);
+  return false;
+}
+
+/**
+ * fuzzySearchInContent — 模糊搜索内容
+ * @param {Object} content - 内容对象
+ * @param {string} keyword - 搜索关键字
+ * @returns {boolean} - 是否匹配
+ */
+function fuzzySearchInContent(content, keyword) {
+  // 将内容转换为字符串进行模糊匹配
+  const contentStr = JSON.stringify(content).toLowerCase();
+  
+  // 简单的模糊匹配：检查关键字中的字符是否都存在于内容中
+  const keywordChars = keyword.split('').filter(char => char.trim());
+  const allCharsExist = keywordChars.every(char => contentStr.includes(char));
+  
+  if (allCharsExist && keywordChars.length > 0) {
+    console.log(`🔍 模糊搜索匹配: "${keyword}"`);
+    return true;
+  }
+  
+  // 同义词匹配
+  const synonyms = {
+    '紫癜': ['紫癜', '紫癜病', '血小板减少性紫癜', '过敏性紫癜'],
+    '出血': ['出血', '流血', '出血点', '瘀斑'],
+    '症状': ['症状', '表现', '体征', '不适'],
+    '治疗': ['治疗', '医治', '疗法', '用药'],
+    '检查': ['检查', '检验', '检测', '化验']
+  };
+  
+  for (const [key, values] of Object.entries(synonyms)) {
+    if (values.some(synonym => synonym.includes(keyword) || keyword.includes(synonym))) {
+      console.log(`🔍 同义词匹配: "${keyword}" -> "${key}"`);
+      return true;
+    }
+  }
+  
   return false;
 }
 
@@ -854,10 +898,10 @@ function searchInCardContent(content, dataType, keyword) {
  */
 function isValidSearchKeyword(keyword) {
   // 单字符关键字无效
-  if (keyword.length < 2) return false;
+  if (keyword.length < 1) return false;
   
-  // 纯数字且小于3位无效
-  if (/^\d+$/.test(keyword) && keyword.length < 3) return false;
+  // 纯数字且小于2位无效（放宽限制）
+  if (/^\d+$/.test(keyword) && keyword.length < 2) return false;
   
   // 过于通用的词汇无效
   const genericWords = [
@@ -1275,13 +1319,18 @@ function searchInCaseContentOptimized(content, keyword) {
     const caseInfo = content.caseInfo;
     console.log(`🏥 病例信息:`, caseInfo);
     
-    // 按重要性排序搜索
+    // 按重要性排序搜索 - 扩展更多字段
     const importantFields = [
       { field: 'title', label: '标题' },
       { field: 'diagnosis', label: '诊断' },
       { field: 'symptoms', label: '症状' },
       { field: 'treatment', label: '治疗方案' },
-      { field: 'description', label: '描述' }
+      { field: 'description', label: '描述' },
+      { field: 'hospital', label: '医院' },
+      { field: 'department', label: '科室' },
+      { field: 'doctor', label: '医生' },
+      { field: 'prescription', label: '医嘱' },
+      { field: 'notes', label: '备注' }
     ];
     
     for (const { field, label } of importantFields) {
@@ -1363,6 +1412,25 @@ function searchInCaseContentOptimized(content, keyword) {
   
   if (searchInNestedContent(content, keyword)) {
     console.log(`✅ 嵌套内容搜索匹配: "${keyword}"`);
+    return true;
+  }
+  
+  // 新增：通用深度搜索，确保不遗漏任何内容
+  const deepSearchInContent = (obj, searchTerm) => {
+    if (typeof obj === 'string') {
+      return obj.toLowerCase().includes(searchTerm);
+    }
+    if (Array.isArray(obj)) {
+      return obj.some(item => deepSearchInContent(item, searchTerm));
+    }
+    if (typeof obj === 'object' && obj !== null) {
+      return Object.values(obj).some(value => deepSearchInContent(value, searchTerm));
+    }
+    return false;
+  };
+  
+  if (deepSearchInContent(content, keyword)) {
+    console.log(`✅ 深度搜索匹配: "${keyword}"`);
     return true;
   }
   
@@ -2179,12 +2247,16 @@ async function renderDietTimeline(items, container) {
               ${ev.food ? `<p style="${foodTextStyle}"><strong>食物：</strong>${ev.food}</p>` : ''}
               ${ev.images && ev.images.length ? `
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-top: 8px;">
-                  ${ev.images.map((src, i) => `
+                  ${ev.images.map((src, i) => {
+                    // 确保图片URL是完整的URL
+                    const imageUrl = src.startsWith('http') ? src : (window.__API_BASE__ || 'https://app.zdelf.cn') + src;
+                    return `
                     <div style="position: relative;"> 
-                      <img src="${src}" alt="饮食图片 ${i+1}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 10px; cursor: pointer; border: 1px solid rgba(0,0,0,0.08);" onclick="openImageModal('${src}')" />
+                      <img src="${imageUrl}" alt="饮食图片 ${i+1}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 10px; cursor: pointer; border: 1px solid rgba(0,0,0,0.08);" onclick="openImageModal('${imageUrl}')" />
                       <div style="position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.55); color: #fff; padding: 2px 6px; border-radius: 6px; font-size: 12px;">${i+1}</div>
                     </div>
-                  `).join('')}
+                  `;
+                  }).join('')}
                 </div>
               ` : ''}
             </div>
@@ -3380,12 +3452,16 @@ function formatMetricsForDisplay(metricsData, isDarkMode = false) {
           <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
           <h5 style="${titleStyle}">▶ 出血点图片 (${bleeding.bleedingImages.length}张)</h5>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 8px;">
-            ${bleeding.bleedingImages.map((imageSrc, index) => `
+            ${bleeding.bleedingImages.map((imageSrc, index) => {
+              // 确保图片URL是完整的URL
+              const imageUrl = imageSrc.startsWith('http') ? imageSrc : (window.__API_BASE__ || 'https://app.zdelf.cn') + imageSrc;
+              return `
               <div style="position: relative;">
-                <img src="${imageSrc}" alt="出血点图片 ${index + 1}" style="${imageStyle}" onclick="openImageModal('${imageSrc}')" />
+                <img src="${imageUrl}" alt="出血点图片 ${index + 1}" style="${imageStyle}" onclick="openImageModal('${imageUrl}')" />
                 <div style="position: absolute; top: 8px; right: 8px; background: rgba(0, 0, 0, 0.6); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">${index + 1}</div>
               </div>
-            `).join('')}
+            `;
+            }).join('')}
           </div>
         </div>
       `;
@@ -3513,12 +3589,16 @@ function formatDietForDisplay(content, isDarkMode = false) {
           ${meal.food ? `<p style="${foodStyle}"><strong>食物:</strong> ${meal.food}</p>` : ''}
           ${Array.isArray(meal.images) && meal.images.length > 0 ? `
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 8px;">
-              ${meal.images.map((src, i) => `
+              ${meal.images.map((src, i) => {
+                // 确保图片URL是完整的URL
+                const imageUrl = src.startsWith('http') ? src : (window.__API_BASE__ || 'https://app.zdelf.cn') + src;
+                return `
                 <div style=\"position: relative;\"> 
-                  <img src=\"${src}\" alt=\"饮食图片 ${i+1}\" style=\"width: 100%; height: 140px; object-fit: cover; border-radius: 10px; cursor: pointer; border: 1px solid rgba(0,0,0,0.08);\" onclick=\"openImageModal('${src}')\" />
+                  <img src=\"${imageUrl}\" alt=\"饮食图片 ${i+1}\" style=\"width: 100%; height: 140px; object-fit: cover; border-radius: 10px; cursor: pointer; border: 1px solid rgba(0,0,0,0.08);\" onclick=\"openImageModal('${imageUrl}')\" />
                   <div style=\"position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.55); color: #fff; padding: 2px 6px; border-radius: 6px; font-size: 12px;\">${i+1}</div>
                 </div>
-              `).join('')}
+              `;
+              }).join('')}
             </div>
           ` : ''}
         </div>
@@ -3735,12 +3815,16 @@ function formatCaseForDisplay(content, isDarkMode = false) {
         <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #667eea, #764ba2);"></div>
         <h5 style="${titleStyle}">▶ 病例单图片 (${caseData.images.length}张)</h5>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 8px;">
-          ${caseData.images.map((imageSrc, index) => `
+          ${caseData.images.map((imageSrc, index) => {
+            // 确保图片URL是完整的URL
+            const imageUrl = imageSrc.startsWith('http') ? imageSrc : (window.__API_BASE__ || 'https://app.zdelf.cn') + imageSrc;
+            return `
             <div style="position: relative;">
-              <img src="${imageSrc}" alt="病例单图片 ${index + 1}" style="${imageStyle}" onclick="openImageModal('${imageSrc}')" />
+              <img src="${imageUrl}" alt="病例单图片 ${index + 1}" style="${imageStyle}" onclick="openImageModal('${imageUrl}')" />
               <div style="position: absolute; top: 8px; right: 8px; background: rgba(0, 0, 0, 0.6); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">${index + 1}</div>
             </div>
-          `).join('')}
+          `;
+          }).join('')}
         </div>
       </div>
     `;
