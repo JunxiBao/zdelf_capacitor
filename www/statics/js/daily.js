@@ -365,14 +365,31 @@ function initSearchBox() {
           console.log('🔍 搜索时直接获取三个月内数据...');
           isSearchMode = true;
           
-          // 1. 加载搜索数据
+          // 立即显示搜索加载状态，防止显示中间状态
+          const cardsContainer = dailyRoot.querySelector('#data-cards-container');
+          if (cardsContainer) {
+            cardsContainer.innerHTML = `
+              <div class="search-loading">
+                <div class="search-loading-spinner"></div>
+                <div class="search-loading-text">正在搜索...</div>
+              </div>
+            `;
+          }
+          
+          // 设置搜索标志，防止其他函数干扰
+          const originalIsSearchMode = isSearchMode;
+          
+          // 1. 加载搜索数据（不触发其他渲染）
           await loadUserDataCardsForSearch();
           
           // 2. 预过滤数据（在动画期间完成）
           const filteredData = await preFilterSearchData(searchKeyword);
           
-          // 3. 渲染最终结果
+          // 3. 直接渲染最终结果，跳过中间状态
           await renderFinalSearchResults(filteredData);
+          
+          // 确保搜索模式标志正确设置
+          isSearchMode = true;
           
         } else {
           // 清除搜索时，恢复正常模式
@@ -385,6 +402,16 @@ function initSearchBox() {
         }
       } catch (error) {
         console.error('搜索过程中发生错误:', error);
+        // 出错时显示错误状态
+        const cardsContainer = dailyRoot.querySelector('#data-cards-container');
+        if (cardsContainer) {
+          cardsContainer.innerHTML = `
+            <div class="no-data-message">
+              <h3>搜索过程中发生错误</h3>
+              <p>请稍后重试</p>
+            </div>
+          `;
+        }
       } finally {
         // 隐藏搜索加载动画
         hideSearchLoadingState();
@@ -624,7 +651,14 @@ function initDatePicker() {
 function filterAndRenderCards() {
   // 在搜索模式下，跳过此函数，因为搜索已经在预过滤中完成
   if (isSearchMode) {
-    console.log('🔍 搜索模式下跳过 filterAndRenderCards');
+    console.log('🔍 搜索模式下跳过 filterAndRenderCards，避免显示中间状态');
+    return;
+  }
+  
+  // 额外检查：如果当前有搜索关键字且正在搜索，也跳过
+  const currentSearchKeyword = dailyRoot.querySelector('#search-input')?.value?.trim();
+  if (currentSearchKeyword && currentSearchKeyword.length > 0) {
+    console.log('🔍 检测到搜索关键字，跳过 filterAndRenderCards，避免显示中间状态');
     return;
   }
   
@@ -1577,6 +1611,7 @@ function getSearchResultSummary(item) {
 /**
  * loadUserDataCardsForSearch — 专门用于搜索时加载数据（优化版）
  * 智能缓存策略：优先使用缓存，缓存过期时重新加载
+ * 注意：此函数不会触发其他渲染，仅更新 searchDataCards
  */
 function loadUserDataCardsForSearch() {
   return new Promise((resolve) => {
@@ -2002,7 +2037,6 @@ async function renderDietTimeline(items, container) {
     if (selectedDate && searchKeyword) {
       message = `
         <div class="no-data-message">
-          <div class="no-data-icon">🔍</div>
           <h3>未找到匹配的饮食记录</h3>
         </div>
       `;
@@ -2016,7 +2050,6 @@ async function renderDietTimeline(items, container) {
     } else if (searchKeyword) {
       message = `
         <div class="no-data-message">
-          <div class="no-data-icon">🔍</div>
           <h3>未找到匹配的饮食记录</h3>
         </div>
       `;
@@ -2088,7 +2121,6 @@ async function renderDietTimeline(items, container) {
     if (selectedDate && searchKeyword) {
       message = `
         <div class="no-data-message">
-          <div class="no-data-icon">🔍</div>
           <h3>未找到匹配的饮食记录</h3>
         </div>
       `;
@@ -2102,7 +2134,6 @@ async function renderDietTimeline(items, container) {
     } else if (searchKeyword) {
       message = `
         <div class="no-data-message">
-          <div class="no-data-icon">🔍</div>
           <h3>未找到匹配的饮食记录</h3>
         </div>
       `;
