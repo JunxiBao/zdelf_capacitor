@@ -151,11 +151,18 @@
     /**
      * 显示加载动画
      */
-    function showLoadingAnimation() {
+    function showLoadingAnimation(customText = '正在加载日历数据...') {
         const loadingOverlay = document.getElementById('calendar-loading-overlay');
+        const loadingText = document.querySelector('.calendar-loading-text');
+        
         if (loadingOverlay) {
             loadingOverlay.style.display = 'flex';
             loadingOverlay.classList.remove('hidden');
+            
+            // 更新加载文本
+            if (loadingText) {
+                loadingText.textContent = customText;
+            }
         }
     }
     
@@ -472,6 +479,10 @@
      * 导航到上/下个月
      */
     function navigateMonth(direction) {
+        // 显示加载动画，使用月份切换专用文本
+        const directionText = direction > 0 ? '下个月' : '上个月';
+        showLoadingAnimation(`正在切换到${directionText}...`);
+        
         // 添加月份切换动画
         if (calendarGrid) {
             calendarGrid.classList.add('calendar-month-transition-out');
