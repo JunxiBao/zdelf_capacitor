@@ -1463,7 +1463,6 @@ async function renderFinalSearchResults(filteredData) {
     // 显示无搜索结果
     cardsContainer.innerHTML = `
       <div class="no-data-message">
-        <div class="no-data-icon">🔍</div>
         <h3>未找到匹配的记录</h3>
         <p>请尝试其他关键字或调整搜索条件</p>
       </div>
@@ -1531,7 +1530,6 @@ async function renderFinalSearchResults(filteredData) {
   const timelineHTML = `
     <div class="search-results-header">
       <div class="search-results-count">
-        <span class="search-icon">🔍</span>
         <span class="results-text">找到 ${filteredData.length} 条记录</span>
       </div>
     </div>
@@ -1837,7 +1835,6 @@ async function renderTimelineItems(items, container) {
       if (selectedDate && searchKeyword) {
         message = `
           <div class="no-data-message">
-            <div class="no-data-icon">🔍</div>
             <h3>未找到匹配的健康指标</h3>
           </div>
         `;
@@ -1851,7 +1848,6 @@ async function renderTimelineItems(items, container) {
       } else if (searchKeyword) {
         message = `
           <div class="no-data-message">
-            <div class="no-data-icon">🔍</div>
             <h3>未找到匹配的健康指标</h3>
           </div>
         `;
@@ -1867,7 +1863,6 @@ async function renderTimelineItems(items, container) {
       if (selectedDate && searchKeyword) {
         message = `
           <div class="no-data-message">
-            <div class="no-data-icon">🔍</div>
             <h3>未找到匹配的病例记录</h3>
           </div>
         `;
@@ -1881,7 +1876,6 @@ async function renderTimelineItems(items, container) {
       } else if (searchKeyword) {
         message = `
           <div class="no-data-message">
-            <div class="no-data-icon">🔍</div>
             <h3>未找到匹配的病例记录</h3>
           </div>
         `;
@@ -1897,7 +1891,6 @@ async function renderTimelineItems(items, container) {
       if (selectedDate && searchKeyword) {
         message = `
           <div class="no-data-message">
-            <div class="no-data-icon">🔍</div>
             <h3>未找到匹配的饮食记录</h3>
           </div>
         `;
@@ -1911,7 +1904,6 @@ async function renderTimelineItems(items, container) {
       } else if (searchKeyword) {
         message = `
           <div class="no-data-message">
-            <div class="no-data-icon">🔍</div>
             <h3>未找到匹配的饮食记录</h3>
           </div>
         `;
@@ -1928,7 +1920,6 @@ async function renderTimelineItems(items, container) {
       if (selectedDate && searchKeyword) {
         message = `
           <div class="no-data-message">
-            <div class="no-data-icon">🔍</div>
             <h3>未找到匹配的记录</h3>
           </div>
         `;
@@ -1942,7 +1933,6 @@ async function renderTimelineItems(items, container) {
       } else if (searchKeyword) {
         message = `
           <div class="no-data-message">
-            <div class="no-data-icon">🔍</div>
             <h3>未找到匹配的记录</h3>
           </div>
         `;
