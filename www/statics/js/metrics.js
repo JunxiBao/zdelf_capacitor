@@ -126,6 +126,111 @@ function goBack() {
     window.location.href = 'options.html';
 }
 
+// 症状类型到数字代码的映射
+// 用于症状跟踪表，便于数据分析和统计
+const SYMPTOM_CODE_MAP = {
+    'none': 0,           // 无症状
+    'skin-type': 1,      // 皮肤型紫癜
+    'joint-type': 2,     // 关节型紫癜
+    'abdominal-type': 3, // 腹型紫癜
+    'renal-type': 4,     // 肾型紫癜
+    'other': 5           // 其他
+};
+
+// 将症状数据转换为数字代码格式
+// 这个函数将用户选择的症状类型转换为数字代码，便于数据分析
+// 输入：症状数据对象 { items: [{ type: 'skin-type', detail: '...' }] }
+// 输出：数字代码对象 { symptoms: [1, 2, 3] }
+function convertSymptomsToNumericCodes(symptomsData) {
+    if (!symptomsData || !symptomsData.items || symptomsData.items.length === 0) {
+        return { symptoms: [0] }; // 默认无症状
+    }
+    
+    const symptomCodes = [];
+    symptomsData.items.forEach(item => {
+        const code = SYMPTOM_CODE_MAP[item.type] || 0;
+        symptomCodes.push(code);
+    });
+    
+    // 如果没有有效症状，返回无症状
+    if (symptomCodes.length === 0 || symptomCodes.every(code => code === 0)) {
+        return { symptoms: [0] };
+    }
+    
+    return { symptoms: symptomCodes };
+}
+
+// 辅助函数：将数字代码转换回症状名称（用于调试）
+function getSymptomNameFromCode(code) {
+    const codeToName = {
+        0: '无症状',
+        1: '皮肤型紫癜',
+        2: '关节型紫癜', 
+        3: '腹型紫癜',
+        4: '肾型紫癜',
+        5: '其他'
+    };
+    return codeToName[code] || '未知症状';
+}
+
+// 保存症状数据到症状跟踪表
+async function saveSymptomData(symptomsData, selectedDate, currentHms, identity) {
+    try {
+        const numericSymptomsData = convertSymptomsToNumericCodes(symptomsData);
+        
+        // 调试信息：显示转换后的症状代码
+        console.log('症状数据转换:', {
+            原始数据: symptomsData,
+            数字代码: numericSymptomsData,
+            症状名称: numericSymptomsData.symptoms.map(code => getSymptomNameFromCode(code)),
+            症状数量: numericSymptomsData.symptoms.length
+        });
+        
+        const symptomPayload = {
+            exportInfo: {
+                exportTime: new Date().toLocaleString('zh-CN', { 
+                    timeZone: 'Asia/Shanghai',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                }),
+                recordTime: selectedDate + ' ' + currentHms,
+                version: '1.0',
+                appName: '紫癜精灵',
+                dataType: 'symptom_tracking'
+            },
+            symptomData: numericSymptomsData
+        };
+
+        var API_BASE = (typeof window !== 'undefined' && window.__API_BASE__) || 'https://app.zdelf.cn';
+        if (API_BASE && API_BASE.endsWith('/')) API_BASE = API_BASE.slice(0, -1);
+
+        const resp = await fetch(API_BASE + '/uploadjson/symptoms', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                user_id: identity.user_id || '', 
+                username: identity.username || '', 
+                payload: symptomPayload 
+            })
+        });
+        
+        const resJson = await resp.json();
+        if (!resp.ok || !resJson.success) {
+            console.warn('症状数据上传失败:', resJson);
+        } else {
+            console.log('症状数据上传成功:', resJson);
+        }
+        
+    } catch (e) {
+        console.warn('症状数据上传异常:', e);
+    }
+}
+
 // 保存所有指标数据
 function saveAllMetrics() {
     try {
@@ -441,12 +546,29 @@ function saveAllMetrics() {
                 var API_BASE = (typeof window !== 'undefined' && window.__API_BASE__) || 'https://app.zdelf.cn';
                 if (API_BASE && API_BASE.endsWith('/')) API_BASE = API_BASE.slice(0, -1);
 
+                // 保存主要指标数据到metrics表
                 const resp = await fetch(API_BASE + '/uploadjson/metrics', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id, username, payload })
                 });
                 const resJson = await resp.json();
+                
+                // 如果有症状数据，同时保存症状数字代码到症状表（包括"无症状"）
+                console.log('🔍 检查症状数据:', { allData_symptoms: allData.symptoms });
+                if (allData.symptoms && allData.symptoms.items && allData.symptoms.items.length > 0) {
+                    console.log('✅ 发现症状数据，正在保存症状跟踪数据...');
+                    console.log('📊 症状详情:', allData.symptoms);
+                    await saveSymptomData(allData.symptoms, selectedDate, currentHms, identity);
+                    console.log('✅ 症状跟踪数据保存完成');
+                } else {
+                    // 即使没有症状数据，也保存"无症状"状态
+                    console.log('⚠️ 未发现症状数据，保存无症状状态');
+                    const noSymptomsData = { items: [{ type: 'none' }] };
+                    await saveSymptomData(noSymptomsData, selectedDate, currentHms, identity);
+                    console.log('✅ 无症状状态保存完成');
+                }
+                
                 if (!resp.ok || !resJson.success) {
                     console.warn('指标上传失败:', resJson);
                     showToast('已保存本地，云端上传失败');
