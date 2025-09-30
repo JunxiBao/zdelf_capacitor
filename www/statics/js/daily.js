@@ -535,9 +535,12 @@ function initDatePicker() {
     return;
   }
 
-  // 设置默认日期为当前日期
+  // 设置默认日期为当前日期（使用本地时区）
   const today = new Date();
-  const todayString = today.toISOString().split('T')[0];
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  const todayString = `${year}-${month}-${day}`;
   datePicker.value = todayString;
   selectedDate = todayString;
   
@@ -628,9 +631,12 @@ function initDatePicker() {
       window.__hapticImpact__('Light');
     }
     
-    // 重置为当前日期
+    // 重置为当前日期（使用本地时区）
     const today = new Date();
-    const todayString = today.toISOString().split('T')[0];
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const todayString = `${year}-${month}-${day}`;
     selectedDate = todayString;
     datePicker.value = todayString;
     
@@ -1713,10 +1719,13 @@ function loadUserDataCardsForSearch() {
       }
     }
 
-    // 计算三个月前的时间范围
+    // 计算三个月前的时间范围（使用本地时区）
     const threeMonthsAgo = new Date();
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-    const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0];
+    const year = threeMonthsAgo.getFullYear();
+    const month = String(threeMonthsAgo.getMonth() + 1).padStart(2, '0');
+    const day = String(threeMonthsAgo.getDate()).padStart(2, '0');
+    const threeMonthsAgoStr = `${year}-${month}-${day}`;
     
     console.log(`🔍 搜索专用：加载三个月内数据，起始日期: ${threeMonthsAgoStr}`);
     
@@ -1837,10 +1846,13 @@ function loadUserDataCards() {
 
     // 创建加载Promise
     dataCardsLoadPromise = new Promise((resolveLoad) => {
-      // 计算三个月前的时间范围
+      // 计算三个月前的时间范围（使用本地时区）
       const threeMonthsAgo = new Date();
       threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-      const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0];
+      const year = threeMonthsAgo.getFullYear();
+      const month = String(threeMonthsAgo.getMonth() + 1).padStart(2, '0');
+      const day = String(threeMonthsAgo.getDate()).padStart(2, '0');
+      const threeMonthsAgoStr = `${year}-${month}-${day}`;
       
       console.log(`📅 加载三个月内数据，起始日期: ${threeMonthsAgoStr}`);
       
@@ -3930,8 +3942,14 @@ function initCalendarButton() {
  * openCalendarPage — 打开日历页面
  */
 function openCalendarPage() {
-  // 获取当前选中的日期
-  const currentDate = selectedDate || new Date().toISOString().split('T')[0];
+  // 获取当前选中的日期（使用本地时区）
+  const currentDate = selectedDate || (() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  })();
   
   // 跳转到日历页面
   const calendarUrl = `${window.location.origin}${window.location.pathname.replace('/index.html', '').replace('/daily.html', '')}/src/calendar.html?date=${currentDate}`;

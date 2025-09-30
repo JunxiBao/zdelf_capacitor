@@ -453,7 +453,10 @@ function saveCaseRecord() {
         var val = (el && el.value) ? el.value : '';
         if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
         var now = new Date();
-        return now.toISOString().slice(0,10);
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     }
     function getSelectedHms() {
         var el = document.getElementById('record-time-input');

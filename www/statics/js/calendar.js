@@ -900,9 +900,15 @@
         // 如果有选中的日期，可以传递给父页面
         if (selectedDate && window.opener) {
             // 通知父页面选中的日期
+            // 使用本地时区格式化日期
+            const year = selectedDate.getFullYear();
+            const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+            const day = String(selectedDate.getDate()).padStart(2, '0');
+            const dateString = `${year}-${month}-${day}`;
+            
             window.opener.postMessage({
                 type: 'dateSelected',
-                date: selectedDate.toISOString().split('T')[0]
+                date: dateString
             }, '*');
         }
         
