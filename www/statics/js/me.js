@@ -34,6 +34,7 @@
     name: "无", // 显示为用户名
     age: "无", // 显示为年龄
     phone: "无", // 显示为手机号
+    avatar_url: null, // 头像URL
   };
   // Cache password from /readdata to prefill original password
   let userPassword = "";
@@ -100,12 +101,236 @@
     return s;
   }
 
+  
+  // 头像裁剪模态框
+  function showAvatarCropModal(imageData, userId, username) {
+    console.log("[me] 显示头像裁剪模态框，图片数据长度:", imageData ? imageData.length : 0);
+    
+    // 检测深色模式
+    const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    console.log("[me] 深色模式:", isDarkMode);
+    
+    // 先移除可能存在的旧模态框
+    const existingMask = document.querySelector('.avatar-crop-mask');
+    if (existingMask) {
+      existingMask.remove();
+    }
+    
+    const mask = document.createElement("div");
+    mask.className = "avatar-crop-mask";
+    
+    // 根据深色模式选择背景色
+    const maskBackground = isDarkMode 
+      ? "rgba(0, 0, 0, 0.9)" 
+      : "rgba(0, 0, 0, 0.8)";
+    
+    mask.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: ${maskBackground};
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+      opacity: 1;
+    `;
+    
+    const dialog = document.createElement("div");
+    dialog.className = "avatar-crop-dialog";
+    
+    // 根据深色模式选择对话框样式
+    const dialogBackground = isDarkMode 
+      ? "linear-gradient(135deg, #1f2937 0%, #111827 100%)" 
+      : "white";
+    const dialogShadow = isDarkMode 
+      ? "0 20px 40px rgba(0, 0, 0, 0.5)" 
+      : "0 20px 40px rgba(0, 0, 0, 0.3)";
+    
+    dialog.style.cssText = `
+      width: 90vw;
+      max-width: 400px;
+      background: ${dialogBackground};
+      border-radius: 16px;
+      box-shadow: ${dialogShadow};
+      overflow: hidden;
+      position: relative;
+      z-index: 100000;
+      opacity: 1;
+      transform: scale(1);
+      border: ${isDarkMode ? '1px solid rgba(255, 255, 255, 0.1)' : 'none'};
+    `;
+    
+    // 根据深色模式选择内容样式
+    const contentBackground = isDarkMode ? "transparent" : "white";
+    const titleColor = isDarkMode ? "#f9fafb" : "#333";
+    const textColor = isDarkMode ? "#d1d5db" : "#666";
+    const borderColor = isDarkMode ? "#a78bfa" : "#1a73e8";
+    const cancelBg = isDarkMode ? "#374151" : "#f5f5f5";
+    const cancelBorder = isDarkMode ? "#4b5563" : "#ddd";
+    const cancelText = isDarkMode ? "#f9fafb" : "#333";
+    const confirmBg = isDarkMode ? "#a78bfa" : "#1a73e8";
+    
+    // 简化的模态框内容
+    dialog.innerHTML = `
+      <div style="padding: 20px; text-align: center; background: ${contentBackground}; min-height: 300px;">
+        <h3 style="margin: 0 0 16px 0; color: ${titleColor}; font-size: 18px; font-weight: 600;">头像裁剪</h3>
+        <div style="width: 200px; height: 200px; margin: 0 auto 16px; border-radius: 50%; overflow: hidden; border: 3px solid ${borderColor}; box-shadow: 0 4px 12px rgba(0,0,0,${isDarkMode ? '0.3' : '0.15'});">
+          <img src="${imageData}" style="width: 100%; height: 100%; object-fit: cover;" alt="头像预览" onerror="console.log('图片加载失败')">
+        </div>
+        <p style="margin: 0 0 20px 0; color: ${textColor}; font-size: 14px;">圆形头像预览</p>
+        <div style="display: flex; gap: 12px; justify-content: center;">
+          <button id="cancelCrop" style="padding: 10px 20px; border: 1px solid ${cancelBorder}; background: ${cancelBg}; color: ${cancelText}; border-radius: 8px; cursor: pointer; font-size: 14px; transition: all 0.2s;">取消</button>
+          <button id="confirmCrop" style="padding: 10px 20px; border: none; background: ${confirmBg}; color: white; border-radius: 8px; cursor: pointer; font-size: 14px; transition: all 0.2s;">确认</button>
+        </div>
+      </div>
+    `;
+    
+    mask.appendChild(dialog);
+    document.body.appendChild(mask);
+    
+    console.log("[me] 模态框已添加到DOM");
+    
+    // 立即显示，不使用动画
+    setTimeout(() => {
+      console.log("[me] 模态框应该可见了");
+      console.log("[me] 模态框位置:", mask.getBoundingClientRect());
+      console.log("[me] 模态框样式:", mask.style.cssText);
+      // 强制显示
+      mask.style.display = 'flex';
+      mask.style.opacity = '1';
+      mask.style.visibility = 'visible';
+    }, 100);
+    
+    // 关闭函数
+    const close = () => {
+      if (mask.parentNode) mask.remove();
+    };
+    
+    // 事件处理
+    const cancelBtn = dialog.querySelector("#cancelCrop");
+    const confirmBtn = dialog.querySelector("#confirmCrop");
+    
+    // 添加按钮悬停效果
+    if (cancelBtn) {
+      cancelBtn.addEventListener("mouseenter", () => {
+        if (isDarkMode) {
+          cancelBtn.style.background = "#4b5563";
+          cancelBtn.style.borderColor = "#6b7280";
+        } else {
+          cancelBtn.style.background = "#e5e7eb";
+        }
+      });
+      cancelBtn.addEventListener("mouseleave", () => {
+        if (isDarkMode) {
+          cancelBtn.style.background = "#374151";
+          cancelBtn.style.borderColor = "#4b5563";
+        } else {
+          cancelBtn.style.background = "#f5f5f5";
+        }
+      });
+    }
+    
+    if (confirmBtn) {
+      confirmBtn.addEventListener("mouseenter", () => {
+        if (isDarkMode) {
+          confirmBtn.style.background = "#c4b5fd";
+        } else {
+          confirmBtn.style.background = "#1557b0";
+        }
+      });
+      confirmBtn.addEventListener("mouseleave", () => {
+        if (isDarkMode) {
+          confirmBtn.style.background = "#a78bfa";
+        } else {
+          confirmBtn.style.background = "#1a73e8";
+        }
+      });
+    }
+    
+    cancelBtn.addEventListener("click", close, { once: true });
+    mask.addEventListener("click", (e) => {
+      if (e.target === mask) close();
+    });
+    
+    confirmBtn.addEventListener("click", () => {
+      uploadAvatar(imageData, userId, username);
+      close();
+    }, { once: true });
+    
+    // ESC键关闭
+    const escHandler = (e) => {
+      if (e.key === "Escape") {
+        document.removeEventListener("keydown", escHandler);
+        close();
+      }
+    };
+    document.addEventListener("keydown", escHandler);
+    
+    cleanupFns.push(() => {
+      document.removeEventListener("keydown", escHandler);
+      if (mask.parentNode) mask.remove();
+    });
+  }
+  
+  // 上传头像到服务器
+  async function uploadAvatar(imageData, userId, username) {
+    try {
+      console.log("[me] 开始上传头像，用户ID:", userId || username);
+      console.log("[me] API地址:", apiBase + "/upload_avatar");
+      
+      // 前端压缩处理
+      const compressedData = await compressImage(imageData);
+      console.log("[me] 图片压缩完成，压缩后大小:", compressedData.length);
+      
+      const payload = {
+        user_id: userId || username,
+        avatar_data: compressedData
+      };
+      
+      console.log("[me] 发送请求，payload keys:", Object.keys(payload));
+      
+      const response = await fetch(apiBase + "/upload_avatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      
+      console.log("[me] 响应状态:", response.status, response.statusText);
+      
+      const result = await response.json();
+      console.log("[me] 响应数据:", result);
+      
+      if (!response.ok || !result.success) {
+        console.error("[me] 上传失败:", result);
+        showErrorModal(result.message || "头像上传失败");
+        return;
+      }
+      
+      // 更新本地用户数据
+      user.avatar_url = result.data.avatar_url;
+      console.log("[me] 更新头像URL:", user.avatar_url);
+      renderUser();
+      showSuccessModal("头像上传成功");
+      
+    } catch (error) {
+      console.error("[me] 头像上传失败:", error);
+      console.error("[me] 错误详情:", error.message, error.stack);
+      showErrorModal("头像上传失败，请稍后再试");
+    }
+  }
+  
+
   /**
    * Initialize the "Me" page UI.
    * @param {Document|ShadowRoot} rootEl - Scope for DOM queries.
    */
   function initMe(rootEl) {
     const root = rootEl || document; // allow manual boot for standalone use
+    
+    console.log("[me] initMe初始化");
 
     // 震动反馈设置管理
     function getVibrationSetting() {
@@ -362,6 +587,16 @@
     const ageEl = root.querySelector("#displayAge");
     const phoneEl = root.querySelector("#displayPhone");
     const initialsEl = root.querySelector("#avatarInitials");
+    const avatarImageEl = root.querySelector("#avatarImage");
+    
+    // 使用root查询的元素
+    const finalAvatarImageEl = avatarImageEl;
+    const finalInitialsEl = initialsEl;
+    
+    console.log("[me] DOM查询结果:", {
+      avatarImageEl: finalAvatarImageEl,
+      initialsEl: finalInitialsEl
+    });
 
     function renderUser() {
       if (nameEl) nameEl.textContent = user.name || "无";
@@ -374,6 +609,25 @@
             ? "手机号：" + maskPhone(user.phone)
             : "手机号：无";
       if (initialsEl) initialsEl.textContent = initialsFrom(user.name);
+      
+      // 处理头像显示
+      console.log("[me] renderUser - 头像元素:", finalAvatarImageEl, finalInitialsEl);
+      console.log("[me] renderUser - 用户头像URL:", user.avatar_url);
+      
+      if (finalAvatarImageEl && finalInitialsEl) {
+        if (user.avatar_url) {
+          console.log("[me] 显示头像图片:", user.avatar_url);
+          finalAvatarImageEl.src = user.avatar_url;
+          finalAvatarImageEl.style.display = "block";
+          finalInitialsEl.style.display = "none";
+        } else {
+          console.log("[me] 显示用户名首字母");
+          finalAvatarImageEl.style.display = "none";
+          finalInitialsEl.style.display = "grid";
+        }
+      } else {
+        console.warn("[me] 头像元素未找到:", { finalAvatarImageEl, finalInitialsEl });
+      }
     }
 
     // Try to load from backend using stored UserID
@@ -450,7 +704,17 @@
               ? rec.age
               : "无";
           const phone = pick(rec, ["phone", "mobile", "phone_number"], "无");
-          user = { name: username, age, phone };
+          const avatar_url = pick(rec, ["avatar_url", "avatar", "profile_picture"], null);
+          console.log("[me] 从数据库获取的头像URL:", avatar_url);
+          user = { name: username, age, phone, avatar_url };
+          
+          // 确保头像URL是完整的URL
+          if (user.avatar_url && !user.avatar_url.startsWith('http')) {
+            user.avatar_url = apiBase + user.avatar_url;
+            console.log("[me] 完整头像URL:", user.avatar_url);
+          }
+          
+          console.log("[me] 最终用户数据:", user);
           // 后端当前会返回明文密码，这里仅用于“新密码不能与原密码相同”的前端校验，不做任何回显
           currentPassword =
             typeof rec.password === "string" ? rec.password : null;
@@ -894,7 +1158,7 @@
       });
     }
 
-    // 绑定“编辑资料”按钮
+    // 绑定"编辑资料"按钮
     const editBtn = root.querySelector("#editProfileBtn");
     if (editBtn) {
       const editHandler = () => openEditDialog();
@@ -1499,6 +1763,627 @@
       el.addEventListener("click", actionHandler);
       cleanupFns.push(() => el.removeEventListener("click", actionHandler));
     });
+
+    // 头像上传功能
+    const avatarUploadBtn = root.querySelector("#avatarUploadBtn");
+    const avatarFileInput = root.querySelector("#avatarFileInput");
+    
+    console.log("[me] 头像上传按钮:", avatarUploadBtn);
+    console.log("[me] 文件输入:", avatarFileInput);
+    
+    // 头像上传处理函数
+    function handleAvatarUpload(event) {
+      console.log("[me] 文件选择事件触发");
+      console.log("[me] 事件对象:", event);
+      console.log("[me] 事件目标:", event.target);
+      console.log("[me] 文件列表:", event.target.files);
+      
+      const file = event.target.files[0];
+      if (!file) {
+        console.log("[me] 没有选择文件");
+        return;
+      }
+      
+      console.log("[me] 选择的文件:", file.name, file.size, file.type);
+      
+      // 检查文件类型
+      if (!file.type.startsWith('image/')) {
+        showErrorModal('请选择图片文件');
+        return;
+      }
+      
+      // 检查文件大小 (2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        showErrorModal('图片文件过大，请选择小于2MB的图片');
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        console.log("[me] 文件读取完成，显示裁剪界面");
+        showAvatarCropModal(e.target.result, storedId, storedUsername);
+      };
+      reader.readAsDataURL(file);
+    }
+    
+    // 头像裁剪模态框
+    function showAvatarCropModal(imageData, userId, username) {
+      console.log("[me] 显示头像裁剪模态框，图片数据长度:", imageData ? imageData.length : 0);
+      
+      // 检测深色模式
+      const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      console.log("[me] 深色模式:", isDarkMode);
+      
+      // 先移除可能存在的旧模态框
+      const existingMask = document.querySelector('.avatar-crop-mask');
+      if (existingMask) {
+        existingMask.remove();
+      }
+      
+      const mask = document.createElement("div");
+      mask.className = "avatar-crop-mask";
+      
+      // 根据深色模式选择背景色
+      const maskBackground = isDarkMode 
+        ? "rgba(0, 0, 0, 0.9)" 
+        : "rgba(0, 0, 0, 0.8)";
+      
+      mask.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: ${maskBackground};
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 99999;
+        opacity: 1;
+      `;
+      
+      const dialog = document.createElement("div");
+      dialog.className = "avatar-crop-dialog";
+      
+      // 根据深色模式选择对话框样式
+      const dialogBackground = isDarkMode 
+        ? "linear-gradient(135deg, #1f2937 0%, #111827 100%)" 
+        : "white";
+      const dialogShadow = isDarkMode 
+        ? "0 20px 40px rgba(0, 0, 0, 0.5)" 
+        : "0 20px 40px rgba(0, 0, 0, 0.3)";
+      
+      dialog.style.cssText = `
+        width: 90vw;
+        max-width: 400px;
+        background: ${dialogBackground};
+        border-radius: 16px;
+        box-shadow: ${dialogShadow};
+        overflow: hidden;
+        position: relative;
+        z-index: 100000;
+        opacity: 1;
+        transform: scale(1);
+        border: ${isDarkMode ? '1px solid rgba(255, 255, 255, 0.1)' : 'none'};
+      `;
+      
+      // 根据深色模式选择内容样式
+      const contentBackground = isDarkMode ? "transparent" : "white";
+      const titleColor = isDarkMode ? "#f9fafb" : "#333";
+      const textColor = isDarkMode ? "#d1d5db" : "#666";
+      const borderColor = isDarkMode ? "#a78bfa" : "#1a73e8";
+      const cancelBg = isDarkMode ? "#374151" : "#f5f5f5";
+      const cancelBorder = isDarkMode ? "#4b5563" : "#ddd";
+      const cancelText = isDarkMode ? "#f9fafb" : "#333";
+      const confirmBg = isDarkMode ? "#a78bfa" : "#1a73e8";
+      
+      // 裁剪模态框内容
+      dialog.innerHTML = `
+        <div style="padding: 20px; text-align: center; background: ${contentBackground}; min-height: 400px;">
+          <h3 style="margin: 0 0 16px 0; color: ${titleColor}; font-size: 18px; font-weight: 600;">头像裁剪</h3>
+          <div id="cropContainer" style="position: relative; width: 300px; height: 300px; margin: 0 auto 16px; border: 2px solid ${borderColor}; border-radius: 8px; overflow: hidden; background: #f0f0f0; touch-action: none;">
+            <img id="cropImage" src="${imageData}" style="width: 100%; height: 100%; object-fit: contain; cursor: move; user-select: none; pointer-events: none;" alt="裁剪图片">
+            <div id="cropOverlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 200px; height: 200px; border: 3px solid ${borderColor}; border-radius: 50%; background: transparent; cursor: move; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5); pointer-events: none;"></div>
+          </div>
+          <p style="margin: 0 0 20px 0; color: ${textColor}; font-size: 14px;">拖拽调整位置，滚轮/捏合缩放，圆形区域为最终头像</p>
+          <div style="display: flex; gap: 12px; justify-content: center;">
+            <button id="cancelCrop" style="padding: 10px 20px; border: 1px solid ${cancelBorder}; background: ${cancelBg}; color: ${cancelText}; border-radius: 8px; cursor: pointer; font-size: 14px; transition: all 0.2s;">取消</button>
+            <button id="confirmCrop" style="padding: 10px 20px; border: none; background: ${confirmBg}; color: white; border-radius: 8px; cursor: pointer; font-size: 14px; transition: all 0.2s;">确认</button>
+          </div>
+        </div>
+      `;
+      
+      mask.appendChild(dialog);
+      document.body.appendChild(mask);
+      
+      console.log("[me] 模态框已添加到DOM");
+      
+      // 添加拖拽和缩放功能
+      const cropContainer = dialog.querySelector("#cropContainer");
+      const cropImage = dialog.querySelector("#cropImage");
+      const cropOverlay = dialog.querySelector("#cropOverlay");
+      
+      let isDragging = false;
+      let startX = 0;
+      let startY = 0;
+      let currentX = 0;
+      let currentY = 0;
+      let currentScale = 1;
+      let minScale = 0.5;
+      let maxScale = 3;
+      let lastDistance = 0;
+      
+      // 更新图片变换
+      function updateTransform() {
+        cropImage.style.transform = `translate(${currentX}px, ${currentY}px) scale(${currentScale})`;
+      }
+      
+      // 鼠标拖拽事件（在容器上）
+      cropContainer.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startX = e.clientX - currentX;
+        startY = e.clientY - currentY;
+        cropContainer.style.cursor = 'grabbing';
+      });
+      
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        currentX = e.clientX - startX;
+        currentY = e.clientY - startY;
+        updateTransform();
+      });
+      
+      document.addEventListener('mouseup', () => {
+        if (isDragging) {
+          isDragging = false;
+          cropContainer.style.cursor = 'move';
+        }
+      });
+      
+      // 鼠标滚轮缩放（在容器上）
+      cropContainer.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        currentScale = Math.max(minScale, Math.min(maxScale, currentScale + delta));
+        updateTransform();
+      });
+      
+      // 触摸事件支持（在容器上）
+      cropContainer.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (e.touches.length === 1) {
+          isDragging = true;
+          const touch = e.touches[0];
+          startX = touch.clientX - currentX;
+          startY = touch.clientY - currentY;
+        } else if (e.touches.length === 2) {
+          isDragging = false;
+          const touch1 = e.touches[0];
+          const touch2 = e.touches[1];
+          lastDistance = Math.sqrt(
+            Math.pow(touch2.clientX - touch1.clientX, 2) + 
+            Math.pow(touch2.clientY - touch1.clientY, 2)
+          );
+        }
+      });
+      
+      cropContainer.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (e.touches.length === 1 && isDragging) {
+          const touch = e.touches[0];
+          currentX = touch.clientX - startX;
+          currentY = touch.clientY - startY;
+          updateTransform();
+        } else if (e.touches.length === 2) {
+          isDragging = false;
+          const touch1 = e.touches[0];
+          const touch2 = e.touches[1];
+          const distance = Math.sqrt(
+            Math.pow(touch2.clientX - touch1.clientX, 2) + 
+            Math.pow(touch2.clientY - touch1.clientY, 2)
+          );
+          
+          if (lastDistance > 0) {
+            const scaleChange = distance / lastDistance;
+            currentScale = Math.max(minScale, Math.min(maxScale, currentScale * scaleChange));
+            updateTransform();
+          }
+          lastDistance = distance;
+        }
+      });
+      
+      cropContainer.addEventListener('touchend', (e) => {
+        if (e.touches.length === 0) {
+          isDragging = false;
+        }
+      });
+      
+      // 立即显示，不使用动画
+      setTimeout(() => {
+        console.log("[me] 模态框应该可见了");
+        console.log("[me] 模态框位置:", mask.getBoundingClientRect());
+        console.log("[me] 模态框样式:", mask.style.cssText);
+        // 强制显示
+        mask.style.display = 'flex';
+        mask.style.opacity = '1';
+        mask.style.visibility = 'visible';
+      }, 100);
+      
+      // 关闭函数
+      const close = () => {
+        if (mask.parentNode) mask.remove();
+      };
+      
+      // 事件处理
+      const cancelBtn = dialog.querySelector("#cancelCrop");
+      const confirmBtn = dialog.querySelector("#confirmCrop");
+      
+      // 添加按钮悬停效果
+      if (cancelBtn) {
+        cancelBtn.addEventListener("mouseenter", () => {
+          if (isDarkMode) {
+            cancelBtn.style.background = "#4b5563";
+            cancelBtn.style.borderColor = "#6b7280";
+          } else {
+            cancelBtn.style.background = "#e5e7eb";
+          }
+        });
+        cancelBtn.addEventListener("mouseleave", () => {
+          if (isDarkMode) {
+            cancelBtn.style.background = "#374151";
+            cancelBtn.style.borderColor = "#4b5563";
+          } else {
+            cancelBtn.style.background = "#f5f5f5";
+          }
+        });
+      }
+      
+      if (confirmBtn) {
+        confirmBtn.addEventListener("mouseenter", () => {
+          if (isDarkMode) {
+            confirmBtn.style.background = "#c4b5fd";
+          } else {
+            confirmBtn.style.background = "#1557b0";
+          }
+        });
+        confirmBtn.addEventListener("mouseleave", () => {
+          if (isDarkMode) {
+            confirmBtn.style.background = "#a78bfa";
+          } else {
+            confirmBtn.style.background = "#1a73e8";
+          }
+        });
+      }
+      
+      cancelBtn.addEventListener("click", close, { once: true });
+      mask.addEventListener("click", (e) => {
+        if (e.target === mask) close();
+      });
+      
+      confirmBtn.addEventListener("click", () => {
+        // 获取裁剪区域和容器的位置
+        const cropRect = cropOverlay.getBoundingClientRect();
+        const containerRect = cropContainer.getBoundingClientRect();
+        
+        // 计算裁剪区域相对于容器的中心位置
+        const cropCenterX = cropRect.left + cropRect.width / 2 - containerRect.left;
+        const cropCenterY = cropRect.top + cropRect.height / 2 - containerRect.top;
+        const cropRadius = cropRect.width / 2;
+        
+        // 获取图片的原始尺寸
+        const imageNaturalWidth = cropImage.naturalWidth;
+        const imageNaturalHeight = cropImage.naturalHeight;
+        
+        // 计算图片在容器中的实际显示尺寸（object-fit: contain）
+        const containerWidth = containerRect.width;
+        const containerHeight = containerRect.height;
+        
+        let displayWidth, displayHeight, imageOffsetX, imageOffsetY;
+        
+        // 计算图片的显示尺寸（保持宽高比，居中显示）
+        if (imageNaturalWidth / imageNaturalHeight > containerWidth / containerHeight) {
+          // 图片更宽，以容器宽度为准
+          displayWidth = containerWidth;
+          displayHeight = containerWidth * imageNaturalHeight / imageNaturalWidth;
+          imageOffsetX = 0;
+          imageOffsetY = (containerHeight - displayHeight) / 2;
+        } else {
+          // 图片更高，以容器高度为准
+          displayHeight = containerHeight;
+          displayWidth = containerHeight * imageNaturalWidth / imageNaturalHeight;
+          imageOffsetX = (containerWidth - displayWidth) / 2;
+          imageOffsetY = 0;
+        }
+        
+        // 关键修复：考虑用户的拖拽和缩放操作
+        // 1. 计算图片在容器中的实际位置（考虑拖拽偏移）
+        const imageCenterX = containerWidth / 2 + currentX;
+        const imageCenterY = containerHeight / 2 + currentY;
+        
+        // 2. 计算裁剪区域相对于图片中心的位置
+        const relativeToImageX = (cropCenterX - imageCenterX) / (displayWidth * currentScale);
+        const relativeToImageY = (cropCenterY - imageCenterY) / (displayHeight * currentScale);
+        
+        // 3. 转换为相对于原始图片的坐标（0-1）
+        const cropX = 0.5 + relativeToImageX;
+        const cropY = 0.5 + relativeToImageY;
+        
+        // 4. 计算裁剪大小（考虑缩放）
+        const cropSize = cropRadius / (displayWidth * currentScale / 2);
+        
+        // 确保裁剪参数在有效范围内
+        const finalCropX = Math.max(0, Math.min(1, cropX));
+        const finalCropY = Math.max(0, Math.min(1, cropY));
+        const finalCropSize = Math.max(0.1, Math.min(1, cropSize));
+        
+        console.log("[me] 修复后的裁剪参数计算:", { 
+          // 原始数据
+          cropCenterX, cropCenterY, cropRadius,
+          imageOffsetX, imageOffsetY, displayWidth, displayHeight,
+          // 用户操作
+          currentScale, currentX, currentY,
+          // 计算过程
+          imageCenterX, imageCenterY,
+          relativeToImageX, relativeToImageY,
+          // 最终结果
+          cropX, cropY, cropSize,
+          finalCropX, finalCropY, finalCropSize
+        });
+        
+        // 使用新的裁剪逻辑
+        cropAndUploadAvatar(imageData, finalCropX, finalCropY, finalCropSize, userId, username);
+        close();
+      }, { once: true });
+      
+      // ESC键关闭
+      const escHandler = (e) => {
+        if (e.key === "Escape") {
+          document.removeEventListener("keydown", escHandler);
+          close();
+        }
+      };
+      document.addEventListener("keydown", escHandler);
+      
+      cleanupFns.push(() => {
+        document.removeEventListener("keydown", escHandler);
+        if (mask.parentNode) mask.remove();
+      });
+    }
+    
+    // 裁剪并上传头像
+    async function cropAndUploadAvatar(imageData, cropX, cropY, cropSize, userId, username) {
+      try {
+        console.log("[me] 开始裁剪头像，参数:", { cropX, cropY, cropSize });
+        
+        // 创建图片对象
+        const img = new Image();
+        img.onload = async function() {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          // 设置画布尺寸
+          const targetSize = 200;
+          canvas.width = targetSize;
+          canvas.height = targetSize;
+          
+          // 重新计算裁剪区域，确保与预览一致
+          // 获取原始图片尺寸
+          const imgWidth = img.width;
+          const imgHeight = img.height;
+          
+          // 计算裁剪区域的实际像素坐标
+          // cropX, cropY 是相对于图片的坐标（0-1），表示裁剪中心点
+          // cropSize 是相对于图片尺寸的比例（0-1），表示裁剪区域大小
+          
+          const sourceSize = cropSize * Math.min(imgWidth, imgHeight);
+          const sourceX = (cropX * imgWidth) - sourceSize / 2;
+          const sourceY = (cropY * imgHeight) - sourceSize / 2;
+          
+          console.log("[me] 原始裁剪参数:", { cropX, cropY, cropSize });
+          console.log("[me] 图片尺寸:", { imgWidth, imgHeight });
+          console.log("[me] 计算裁剪区域:", { sourceX, sourceY, sourceSize });
+          
+          // 确保裁剪区域在图片范围内
+          const clampedSourceX = Math.max(0, Math.min(imgWidth - sourceSize, sourceX));
+          const clampedSourceY = Math.max(0, Math.min(imgHeight - sourceSize, sourceY));
+          const clampedSourceSize = Math.min(sourceSize, imgWidth - clampedSourceX, imgHeight - clampedSourceY);
+          
+          console.log("[me] 边界检查后:", { clampedSourceX, clampedSourceY, clampedSourceSize });
+          
+          // 先清空画布
+          ctx.clearRect(0, 0, targetSize, targetSize);
+          
+          // 绘制裁剪后的图片
+          ctx.drawImage(
+            img,
+            clampedSourceX, clampedSourceY, clampedSourceSize, clampedSourceSize,
+            0, 0, targetSize, targetSize
+          );
+          
+          // 应用圆形蒙版
+          const maskCanvas = document.createElement('canvas');
+          const maskCtx = maskCanvas.getContext('2d');
+          maskCanvas.width = targetSize;
+          maskCanvas.height = targetSize;
+          
+          // 创建圆形蒙版
+          maskCtx.beginPath();
+          maskCtx.arc(targetSize/2, targetSize/2, targetSize/2, 0, Math.PI * 2);
+          maskCtx.fill();
+          
+          // 应用蒙版
+          ctx.globalCompositeOperation = 'destination-in';
+          ctx.drawImage(maskCanvas, 0, 0);
+          
+          // 转换为base64
+          const croppedData = canvas.toDataURL('image/png', 0.9);
+          console.log("[me] 裁剪完成，数据大小:", croppedData.length);
+          
+          // 上传裁剪后的图片
+          await uploadAvatar(croppedData, userId, username);
+        };
+        
+        img.onerror = function() {
+          console.error("[me] 图片加载失败");
+          showErrorModal("图片处理失败");
+        };
+        
+        img.src = imageData;
+        
+      } catch (error) {
+        console.error("[me] 裁剪头像失败:", error);
+        showErrorModal("头像裁剪失败，请稍后再试");
+      }
+    }
+    
+    // 上传头像到服务器
+    async function uploadAvatar(imageData, userId, username) {
+      try {
+        console.log("[me] 开始上传头像，用户ID:", userId || username);
+        console.log("[me] API地址:", apiBase + "/upload_avatar");
+        
+        // 前端压缩处理
+        const compressedData = await compressImage(imageData);
+        console.log("[me] 图片压缩完成，压缩后大小:", compressedData.length);
+        
+        const payload = {
+          user_id: userId || username,
+          avatar_data: compressedData
+        };
+        
+        console.log("[me] 发送请求，payload keys:", Object.keys(payload));
+        
+        const response = await fetch(apiBase + "/upload_avatar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        
+        console.log("[me] 响应状态:", response.status, response.statusText);
+        
+        const result = await response.json();
+        console.log("[me] 响应数据:", result);
+        
+        if (!response.ok || !result.success) {
+          console.error("[me] 上传失败:", result);
+          showErrorModal(result.message || "头像上传失败");
+          return;
+        }
+        
+        // 更新本地用户数据
+        user.avatar_url = result.data.avatar_url;
+        console.log("[me] 更新头像URL:", user.avatar_url);
+        
+        // 确保头像URL是完整的URL
+        if (user.avatar_url && !user.avatar_url.startsWith('http')) {
+          user.avatar_url = apiBase + user.avatar_url;
+          console.log("[me] 完整头像URL:", user.avatar_url);
+        }
+        
+        renderUser();
+        showSuccessModal("头像上传成功");
+        
+      } catch (error) {
+        console.error("[me] 头像上传失败:", error);
+        console.error("[me] 错误详情:", error.message, error.stack);
+        showErrorModal("头像上传失败，请稍后再试");
+      }
+    }
+    
+    // 压缩图片到目标尺寸
+    async function compressImage(imageData) {
+      return new Promise((resolve, reject) => {
+        console.log("[me] 开始压缩图片");
+        const img = new Image();
+        
+        img.onload = function() {
+          console.log("[me] 图片加载完成，原始尺寸:", img.width, "x", img.height);
+          
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          // 设置目标尺寸
+          const targetSize = 200;
+          canvas.width = targetSize;
+          canvas.height = targetSize;
+          
+          // 先绘制图片
+          ctx.drawImage(img, 0, 0, targetSize, targetSize);
+          
+          // 创建圆形蒙版
+          const maskCanvas = document.createElement('canvas');
+          const maskCtx = maskCanvas.getContext('2d');
+          maskCanvas.width = targetSize;
+          maskCanvas.height = targetSize;
+          
+          // 绘制圆形蒙版
+          maskCtx.beginPath();
+          maskCtx.arc(targetSize/2, targetSize/2, targetSize/2, 0, Math.PI * 2);
+          maskCtx.fill();
+          
+          // 应用蒙版
+          ctx.globalCompositeOperation = 'destination-in';
+          ctx.drawImage(maskCanvas, 0, 0);
+          
+          // 转换为base64
+          const compressedData = canvas.toDataURL('image/png', 0.9);
+          console.log("[me] 图片压缩完成，压缩后大小:", compressedData.length);
+          resolve(compressedData);
+        };
+        
+        img.onerror = function() {
+          console.error("[me] 图片加载失败");
+          reject(new Error("图片加载失败"));
+        };
+        
+        img.src = imageData;
+      });
+    }
+    
+    if (avatarUploadBtn && avatarFileInput) {
+      const uploadHandler = (e) => {
+        console.log("[me] 头像上传按钮被点击");
+        e.preventDefault();
+        e.stopPropagation();
+        triggerVibration('Light');
+        console.log("[me] 触发文件选择器");
+        
+        // 检查文件输入元素状态
+        console.log("[me] 文件输入状态:", {
+          disabled: avatarFileInput.disabled,
+          hidden: avatarFileInput.hidden,
+          style: avatarFileInput.style.display,
+          offsetParent: avatarFileInput.offsetParent
+        });
+        
+        // 直接触发文件选择，使用原有的头像裁剪功能
+        try {
+          avatarFileInput.click();
+          console.log("[me] 文件选择器已触发");
+        } catch (error) {
+          console.error("[me] 触发文件选择器失败:", error);
+        }
+      };
+      
+      avatarUploadBtn.addEventListener("click", uploadHandler);
+      cleanupFns.push(() => avatarUploadBtn.removeEventListener("click", uploadHandler));
+      
+      // 保留原有的文件选择功能作为备用
+      console.log("[me] 绑定文件选择事件监听器");
+      avatarFileInput.addEventListener("change", handleAvatarUpload);
+      cleanupFns.push(() => avatarFileInput.removeEventListener("change", handleAvatarUpload));
+      
+      // 添加额外的调试信息
+      console.log("[me] 文件输入元素:", avatarFileInput);
+      console.log("[me] 文件输入属性:", {
+        type: avatarFileInput.type,
+        accept: avatarFileInput.accept,
+        style: avatarFileInput.style.display
+      });
+    } else {
+      console.warn("[me] 头像上传按钮或文件输入未找到");
+    }
   }
 
   /**

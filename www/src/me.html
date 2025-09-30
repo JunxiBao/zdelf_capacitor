@@ -34,8 +34,12 @@
       <!-- Profile Card: shows avatar, name, email, and edit button -->
       <section class="card" aria-label="用户资料">
         <div class="profile">
-          <div class="avatar" aria-hidden="true">
+          <div class="avatar" aria-hidden="true" id="avatarContainer">
             <div class="avatar-inner" id="avatarInitials">JB</div>
+            <img id="avatarImage" class="avatar-image" style="display: none;" alt="用户头像">
+            <button class="avatar-upload-btn" id="avatarUploadBtn" aria-label="上传头像">
+              <span class="material-icons-outlined">camera_alt</span>
+            </button>
           </div>
           <div class="profile-info">
             <div class="name" id="displayName">Junxi Bao</div>
@@ -119,6 +123,8 @@
         </button>
       </div>
 
+      <!-- 隐藏的文件输入 -->
+      <input type="file" id="avatarFileInput" accept="image/*" style="display: none;">
 
     </main>
   </body>
