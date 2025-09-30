@@ -934,6 +934,10 @@ function searchInMetricsContentOptimized(content, keyword) {
   const metricsData = content.metricsData || {};
   console.log(`🔍 优化搜索健康指标: "${keyword}"`);
   
+  // 增强搜索：支持分词和模糊匹配
+  const searchTerms = keyword.split(/\s+/).filter(term => term.length > 0);
+  console.log(`🔍 搜索词分解:`, searchTerms);
+  
   // 1. 症状搜索（最高优先级）
   if (metricsData.symptoms?.items && Array.isArray(metricsData.symptoms.items)) {
     for (const symptom of metricsData.symptoms.items) {
@@ -941,6 +945,12 @@ function searchInMetricsContentOptimized(content, keyword) {
       const symptomTypeText = getSymptomTypeText(symptom.type);
       if (symptomTypeText.toLowerCase().includes(keyword)) {
         console.log(`✅ 症状类型匹配: "${symptomTypeText}"`);
+        return true;
+      }
+      
+      // 增强：直接匹配症状类型代码
+      if (symptom.type && symptom.type.toLowerCase().includes(keyword)) {
+        console.log(`✅ 症状类型代码匹配: "${symptom.type}"`);
         return true;
       }
       // 症状描述匹配
@@ -952,6 +962,17 @@ function searchInMetricsContentOptimized(content, keyword) {
       if (symptom.detail && symptom.detail.toLowerCase().includes(keyword)) {
         console.log(`✅ 症状详情匹配: "${symptom.detail}"`);
         return true;
+      }
+      
+      // 增强：分词匹配
+      if (searchTerms.length > 1) {
+        const allFields = [symptomTypeText, symptom.description, symptom.detail].filter(Boolean);
+        const allFieldsText = allFields.join(' ').toLowerCase();
+        const allTermsMatch = searchTerms.every(term => allFieldsText.includes(term));
+        if (allTermsMatch) {
+          console.log(`✅ 症状分词匹配: "${allFieldsText}"`);
+          return true;
+        }
       }
     }
   }
@@ -1041,13 +1062,17 @@ function searchInDietContentOptimized(content, keyword) {
   console.log(`🔍 优化搜索饮食内容: "${keyword}"`);
   console.log(`🍽️ 饮食数据结构:`, dietData);
   
+  // 增强搜索：支持分词和模糊匹配
+  const searchTerms = keyword.split(/\s+/).filter(term => term.length > 0);
+  console.log(`🔍 搜索词分解:`, searchTerms);
+  
   // 饮食数据结构：{ "meal_1": { time: "08:00", food: "早餐", mealId: 1, images: [] }, ... }
   for (const [mealKey, meal] of Object.entries(dietData)) {
     if (!meal || typeof meal !== 'object') continue;
     
     console.log(`🔍 检查餐次: ${mealKey}`, meal);
     
-    // 只搜索食物名称，但添加智能过滤
+    // 完全匹配
     if (meal.food && meal.food.toLowerCase().includes(keyword)) {
       console.log(`🔍 食物名称包含关键字: "${meal.food}"`);
       // 过滤无意义的食物名称
@@ -1057,8 +1082,22 @@ function searchInDietContentOptimized(content, keyword) {
       } else {
         console.log(`⚠️ 跳过无意义食物匹配: "${meal.food}"`);
       }
-    } else {
-      console.log(`❌ 食物名称不包含关键字: "${meal.food}"`);
+    }
+    
+    // 增强：分词匹配
+    if (searchTerms.length > 1 && meal.food) {
+      const foodText = meal.food.toLowerCase();
+      const allTermsMatch = searchTerms.every(term => foodText.includes(term));
+      if (allTermsMatch && isValidFoodName(meal.food, keyword)) {
+        console.log(`✅ 食物分词匹配: "${meal.food}"`);
+        return true;
+      }
+    }
+    
+    // 增强：时间搜索
+    if (meal.time && meal.time.toLowerCase().includes(keyword)) {
+      console.log(`✅ 用餐时间匹配: "${meal.time}"`);
+      return true;
     }
   }
   
@@ -1184,6 +1223,19 @@ function searchInCaseContentOptimized(content, keyword) {
   console.log(`🔍 优化搜索病例内容: "${keyword}"`);
   console.log(`🏥 病例数据结构:`, content);
   
+  // 调试：检查是否包含紫癜相关内容
+  if (keyword.includes('紫癜') || keyword.includes('紫癜')) {
+    console.log(`🔍 搜索紫癜相关关键词，检查数据结构:`);
+    console.log(`- caseInfo:`, content.caseInfo);
+    console.log(`- 诊断字段:`, content.caseInfo?.diagnosis);
+    console.log(`- 症状字段:`, content.caseInfo?.symptoms);
+    console.log(`- 完整内容:`, JSON.stringify(content, null, 2));
+  }
+  
+  // 增强搜索：支持分词和模糊匹配
+  const searchTerms = keyword.split(/\s+/).filter(term => term.length > 0);
+  console.log(`🔍 搜索词分解:`, searchTerms);
+  
   // 1. 病例基本信息搜索（高优先级）
   if (content.caseInfo) {
     const caseInfo = content.caseInfo;
@@ -1203,6 +1255,16 @@ function searchInCaseContentOptimized(content, keyword) {
         console.log(`✅ 病例${label}匹配: "${caseInfo[field]}"`);
         return true;
       }
+      
+      // 增强：分词匹配
+      if (searchTerms.length > 1 && caseInfo[field]) {
+        const fieldText = caseInfo[field].toLowerCase();
+        const allTermsMatch = searchTerms.every(term => fieldText.includes(term));
+        if (allTermsMatch) {
+          console.log(`✅ 病例${label}分词匹配: "${caseInfo[field]}"`);
+          return true;
+        }
+      }
     }
     
     // 医疗信息搜索（中优先级）
@@ -1217,6 +1279,16 @@ function searchInCaseContentOptimized(content, keyword) {
       if (caseInfo[field] && caseInfo[field].toLowerCase().includes(keyword)) {
         console.log(`✅ 病例${label}匹配: "${caseInfo[field]}"`);
         return true;
+      }
+      
+      // 增强：分词匹配
+      if (searchTerms.length > 1 && caseInfo[field]) {
+        const fieldText = caseInfo[field].toLowerCase();
+        const allTermsMatch = searchTerms.every(term => fieldText.includes(term));
+        if (allTermsMatch) {
+          console.log(`✅ 病例${label}分词匹配: "${caseInfo[field]}"`);
+          return true;
+        }
       }
     }
   }
@@ -1234,6 +1306,30 @@ function searchInCaseContentOptimized(content, keyword) {
         return true;
       }
     }
+  }
+  
+  // 增强：搜索所有文本内容（包括嵌套对象）
+  const searchInNestedContent = (obj, searchTerm) => {
+    if (typeof obj === 'string') {
+      return obj.toLowerCase().includes(searchTerm);
+    }
+    if (typeof obj === 'object' && obj !== null) {
+      for (const [key, value] of Object.entries(obj)) {
+        if (typeof value === 'string' && value.toLowerCase().includes(searchTerm)) {
+          console.log(`✅ 嵌套内容匹配: "${key}" = "${value}"`);
+          return true;
+        }
+        if (typeof value === 'object' && searchInNestedContent(value, searchTerm)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+  
+  if (searchInNestedContent(content, keyword)) {
+    console.log(`✅ 嵌套内容搜索匹配: "${keyword}"`);
+    return true;
   }
   
   // 3. 用药信息搜索（中优先级）
@@ -1375,19 +1471,33 @@ async function renderFinalSearchResults(filteredData) {
     return;
   }
   
-  // 按时间分组
+  // 按时间分组 - 显示完整的记录时间（日期+时间）
   const groupedData = {};
   for (const item of filteredData) {
     const time = item.sortTime || item.created_at;
-    const timeStr = new Date(time).toLocaleTimeString('zh-CN', { 
+    // 获取完整的记录时间，优先使用 recordTime，回退到 exportTime，最后是 created_at
+    const recordTime = item.content?.recordTime || 
+                      item.content?.exportInfo?.recordTime || 
+                      item.content?.exportInfo?.exportTime || 
+                      time;
+    
+    // 格式化显示：日期 + 时间
+    const dateTime = new Date(recordTime);
+    const dateStr = dateTime.toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit', 
+      day: '2-digit'
+    });
+    const timeStr = dateTime.toLocaleTimeString('zh-CN', { 
       hour: '2-digit', 
       minute: '2-digit' 
     });
+    const fullTimeStr = `${dateStr} ${timeStr}`;
     
-    if (!groupedData[timeStr]) {
-      groupedData[timeStr] = [];
+    if (!groupedData[fullTimeStr]) {
+      groupedData[fullTimeStr] = [];
     }
-    groupedData[timeStr].push(item);
+    groupedData[fullTimeStr].push(item);
   }
   
   console.log(`⏰ 时间分组结果:`, groupedData);
@@ -1411,14 +1521,20 @@ async function renderFinalSearchResults(filteredData) {
     timelineItems.push(`
       <div class="timeline-item">
         <div class="timeline-node"></div>
-        <div class="timeline-time">${time}</div>
+        <div class="timeline-time" title="记录时间: ${time}">${time}</div>
         ${itemHTMLs.join('')}
       </div>
     `);
   }
   
-  // 创建完整的时间线HTML
+  // 创建完整的时间线HTML，包含搜索结果统计
   const timelineHTML = `
+    <div class="search-results-header">
+      <div class="search-results-count">
+        <span class="search-icon">🔍</span>
+        <span class="results-text">找到 ${filteredData.length} 条记录</span>
+      </div>
+    </div>
     <div class="timeline-container">
       <div class="timeline-line"></div>
       ${timelineItems.join('')}
@@ -1461,8 +1577,8 @@ function getSearchResultSummary(item) {
 }
 
 /**
- * loadUserDataCardsForSearch — 专门用于搜索时加载三个月内数据
- * 不使用缓存，直接发起网络请求
+ * loadUserDataCardsForSearch — 专门用于搜索时加载数据（优化版）
+ * 智能缓存策略：优先使用缓存，缓存过期时重新加载
  */
 function loadUserDataCardsForSearch() {
   return new Promise((resolve) => {
@@ -1475,6 +1591,25 @@ function loadUserDataCardsForSearch() {
       console.warn('⚠️ 未获取到有效 userId，跳过搜索数据加载');
       resolve();
       return;
+    }
+
+    // 检查缓存是否有效（1小时内有效）
+    const cacheKey = `searchData_${userId}`;
+    const cacheTimeKey = `searchDataTime_${userId}`;
+    const cachedData = localStorage.getItem(cacheKey);
+    const cacheTime = localStorage.getItem(cacheTimeKey);
+    const now = Date.now();
+    const oneHour = 60 * 60 * 1000;
+    
+    if (cachedData && cacheTime && (now - parseInt(cacheTime)) < oneHour) {
+      console.log('🚀 使用缓存的搜索数据');
+      try {
+        searchDataCards = JSON.parse(cachedData);
+        resolve();
+        return;
+      } catch (e) {
+        console.warn('⚠️ 缓存数据解析失败，重新加载');
+      }
     }
 
     // 计算三个月前的时间范围
@@ -1537,6 +1672,15 @@ function loadUserDataCardsForSearch() {
       // 更新搜索数据（独立存储）
       searchDataCards = augmented;
       console.log(`🔍 搜索数据更新：${searchDataCards.length} 条记录`);
+      
+      // 缓存搜索数据
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(augmented));
+        localStorage.setItem(cacheTimeKey, now.toString());
+        console.log('💾 搜索数据已缓存');
+      } catch (e) {
+        console.warn('⚠️ 搜索数据缓存失败:', e);
+      }
       
       resolve();
     }).catch(err => {

@@ -684,26 +684,58 @@ body {
   box-shadow: 0 4px 16px rgba(98, 0, 234, 0.5), 0 0 0 6px rgba(98, 0, 234, 0.15);
 }
 
-/* 时间标签 */
+/* 时间标签 - 优化显示完整记录时间 */
 .timeline-time {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 700;
   color: #6200ea;
   margin-bottom: 10px;
   background: linear-gradient(135deg, rgba(98, 0, 234, 0.08) 0%, rgba(124, 58, 237, 0.12) 100%);
-  padding: 5px 12px;
+  padding: 6px 14px;
   border-radius: 14px;
   display: inline-block;
   border: 1px solid rgba(98, 0, 234, 0.15);
   box-shadow: 0 1px 6px rgba(98, 0, 234, 0.08);
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
   transition: all 0.3s ease;
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .timeline-time:hover {
   background: linear-gradient(135deg, rgba(98, 0, 234, 0.15) 0%, rgba(124, 58, 237, 0.2) 100%);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(98, 0, 234, 0.2);
+}
+
+/* 搜索结果头部 */
+.search-results-header {
+  margin-bottom: 20px;
+  padding: 0 20px;
+}
+
+.search-results-count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, rgba(98, 0, 234, 0.1) 0%, rgba(124, 58, 237, 0.15) 100%);
+  border: 1px solid rgba(98, 0, 234, 0.2);
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #6200ea;
+  box-shadow: 0 2px 8px rgba(98, 0, 234, 0.1);
+}
+
+.search-icon {
+  font-size: 1rem;
+}
+
+.results-text {
+  letter-spacing: 0.3px;
 }
 
 /* 时间线内容卡片 */
