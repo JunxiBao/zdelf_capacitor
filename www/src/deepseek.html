@@ -638,8 +638,8 @@
           marked.setOptions({ breaks: true, mangle: false, headerIds: false });
         }
         
-        // 恢复会话ID
-        restoreSessionId();
+        // 每次进入页面都重置会话：清理上次会话并生成新的 session_id
+        resetSessionForNewPageOpen();
         
         generateGreeting();
         
@@ -665,6 +665,7 @@
             if (window.__hapticImpact__) {
               window.__hapticImpact__('Light');
             }
+            analysisConfirmed = true;
             hideDataAnalysisModal();
           });
         }
@@ -717,12 +718,32 @@
       // 数据分析模式状态
       let dataAnalysisMode = false;
       let userData = null;
+      let analysisConfirmed = false;
       
       // 生成会话ID
       function generateSessionId() {
         return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
       }
       
+      // 每次进入页面都重置会话：清理上次会话并生成新的 session_id
+      async function resetSessionForNewPageOpen() {
+        try {
+          const prev = localStorage.getItem('qwen_session_id');
+          if (prev) {
+            const apiBase = window.__API_BASE__ || (window.parent && window.parent.__API_BASE__) || 'https://app.zdelf.cn';
+            const baseUrl = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase;
+            // 后台清理旧会话（无需阻塞）
+            fetch(`${baseUrl}/deepseek/clear_session`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ session_id: prev })
+            }).catch(()=>{});
+          }
+        } catch (_) {}
+        currentSessionId = generateSessionId();
+        try { localStorage.setItem('qwen_session_id', currentSessionId); } catch (_) {}
+      }
+
       // 获取或创建会话ID
       function getSessionId() {
         if (!currentSessionId) {
@@ -731,14 +752,6 @@
           localStorage.setItem('qwen_session_id', currentSessionId);
         }
         return currentSessionId;
-      }
-      
-      // 从localStorage恢复会话ID
-      function restoreSessionId() {
-        const saved = localStorage.getItem('qwen_session_id');
-        if (saved) {
-          currentSessionId = saved;
-        }
       }
       
       // 切换数据分析模式
@@ -931,8 +944,9 @@
           };
           
           // 如果启用了数据分析模式，添加分析模式标志
-          if (dataAnalysisMode) {
+          if (dataAnalysisMode && analysisConfirmed) {
             requestData.analysis_mode = true;
+            requestData.analysis_confirmed = true;
             // 添加用户ID，后端会直接读取数据库
             requestData.user_id = localStorage.getItem('userId') || 'default_user';
           }
@@ -983,8 +997,9 @@
           };
           
           // 如果启用了数据分析模式，添加分析模式标志
-          if (dataAnalysisMode) {
+          if (dataAnalysisMode && analysisConfirmed) {
             requestData.analysis_mode = true;
+            requestData.analysis_confirmed = true;
             // 添加用户ID，后端会直接读取数据库
             requestData.user_id = localStorage.getItem('userId') || 'default_user';
           }
