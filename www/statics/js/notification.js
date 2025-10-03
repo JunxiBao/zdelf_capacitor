@@ -25,6 +25,7 @@
   // Capacitor LocalNotifications 插件
   let LocalNotifications = null;
   let Capacitor = null;
+  let listenersBound = false; // 防重复绑定监听器
 
   // Backend API base: absolute by default; can be overridden via window.__API_BASE__
   const __API_BASE_DEFAULT__ = (typeof window !== 'undefined' && window.__API_BASE__) || 'https://app.zdelf.cn';
@@ -86,7 +87,7 @@
       const target = reminders.find(r => r.id === reminderId);
       // 清理fallback定时器
       if (reminderTimeouts.has(reminderId)) { clearTimeout(reminderTimeouts.get(reminderId)); reminderTimeouts.delete(reminderId); }
-      // 清理所有该提醒相关的“按时间点”定时器
+      // 清理所有该提醒相关的"按时间点"定时器
       [...reminderTimeouts.keys()].forEach(key => {
         if (typeof key === 'string' && key.startsWith(reminderId + '|')) {
           clearTimeout(reminderTimeouts.get(key));
@@ -506,7 +507,7 @@
       <div class=\"reminder-card\" data-id=\"${reminder.id}\">\n        <div class=\"reminder-header\">\n          <h3 class=\"medication-name\">${reminder.name}</h3>\n          <span class=\"reminder-time\">${rangeText}</span>\n        </div>\n        ${reminder.dosage ? `<div class=\\\"reminder-details\\\">剂量：${reminder.dosage}</div>` : ''}\n        ${intervalText ? `<div class=\\\"reminder-details\\\">${intervalText}</div>` : ''}\n        ${timesHtml}\n        ${reminder.notes ? `<div class=\\\"reminder-details\\\">备注：${reminder.notes}</div>` : ''}\n        <div class=\"reminder-actions\">\n          <button class=\"btn btn-secondary\" data-action=\"edit\" data-id=\"${reminder.id}\">编辑</button>\n          <button class=\"btn btn-danger\" data-action=\"delete\" data-id=\"${reminder.id}\">删除</button>\n        </div>\n      </div>`;
     }).join('');
 
-    // 添加“新增提醒”虚线卡片
+    // 添加"新增提醒"虚线卡片
     const addCardHtml = `
       <div class="reminder-card add-card" id="addReminderCard">
         <div class="add-card-inner">增加用药提醒</div>
@@ -1495,15 +1496,7 @@
       scheduledNotificationIds.clear(); // 清除已调度的通知ID
 
       if (LocalNotifications) {
-        // 先取消所有现有通知，防止重复
-        try {
-          await LocalNotifications.cancel({ notifications: [{ id: 0 }] }); // 取消所有通知
-          console.log('🧹 已取消所有现有通知');
-        } catch (error) {
-          console.warn('⚠️ 取消现有通知失败:', error);
-        }
-
-        // 使用Capacitor本地通知调度（逐条调度）
+        // 使用Capacitor本地通知调度（逐条调度）；不再全量取消，改为逐条按需取消
         const notifications = [];
         const cancelList = [];
 
@@ -1587,7 +1580,8 @@
               actionTypeId: 'medication_reminder',
               extra: {
                 reminderId: reminder.id,
-                medicationName: reminder.name
+                medicationName: reminder.name,
+                plannedAt: firstTime.getTime()
               }
             });
           });
@@ -1902,7 +1896,8 @@
           actionTypeId: 'medication_reminder',
           extra: {
             reminderId: reminder.id,
-            medicationName: reminder.name
+            medicationName: reminder.name,
+            plannedAt: Date.now()
           }
         };
 
@@ -1938,7 +1933,7 @@
 
       console.log('🔔 通知已发送:', reminder.name, '时间:', new Date().toLocaleString('zh-CN'));
 
-      // 非循环：仅当“今天所有时间点都发完”才删除；否则继续等今天的下一个时间点
+      // 非循环：仅当"今天所有时间点都发完"才删除；否则继续等今天的下一个时间点
       if (!reminder.repeatInterval || reminder.repeatInterval === 'none') {
         const nextToday = getNextTimeToday(reminder, new Date());
         if (nextToday) {
@@ -2062,7 +2057,7 @@
       if (atMs < nowMs) atMs = nowMs + 500;
       const at = new Date(atMs);
 
-      // 对于按多个时间点调度，按“明确定点时间”的ID来调度，以便与启用状态对齐
+      // 对于按多个时间点调度，按"明确定点时间"的ID来调度，以便与启用状态对齐
       const enabledTimes = [...(reminder.dailyTimes || [])].filter(Boolean).filter(t => isTimeEnabled(reminder, t)).sort();
       const nextTimeHHMM = nextAt.toTimeString().slice(0, 5);
       const idKey = enabledTimes.includes(nextTimeHHMM) ? (reminder.id + '|' + nextTimeHHMM) : reminder.id;
@@ -2079,7 +2074,7 @@
           schedule: { at },
           sound: 'default',
           actionTypeId: 'medication_reminder',
-          extra: { reminderId: reminder.id, medicationName: reminder.name }
+          extra: { reminderId: reminder.id, medicationName: reminder.name, plannedAt: at.getTime() }
         }]
       });
       // 同步UI推进窗口
@@ -2160,17 +2155,9 @@
     sentNotifications.clear(); // 清除已发送通知记录
     lastNotificationTime.clear(); // 清除最后通知时间
 
-    // 取消所有Capacitor通知
-    if (LocalNotifications) {
-      try {
-        LocalNotifications.cancel({ notifications: [{ id: 0 }] }); // 取消所有通知
-        console.log('🧹 已取消所有Capacitor通知');
-      } catch (error) {
-        console.warn('⚠️ 取消Capacitor通知失败:', error);
-      }
-    }
+    // 不取消原生通知，保证后台调度持续生效
 
-    // 清除当前的root引用
+    // 清理当前的root引用
     currentRoot = null;
     isActiveReminderView = false;
     isSettingUpReminders = false;
@@ -2195,9 +2182,56 @@
   }
 
   function catchUpOverdueReminders() {
-    // 不再自动推进提醒时间，避免页面切换时重复发送
-    // 只更新UI显示，不触发通知
-    console.log('⏰ 跳过自动推进，避免重复发送');
+    // 进入/恢复页面时，对已过时间点的提醒做"静默对齐"：
+    // - 不发送通知
+    // - 仅推进到下一个计划时间或删除一次性提醒
+    try {
+      const now = new Date();
+      const toDelete = [];
+
+      reminders.forEach((reminder) => {
+        if (!(reminder && reminder.dailyCount > 0 && Array.isArray(reminder.dailyTimes) && reminder.dailyTimes.length > 0)) return;
+
+        // 若已超过结束日期，则直接删除
+        if (isReminderExpired(reminder, now)) {
+          toDelete.push(reminder.id);
+          return;
+        }
+
+        // 一次性（不循环）：若今天没有剩余时间点，删除；否则推进到今天的下一个时间
+        if (!reminder.repeatInterval || reminder.repeatInterval === 'none') {
+          const nextToday = getNextTimeToday(reminder, now);
+          if (nextToday) {
+            scheduleUiAdvance(reminder.id, nextToday);
+          } else {
+            toDelete.push(reminder.id);
+          }
+          return;
+        }
+
+        // 循环：计算从当前时刻开始的下一次触发时间
+        const baseDateStr = (() => {
+          const y = now.getFullYear();
+          const m = String(now.getMonth() + 1).padStart(2, '0');
+          const d = String(now.getDate()).padStart(2, '0');
+          return `${y}-${m}-${d}`;
+        })();
+        const nextAt = computeNextTime(reminder, new Date(`${baseDateStr}T00:00:00`), now);
+
+        // 若下一次已超出结束日期，则删除，否则推进UI到 nextAt
+        if (!nextAt || isReminderExpired(reminder, nextAt)) {
+          toDelete.push(reminder.id);
+        } else {
+          scheduleUiAdvance(reminder.id, nextAt);
+        }
+      });
+
+      toDelete.forEach((rid) => { try { hardDeleteReminder(rid); } catch (_) { } });
+      if (currentRoot) renderReminders(currentRoot);
+      console.log('⏰ 已对齐过期提醒（静默推进/清理）。');
+    } catch (e) {
+      console.warn('⏰ 对齐过期提醒失败:', e);
+    }
   }
 
   function scheduleUiAdvance(reminderId, atDate) {
@@ -2356,7 +2390,13 @@
       return;
     }
 
+    // 防止重复绑定
+    if (listenersBound) {
+      return;
+    }
+
     try {
+      listenersBound = true;
       // 监听通知接收事件（前台触达）
       LocalNotifications.addListener('localNotificationReceived', (notification) => {
         console.log('🔔 收到通知:', notification);
@@ -2374,6 +2414,20 @@
           return;
         }
 
+        // 时间窗口与冷却期校验，避免非计划时间的立即触发导致刷屏
+        const planned = (notification && notification.extra && notification.extra.plannedAt) || allowedFireAt.get(rid) || null;
+        const nowMs = Date.now();
+        const EARLY = 90 * 1000; // 最早提前90秒
+        const LATE = 5 * 60 * 1000; // 最迟滞后5分钟
+        if (!planned || nowMs < planned - EARLY || nowMs > planned + LATE) {
+          console.warn('🔔 跳过超出允许窗口的通知:', { rid, planned, nowMs });
+          return;
+        }
+        if (!canSendNotification(rid)) {
+          console.log('⏰ 冷却中，跳过处理:', rid);
+          return;
+        }
+
         const r = reminders.find(x => x.id === rid);
         if (!r) {
           console.log('🔔 找不到对应的提醒，跳过:', rid);
@@ -2385,6 +2439,12 @@
         // 设置处理冷却期，防止重复处理同一个通知
         const notificationId = notification.id || 'unknown';
         handledNotificationIds.add(notificationId);
+
+        // 记录冷却，防止重复
+        try {
+          lastNotificationTime.set(rid, nowMs);
+          notificationCooldown.set(rid, nowMs + 2 * 60 * 1000);
+        } catch (_) { }
 
         if (!r.repeatInterval || r.repeatInterval === 'none') {
           const nextToday = getNextTimeToday(r, new Date());
