@@ -65,6 +65,11 @@
   let scheduledNotificationIds = new Set(); // 已调度的通知ID，防止重复调度
   let notificationCooldown = new Map(); // 通知冷却期管理
 
+  // 预排程配置（滚动窗口）
+  const ROLLING_SCHEDULE_DAYS = 7; // 未来预排程的天数窗口
+  const MAX_SCHEDULE_PER_REMINDER = 32; // 每个提醒最多同时挂起的原生通知数
+  const MAX_SCHEDULE_TOTAL = 64; // 全局最多同时挂起的原生通知数（iOS上常见限制）
+
   // 依据提醒ID生成稳定的数字通知ID，避免重复调度
   function stableIdFromString(str) {
     try {
@@ -77,6 +82,91 @@
       return hash === 0 ? 1 : hash; // 避免0
     } catch (_) {
       return Math.floor(Math.random() * 900000) + 100000;
+    }
+  }
+
+  // 日期格式化：YYYY-MM-DD（本地时区）
+  function formatDateYMD(d) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  // 生成未来一段时间内的触发时间点（按启用的 dailyTimes），不含过去时刻
+  function enumerateUpcomingOccurrences(reminder, fromTime, maxDays, perReminderCap) {
+    const occurrences = [];
+    if (!(reminder && reminder.dailyCount > 0 && Array.isArray(reminder.dailyTimes) && reminder.dailyTimes.length > 0)) return occurrences;
+    const enabledTimes = [...reminder.dailyTimes].filter(Boolean).filter(t => isTimeEnabled(reminder, t)).sort();
+    if (enabledTimes.length === 0) return occurrences;
+
+    const now = new Date(fromTime);
+    const startBoundary = reminder.startDate ? new Date(`${reminder.startDate}T00:00:00`) : null;
+    const endBoundary = reminder.endDate ? new Date(`${reminder.endDate}T23:59:59`) : null;
+
+    for (let dayOffset = 0; dayOffset < maxDays; dayOffset++) {
+      const day = new Date(now);
+      day.setHours(0, 0, 0, 0);
+      day.setDate(day.getDate() + dayOffset);
+      if (startBoundary && day < startBoundary) continue;
+      if (endBoundary && day > endBoundary) break;
+
+      const ymd = formatDateYMD(day);
+      for (const t of enabledTimes) {
+        const at = new Date(`${ymd}T${t}:00`);
+        if (at <= now) continue; // 跳过过去时刻
+        if (endBoundary && at > endBoundary) continue;
+        occurrences.push(at);
+        if (occurrences.length >= perReminderCap) return occurrences;
+      }
+    }
+    return occurrences;
+  }
+
+  // 构建一个原生通知对象（带日期+时间唯一ID）
+  function buildScheduledNotification(reminder, at, title, body) {
+    const dateStr = formatDateYMD(at);
+    const timeStr = at.toTimeString().slice(0, 5); // HH:MM
+    const idKey = `${reminder.id}|${dateStr}|${timeStr}`;
+    return {
+      id: stableIdFromString(idKey),
+      title,
+      body,
+      schedule: { at },
+      sound: 'default',
+      actionTypeId: 'medication_reminder',
+      extra: {
+        reminderId: reminder.id,
+        medicationName: reminder.name,
+        plannedAt: at.getTime(),
+        dateStr,
+        timeStr
+      }
+    };
+  }
+
+  // 取消某个提醒下的所有待触发原生通知（优先使用 getPending）
+  async function cancelAllScheduledForReminder(reminderId) {
+    if (!LocalNotifications) return;
+    try {
+      if (typeof LocalNotifications.getPending === 'function') {
+        const pending = await LocalNotifications.getPending();
+        const toCancel = (pending && pending.notifications ? pending.notifications : [])
+          .filter(n => n && n.extra && n.extra.reminderId === reminderId)
+          .map(n => ({ id: n.id }));
+        if (toCancel.length > 0) {
+          try { await LocalNotifications.cancel({ notifications: toCancel }); } catch (_) { }
+        }
+      }
+    } catch (_) { }
+  }
+
+  // 分批调度，避免一次性过大数组
+  async function scheduleNotificationsChunked(notifications, chunkSize = 16) {
+    if (!LocalNotifications || !Array.isArray(notifications) || notifications.length === 0) return;
+    for (let i = 0; i < notifications.length; i += chunkSize) {
+      const chunk = notifications.slice(i, i + chunkSize);
+      try { await LocalNotifications.schedule({ notifications: chunk }); } catch (e) { console.error('❌ 调度分批失败:', e); throw e; }
     }
   }
 
@@ -101,16 +191,13 @@
       }
       // 清理允许窗口
       if (allowedFireAt.has(reminderId)) allowedFireAt.delete(reminderId);
-      // 取消原生通知
+      // 取消原生通知（包括日期+时间预排程）
+      await cancelAllScheduledForReminder(reminderId);
       if (LocalNotifications) {
-        const cancelIds = [];
-        // 取消旧的通用ID
-        cancelIds.push({ id: stableIdFromString(reminderId) });
-        // 取消每个时间点的ID
+        // 兼容旧ID的清理
+        const cancelIds = [{ id: stableIdFromString(reminderId) }];
         if (target && Array.isArray(target.dailyTimes)) {
-          target.dailyTimes.filter(Boolean).forEach(t => {
-            cancelIds.push({ id: stableIdFromString(reminderId + '|' + t) });
-          });
+          target.dailyTimes.filter(Boolean).forEach(t => cancelIds.push({ id: stableIdFromString(reminderId + '|' + t) }));
         }
         try { await LocalNotifications.cancel({ notifications: cancelIds }); } catch (_) { }
       }
@@ -1427,14 +1514,13 @@
         }
       });
 
-      // 取消Capacitor通知（使用稳定ID）
+      // 取消Capacitor通知（包括日期+时间预排程）
+      await cancelAllScheduledForReminder(reminderId);
       if (LocalNotifications) {
-        const cancelIds = [];
-        cancelIds.push({ id: stableIdFromString(reminderId) });
+        // 兼容旧ID的清理
+        const cancelIds = [{ id: stableIdFromString(reminderId) }];
         if (target && Array.isArray(target.dailyTimes)) {
-          target.dailyTimes.filter(Boolean).forEach(t => {
-            cancelIds.push({ id: stableIdFromString(reminderId + '|' + t) });
-          });
+          target.dailyTimes.filter(Boolean).forEach(t => cancelIds.push({ id: stableIdFromString(reminderId + '|' + t) }));
         }
         try { await LocalNotifications.cancel({ notifications: cancelIds }); } catch (_) { }
         console.log('🔔 已取消Capacitor通知:', reminderId);
@@ -1496,104 +1582,40 @@
       scheduledNotificationIds.clear(); // 清除已调度的通知ID
 
       if (LocalNotifications) {
-        // 使用Capacitor本地通知调度（逐条调度）；不再全量取消，改为逐条按需取消
+        // 使用原生本地通知进行滚动预排程
         const notifications = [];
-        const cancelList = [];
 
         // 统一用户名
         let username = '访客';
         try { username = await getUsernameAsync(); } catch (_) { }
 
-        reminders.forEach(reminder => {
-          // 必须有 dailyTimes
-          if (!(reminder.dailyCount > 0 && Array.isArray(reminder.dailyTimes) && reminder.dailyTimes.length > 0)) return;
+        let totalScheduled = 0;
 
-          const timesAll = [...reminder.dailyTimes].filter(Boolean).sort();
-          const timesEnabled = timesAll.filter(t => isTimeEnabled(reminder, t));
-          const now = new Date(); // 使用本地时间
-          let nextAtForUi = null;
+        for (const reminder of reminders) {
+          if (!(reminder && reminder.dailyCount > 0 && Array.isArray(reminder.dailyTimes) && reminder.dailyTimes.length > 0)) continue;
 
-          // 先取消所有该提醒下（所有时间点）的既有原生通知
-          timesAll.forEach((t) => {
-            const notificationId = stableIdFromString(reminder.id + '|' + t);
-            cancelList.push({ id: notificationId });
-          });
+          // 清理该提醒历史挂起，避免重复
+          await cancelAllScheduledForReminder(reminder.id);
 
-          // 仅为启用的时间点调度
-          timesEnabled.forEach((t) => {
-            // 使用本地时间计算
-            const baseDate = reminder.startDate || (() => {
-              const now = new Date();
-              const year = now.getFullYear();
-              const month = String(now.getMonth() + 1).padStart(2, '0');
-              const day = String(now.getDate()).padStart(2, '0');
-              return `${year}-${month}-${day}`;
-            })();
+          const now = new Date();
+          const occ = enumerateUpcomingOccurrences(reminder, now, ROLLING_SCHEDULE_DAYS, MAX_SCHEDULE_PER_REMINDER);
+          if (occ.length === 0) continue;
 
-            // 创建本地时间对象
-            const baseTime = new Date(`${baseDate}T${t}:00`);
-
-            // 如果基础时间已过，直接跳到下一天
-            let firstTime = baseTime;
-            console.log(`⏰ 计算时间: ${t}, startDate: ${reminder.startDate}, baseDate: ${baseDate}, 基础时间: ${baseTime.toLocaleString('zh-CN')}, 当前时间: ${now.toLocaleString('zh-CN')}`);
-
-            if (firstTime <= now) {
-              // 如果今天的时间已过，跳到下一天
-              const nextDay = new Date(baseTime);
-              nextDay.setDate(nextDay.getDate() + 1);
-              const year = nextDay.getFullYear();
-              const month = String(nextDay.getMonth() + 1).padStart(2, '0');
-              const day = String(nextDay.getDate()).padStart(2, '0');
-              firstTime = new Date(`${year}-${month}-${day}T${t}:00`);
-              console.log(`⏰ 时间已过，跳到下一天: ${firstTime.toLocaleString('zh-CN')}`);
-            } else {
-              console.log(`⏰ 时间未到，使用原时间: ${firstTime.toLocaleString('zh-CN')}`);
-            }
-
-            // 如果超出结束日期，则跳过
-            if (reminder.endDate) {
-              const end = new Date(`${reminder.endDate}T23:59:59`);
-              if (firstTime > end) return;
-            }
-
-            if (!nextAtForUi || firstTime < nextAtForUi) nextAtForUi = firstTime;
-
-            const notificationId = stableIdFromString(reminder.id + '|' + t);
-
-            // 检查是否已经调度过这个通知ID，避免重复
-            if (scheduledNotificationIds.has(notificationId)) {
-              console.warn(`⏰ 跳过重复的通知ID: ${notificationId}`);
-              return;
-            }
-
-            scheduledNotificationIds.add(notificationId);
-
-            const schedule = { at: firstTime };
-            // 不再使用 repeats/every，避免原生立即触发或时间漂移，由应用层手动重调度
-
-            notifications.push({
-              id: notificationId,
-              title: buildNotificationTitle(),
-              body: buildNotificationBody(username, reminder),
-              schedule,
-              sound: 'default',
-              actionTypeId: 'medication_reminder',
-              extra: {
-                reminderId: reminder.id,
-                medicationName: reminder.name,
-                plannedAt: firstTime.getTime()
-              }
-            });
-          });
-
+          // UI推进到最近一次
+          const nextAtForUi = occ[0];
           if (nextAtForUi) scheduleUiAdvance(reminder.id, nextAtForUi);
-        });
 
-        if (cancelList.length > 0) {
-          try { await LocalNotifications.cancel({ notifications: cancelList }); } catch (_) { }
+          for (const at of occ) {
+            if (totalScheduled >= MAX_SCHEDULE_TOTAL) break;
+            const n = buildScheduledNotification(reminder, at, buildNotificationTitle(), buildNotificationBody(username, reminder));
+            notifications.push(n);
+            totalScheduled += 1;
+          }
+          if (totalScheduled >= MAX_SCHEDULE_TOTAL) break;
         }
+
         if (notifications.length > 0) {
-          try { await LocalNotifications.schedule({ notifications }); }
+          try { await scheduleNotificationsChunked(notifications, 16); }
           catch (e) { console.error('❌ Capacitor通知调度失败:', e); throw e; }
         }
       } else {
