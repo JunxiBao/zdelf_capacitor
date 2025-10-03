@@ -69,6 +69,7 @@
   const ROLLING_SCHEDULE_DAYS = 7; // 未来预排程的天数窗口
   const MAX_SCHEDULE_PER_REMINDER = 32; // 每个提醒最多同时挂起的原生通知数
   const MAX_SCHEDULE_TOTAL = 64; // 全局最多同时挂起的原生通知数（iOS上常见限制）
+  const CANCEL_LOOKAHEAD_DAYS = ROLLING_SCHEDULE_DAYS + 14; // 取消兜底向前看天数
 
   // 依据提醒ID生成稳定的数字通知ID，避免重复调度
   function stableIdFromString(str) {
@@ -123,6 +124,36 @@
     return occurrences;
   }
 
+  // 不考虑启用状态，枚举未来一段时间内的所有可能时间点（用于取消兜底）
+  function enumerateOccurrencesAllTimes(reminder, fromTime, maxDays, perReminderCap) {
+    const occurrences = [];
+    if (!(reminder && reminder.dailyCount > 0 && Array.isArray(reminder.dailyTimes) && reminder.dailyTimes.length > 0)) return occurrences;
+    const allTimes = [...reminder.dailyTimes].filter(Boolean).sort();
+    if (allTimes.length === 0) return occurrences;
+
+    const now = new Date(fromTime);
+    const startBoundary = reminder.startDate ? new Date(`${reminder.startDate}T00:00:00`) : null;
+    const endBoundary = reminder.endDate ? new Date(`${reminder.endDate}T23:59:59`) : null;
+
+    for (let dayOffset = 0; dayOffset < maxDays; dayOffset++) {
+      const day = new Date(now);
+      day.setHours(0, 0, 0, 0);
+      day.setDate(day.getDate() + dayOffset);
+      if (startBoundary && day < startBoundary) continue;
+      if (endBoundary && day > endBoundary) break;
+
+      const ymd = formatDateYMD(day);
+      for (const t of allTimes) {
+        const at = new Date(`${ymd}T${t}:00`);
+        if (at <= now) continue;
+        if (endBoundary && at > endBoundary) continue;
+        occurrences.push(at);
+        if (occurrences.length >= perReminderCap) return occurrences;
+      }
+    }
+    return occurrences;
+  }
+
   // 构建一个原生通知对象（带日期+时间唯一ID）
   function buildScheduledNotification(reminder, at, title, body) {
     const dateStr = formatDateYMD(at);
@@ -156,6 +187,23 @@
           .map(n => ({ id: n.id }));
         if (toCancel.length > 0) {
           try { await LocalNotifications.cancel({ notifications: toCancel }); } catch (_) { }
+        }
+      } else {
+        // 兜底：无法获取待排队列表时，按日期+时间规则推断一批未来ID进行取消
+        const r = reminders.find(x => x.id === reminderId);
+        if (r && Array.isArray(r.dailyTimes) && r.dailyTimes.length > 0) {
+          const occ = enumerateOccurrencesAllTimes(r, new Date(), CANCEL_LOOKAHEAD_DAYS, 256);
+          const cancelIds = occ.map(at => {
+            const dateStr = formatDateYMD(at);
+            const timeStr = at.toTimeString().slice(0, 5);
+            return { id: stableIdFromString(`${reminderId}|${dateStr}|${timeStr}`) };
+          });
+          // 兼容旧ID
+          cancelIds.push({ id: stableIdFromString(reminderId) });
+          r.dailyTimes.filter(Boolean).forEach(t => cancelIds.push({ id: stableIdFromString(reminderId + '|' + t) }));
+          if (cancelIds.length > 0) {
+            try { await LocalNotifications.cancel({ notifications: cancelIds }); } catch (_) { }
+          }
         }
       }
     } catch (_) { }
@@ -242,6 +290,23 @@
     if (hour >= 19 && hour < 22) return "🌙 晚上好，准备前记得吃药哦"; // Night
     if (hour >= 22 || hour < 2) return "🌃 夜深了，赶紧吃药睡觉哦"; // Late night
     return "🕐 嘿，时间过得真快，又该吃药啦"; // Default
+  }
+
+  // 根据指定时间返回问候语（用于预排程按目标时刻选择合适问候）
+  function getGreetingAt(date) {
+    try {
+      const hour = (date instanceof Date ? date : new Date(date)).getHours();
+      if (hour >= 5 && hour < 8) return "🌅 早安，今天不要忘记吃药～";
+      if (hour >= 8 && hour < 12) return "☀️ 早上好，该吃药啦";
+      if (hour >= 12 && hour < 14) return "🌞 中午好，吃药时间到";
+      if (hour >= 14 && hour < 17) return "⛅ 下午好，不要忘记吃药哦";
+      if (hour >= 17 && hour < 19) return "🌆 黄昏好，坚持吃药哦";
+      if (hour >= 19 && hour < 22) return "🌙 晚上好，准备前记得吃药哦";
+      if (hour >= 22 || hour < 2) return "🌃 夜深了，赶紧吃药睡觉哦";
+      return "🕐 嘿，时间过得真快，又该吃药啦";
+    } catch (_) {
+      return getGreeting();
+    }
   }
 
   // 工具函数：Promise化获取用户名
@@ -1607,7 +1672,7 @@
 
           for (const at of occ) {
             if (totalScheduled >= MAX_SCHEDULE_TOTAL) break;
-            const n = buildScheduledNotification(reminder, at, buildNotificationTitle(), buildNotificationBody(username, reminder));
+            const n = buildScheduledNotification(reminder, at, getGreetingAt(at), buildNotificationBody(username, reminder));
             notifications.push(n);
             totalScheduled += 1;
           }
