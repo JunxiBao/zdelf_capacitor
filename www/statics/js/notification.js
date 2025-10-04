@@ -1040,13 +1040,39 @@
 
     // 日期联动
     if (startDateEl && endDateEl) {
+      // 当开始/结束日期不相等时，默认将循环频率设置为"每天"；相等时默认改回"不循环"
+      const updateRepeatDefaultByDateRange = () => {
+        try {
+          const s = startDateEl && startDateEl.value;
+          const e = endDateEl && endDateEl.value;
+          if (repeatSelect && s && e) {
+            if (s !== e) {
+              // 范围跨天：默认每天
+              repeatSelect.value = 'daily';
+            } else {
+              // 单日范围：默认不循环
+              repeatSelect.value = 'none';
+            }
+            // 触发change以同步显示自定义间隔标签/分组
+            try { repeatSelect.dispatchEvent(new Event('change')); } catch (_) { }
+          }
+        } catch (_) { }
+      };
+
       const onStartChange = () => {
         if (startDateEl.value) endDateEl.min = startDateEl.value;
         if (endDateEl.value && startDateEl.value && endDateEl.value < startDateEl.value) {
           endDateEl.value = startDateEl.value;
         }
+        updateRepeatDefaultByDateRange();
       };
       startDateEl.addEventListener('change', onStartChange);
+
+      const onEndChange = () => {
+        // 仅根据范围决定默认循环
+        updateRepeatDefaultByDateRange();
+      };
+      endDateEl.addEventListener('change', onEndChange);
     }
 
     // 初始化每日时间编辑器
