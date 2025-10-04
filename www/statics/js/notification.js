@@ -1041,17 +1041,39 @@
     // 日期联动
     if (startDateEl && endDateEl) {
       // 当开始/结束日期不相等时，默认将循环频率设置为"每天"；相等时默认改回"不循环"
+      // 同时根据范围启用/禁用下拉选项：
+      // - 单日：仅允许 不循环
+      // - 跨天：隐藏/禁用 不循环，允许 其他循环选项
       const updateRepeatDefaultByDateRange = () => {
         try {
           const s = startDateEl && startDateEl.value;
           const e = endDateEl && endDateEl.value;
           if (repeatSelect && s && e) {
-            if (s !== e) {
-              // 范围跨天：默认每天
-              repeatSelect.value = 'daily';
+            const isSame = s === e;
+            // 启用/禁用各选项
+            try {
+              const options = Array.from(repeatSelect.options || []);
+              options.forEach(opt => {
+                if (!opt || typeof opt.value !== 'string') return;
+                if (opt.value === 'none') {
+                  opt.disabled = !isSame;
+                  opt.hidden = !isSame;
+                } else {
+                  opt.disabled = isSame;
+                  opt.hidden = isSame;
+                }
+              });
+            } catch (_) { }
+
+            // 若当前选择不合法则按规则重设
+            if (isSame) {
+              if (repeatSelect.value !== 'none') {
+                repeatSelect.value = 'none';
+              }
             } else {
-              // 单日范围：默认不循环
-              repeatSelect.value = 'none';
+              if (repeatSelect.value === 'none') {
+                repeatSelect.value = 'daily';
+              }
             }
             // 触发change以同步显示自定义间隔标签/分组
             try { repeatSelect.dispatchEvent(new Event('change')); } catch (_) { }
@@ -1073,6 +1095,9 @@
         updateRepeatDefaultByDateRange();
       };
       endDateEl.addEventListener('change', onEndChange);
+
+      // 初始根据默认日期执行一次，确保选项可用性正确
+      updateRepeatDefaultByDateRange();
     }
 
     // 初始化每日时间编辑器
