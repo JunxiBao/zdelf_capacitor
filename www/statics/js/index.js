@@ -204,7 +204,7 @@ function loadPage(index) {
       const scriptMap = [
         "../../statics/js/daily.js",
         "../../statics/js/notification.js",
-        null,
+        "../../statics/js/square.js",
         "../../statics/js/me.js",
       ];
 
@@ -217,11 +217,14 @@ function loadPage(index) {
           const initName = scriptPath.split("/").pop().replace(".js", "");
           const cap = initName.charAt(0).toUpperCase() + initName.slice(1);
           
-          // 特殊处理 notification.js，因为它导出的是 initCase 而不是 initNotification
+          // 特殊处理不同页面的初始化函数
           let initFn, destroyFn;
           if (initName === 'notification') {
             initFn = window.initNotification || window.initCase;
             destroyFn = window.destroyNotification || window.destroyCase;
+          } else if (initName === 'square') {
+            initFn = window.initSquare;
+            destroyFn = window.destroySquare;
           } else {
             initFn = window[`init${cap}`];
             destroyFn = window[`destroy${cap}`];
@@ -252,11 +255,14 @@ function loadPage(index) {
           const initName = scriptPath.split("/").pop().replace(".js", ""); // daily / notification / deepseek / me
           const cap = initName.charAt(0).toUpperCase() + initName.slice(1);
           
-          // 特殊处理 notification.js，因为它导出的是 initCase 而不是 initNotification
+          // 特殊处理不同页面的初始化函数
           let initFn, destroyFn;
           if (initName === 'notification') {
             initFn = window.initNotification || window.initCase;
             destroyFn = window.destroyNotification || window.destroyCase;
+          } else if (initName === 'square') {
+            initFn = window.initSquare;
+            destroyFn = window.destroySquare;
           } else {
             initFn = window[`init${cap}`];
             destroyFn = window[`destroy${cap}`];
