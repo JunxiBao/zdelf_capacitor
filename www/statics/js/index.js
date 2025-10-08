@@ -332,6 +332,11 @@ function updateActive(index) {
   indicator.style.transform = `translateX(${index * 100}%)`;
   activeIndex = index;
 
+  // Emit a global event so external scripts (outside Shadow DOM) can react
+  try {
+    window.dispatchEvent(new CustomEvent('pageChanged', { detail: { index } }));
+  } catch (_) {}
+
   // 页面切换动画
   if (window.AnimationUtils && content) {
     // 淡出当前内容
