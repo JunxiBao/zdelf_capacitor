@@ -923,6 +923,9 @@ function updateMessagesList() {
   messages.forEach((message, index) => {
     const messageElement = createMessageElement(message, index);
     messagesList.appendChild(messageElement);
+    
+    // 自动加载评论
+    loadComments(message.id);
   });
   
   // 更新消息计数
@@ -969,6 +972,36 @@ function createMessageElement(message, index) {
             `<img src="${img}" alt="消息图片" class="message-image" onclick="openImageModal('${img}')" onerror="console.error('图片加载失败:', this.src); this.style.display='none'" onload="console.log('图片加载成功:', this.src)" loading="lazy">`
           ).join('')}
         </div>` : ''}
+    </div>
+    <div class="comments-section" id="comments-${message.id}">
+      <div class="comments-list" id="comments-list-${message.id}">
+        <!-- 评论将通过JavaScript动态添加 -->
+      </div>
+      <div class="comment-input-section" id="comment-input-section-${message.id}" style="display: none;">
+        <div class="comment-input-header">
+          <span class="comment-input-title">添加评论</span>
+          <button class="comment-close-btn" onclick="hideCommentInput('${message.id}')">
+            <ion-icon ios="close-outline" md="close-sharp" aria-hidden="true"></ion-icon>
+          </button>
+        </div>
+        <div class="comment-input-container">
+          <textarea 
+            class="comment-input" 
+            id="comment-input-${message.id}"
+            placeholder="写下你的评论..."
+            maxlength="500"
+          ></textarea>
+          <button class="comment-submit-btn" onclick="submitComment('${message.id}')">
+            <ion-icon ios="send-outline" md="send-sharp" aria-hidden="true"></ion-icon>
+          </button>
+        </div>
+      </div>
+      <div class="add-comment-section">
+        <button class="add-comment-btn" onclick="showCommentInput('${message.id}')">
+          <ion-icon ios="add-circle-outline" md="add-circle-sharp" aria-hidden="true"></ion-icon>
+          <span>增加评论</span>
+        </button>
+      </div>
     </div>
   `;
   
@@ -1230,11 +1263,275 @@ function compressWithQuality(canvas, mimeType, maxSizeKB, callback, quality = nu
   }
 }
 
+/**
+ * 切换评论区域显示/隐藏
+ * @param {string} postId - 消息ID
+ */
+function toggleComments(postId) {
+  const commentsSection = squareRoot.getElementById(`comments-${postId}`);
+  const commentBtn = squareRoot.querySelector(`button[onclick="toggleComments('${postId}')"]`);
+  if (!commentsSection || !commentBtn) return;
+  
+  const isVisible = commentsSection.style.display !== 'none';
+  
+  if (isVisible) {
+    // 隐藏评论区域
+    commentsSection.style.display = 'none';
+    commentBtn.innerHTML = '<ion-icon ios="chatbubble-outline" md="chatbubble-sharp" aria-hidden="true"></ion-icon><span>评论</span>';
+  } else {
+    // 显示评论区域
+    commentsSection.style.display = 'block';
+    commentBtn.innerHTML = '<ion-icon ios="chevron-up-outline" md="chevron-up-sharp" aria-hidden="true"></ion-icon><span>收起</span>';
+  }
+  
+  // 触觉反馈
+  if (window.__hapticImpact__) {
+    window.__hapticImpact__('Light');
+  }
+}
+
+/**
+ * 加载指定消息的评论
+ * @param {string} postId - 消息ID
+ */
+async function loadComments(postId) {
+  try {
+    const API_BASE = getApiBase();
+    const resp = await fetch(API_BASE + '/square/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ post_id: postId })
+    });
+    
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    
+    if (!data.success) throw new Error(data.message || '加载评论失败');
+    
+    const comments = data.data || [];
+    renderComments(postId, comments);
+  } catch (error) {
+    console.error('加载评论失败:', error);
+    showToast('加载评论失败');
+  }
+}
+
+/**
+ * 渲染评论列表
+ * @param {string} postId - 消息ID
+ * @param {Array} comments - 评论数组
+ */
+function renderComments(postId, comments) {
+  const commentsList = squareRoot.getElementById(`comments-list-${postId}`);
+  if (!commentsList) return;
+  
+  if (comments.length === 0) {
+    commentsList.innerHTML = '<div class="no-comments">还没有评论，来抢沙发吧！</div>';
+    return;
+  }
+  
+  commentsList.innerHTML = comments.map(comment => createCommentElement(comment)).join('');
+}
+
+/**
+ * 创建评论元素
+ * @param {Object} comment - 评论对象
+ * @returns {string} 评论HTML
+ */
+function createCommentElement(comment) {
+  const timeAgo = getTimeAgo(comment.created_at);
+  
+  // 处理头像URL，确保是完整的URL
+  const apiBase = getApiBase();
+  const avatarUrl = comment.avatar_url ? 
+    (comment.avatar_url.startsWith('http') ? comment.avatar_url : (apiBase + comment.avatar_url)) : 
+    null;
+  
+  return `
+    <div class="comment-item">
+      <div class="comment-avatar">
+        ${avatarUrl ? 
+          `<img src="${avatarUrl}" alt="${comment.username}" class="avatar-image">` :
+          `<div class="avatar-initials">${getInitials(comment.username)}</div>`
+        }
+      </div>
+      <div class="comment-content">
+        <div class="comment-header">
+          <div class="comment-author">${escapeHtml(comment.username)}</div>
+          <div class="comment-time">${timeAgo}</div>
+        </div>
+        <div class="comment-text">${escapeHtml(comment.text)}</div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * 显示评论输入框
+ * @param {string} postId - 消息ID
+ */
+function showCommentInput(postId) {
+  const inputSection = squareRoot.getElementById(`comment-input-section-${postId}`);
+  const addCommentSection = squareRoot.querySelector(`button[onclick="showCommentInput('${postId}')"]`)?.parentElement;
+  
+  if (inputSection && addCommentSection) {
+    // 隐藏"增加评论"按钮
+    addCommentSection.style.display = 'none';
+    
+    // 显示输入框
+    inputSection.style.display = 'block';
+    
+    // 聚焦到输入框
+    const textarea = squareRoot.getElementById(`comment-input-${postId}`);
+    if (textarea) {
+      setTimeout(() => {
+        textarea.focus();
+      }, 100);
+    }
+    
+    // 触觉反馈
+    if (window.__hapticImpact__) {
+      window.__hapticImpact__('Light');
+    }
+  }
+}
+
+/**
+ * 隐藏评论输入框
+ * @param {string} postId - 消息ID
+ */
+function hideCommentInput(postId) {
+  const inputSection = squareRoot.getElementById(`comment-input-section-${postId}`);
+  const addCommentSection = squareRoot.querySelector(`button[onclick="showCommentInput('${postId}')"]`)?.parentElement;
+  
+  if (inputSection && addCommentSection) {
+    // 隐藏输入框
+    inputSection.style.display = 'none';
+    
+    // 显示"增加评论"按钮
+    addCommentSection.style.display = 'block';
+    
+    // 清空输入框内容
+    const textarea = squareRoot.getElementById(`comment-input-${postId}`);
+    if (textarea) {
+      textarea.value = '';
+    }
+    
+    // 触觉反馈
+    if (window.__hapticImpact__) {
+      window.__hapticImpact__('Light');
+    }
+  }
+}
+
+/**
+ * 提交评论
+ * @param {string} postId - 消息ID
+ */
+async function submitComment(postId) {
+  const commentInput = squareRoot.getElementById(`comment-input-${postId}`);
+  if (!commentInput) return;
+  
+  const text = commentInput.value.trim();
+  if (!text) {
+    showToast('请输入评论内容');
+    return;
+  }
+  
+  try {
+    const identity = await resolveUserIdentity();
+    if (!identity.user_id && !identity.username) {
+      alert('未获取到用户身份，请先登录');
+      return;
+    }
+    
+    const API_BASE = getApiBase();
+    const payload = {
+      post_id: postId,
+      user_id: identity.user_id || undefined,
+      username: identity.username || undefined,
+      avatar_url: identity.avatar_url || undefined,
+      text: text
+    };
+    
+    const resp = await fetch(API_BASE + '/square/comment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    
+    if (!data.success) throw new Error(data.message || '评论失败');
+    
+    // 清空输入框
+    commentInput.value = '';
+    
+    // 隐藏输入框，显示"增加评论"按钮
+    const inputSection = squareRoot.getElementById(`comment-input-section-${postId}`);
+    const addCommentSection = squareRoot.querySelector(`button[onclick="showCommentInput('${postId}')"]`)?.parentElement;
+    
+    if (inputSection && addCommentSection) {
+      inputSection.style.display = 'none';
+      addCommentSection.style.display = 'block';
+    }
+    
+    // 重新加载评论
+    await loadComments(postId);
+    
+    // 触觉反馈
+    if (window.__hapticImpact__) {
+      window.__hapticImpact__('Medium');
+    }
+    
+    showToast('评论成功');
+  } catch (error) {
+    console.error('评论失败:', error);
+    showToast('评论失败，请重试');
+  }
+}
+
+/**
+ * 删除评论
+ * @param {string} commentId - 评论ID
+ */
+async function deleteComment(commentId) {
+  if (!confirm('确定要删除这条评论吗？')) return;
+  
+  try {
+    const API_BASE = getApiBase();
+    const resp = await fetch(API_BASE + `/square/comment/${commentId}`, {
+      method: 'DELETE'
+    });
+    
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    
+    if (!data.success) throw new Error(data.message || '删除失败');
+    
+    showToast('删除成功');
+    
+    // 触觉反馈
+    if (window.__hapticImpact__) {
+      window.__hapticImpact__('Medium');
+    }
+  } catch (error) {
+    console.error('删除评论失败:', error);
+    showToast('删除失败，请重试');
+  }
+}
+
 // -----------------------------
 // Public API / 对外导出
 // -----------------------------
 window.initSquare = initSquare;
 window.destroySquare = destroySquare;
 window.openImageModal = openImageModal;
+window.toggleComments = toggleComments;
+window.submitComment = submitComment;
+window.deleteComment = deleteComment;
+window.showCommentInput = showCommentInput;
+window.hideCommentInput = hideCommentInput;
 
 })();
