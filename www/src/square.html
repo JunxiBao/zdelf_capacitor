@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  park.html — 广场页面 HTML 结构
+  square.html — 广场页面 HTML 结构
 
   功能:
   - 显示所有用户发布的消息
@@ -42,7 +42,7 @@
       <!-- 发布消息区域 - 默认隐藏 -->
       <section class="publish-section" id="publishSection" style="display: none;" aria-label="发布消息">
         <div class="publish-card">
-          <div class="publish-header">
+            <div class="publish-header">
             <div class="user-info">
               <div class="user-avatar" id="userAvatar">
                 <div class="avatar-initials" id="avatarInitials">JB</div>
@@ -87,6 +87,9 @@
             <div class="char-count">
               <span id="charCount">0</span>/500
             </div>
+            <div class="actions-right">
+              <button class="anonymous-btn" id="anonymousBtn" aria-pressed="false" title="匿名发布">匿名发布</button>
+            </div>
           </div>
         </div>
       </section>
@@ -124,3 +127,5 @@
     </main>
   </body>
 </html>
+
+

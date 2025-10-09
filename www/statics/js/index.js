@@ -106,7 +106,7 @@ if (document.fonts && document.fonts.ready) {
 const pageMap = [
   "../../src/daily.html",
   "../../src/notification.html",
-  "../../src/park.html",
+  "../../src/square.html",
   "../../src/me.html",
 ];
 

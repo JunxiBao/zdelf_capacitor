@@ -16,7 +16,7 @@
   let cleanupFns = [];
   
   // 全局变量
-  let messages = [];
+let messages = [];
   let currentUser = null;
   let isInitialized = false;
   let squareRoot = document; // 将由 initSquare 赋值
@@ -26,6 +26,8 @@ let messageTextarea, publishBtn, addImageBtn, imageFileInput, uploadedImages;
 let messagesList, loadingState, emptyState, messageCount, charCount;
 let publishTriggerBtn, publishSection, cancelBtn;
 let userAvatar, avatarImage, avatarInitials, userName, refreshBtn;
+let anonymousBtn;
+let isAnonymous = false;
 
 /**
  * 初始化广场页面
@@ -46,6 +48,8 @@ function initSquare(shadowRoot) {
   
   // 设置事件监听器
   setupEventListeners();
+  // 初始化匿名按钮外观
+  refreshAnonymousButton();
   
   // 加载用户信息
   loadUserInfo();
@@ -97,6 +101,7 @@ function initializeElements() {
   publishTriggerBtn = squareRoot.getElementById('publishTriggerBtn');
   publishSection = squareRoot.getElementById('publishSection');
   cancelBtn = squareRoot.getElementById('cancelBtn');
+  anonymousBtn = squareRoot.getElementById('anonymousBtn');
 }
 
 /**
@@ -151,6 +156,25 @@ function setupEventListeners() {
     cancelBtn.addEventListener('click', cancelHandler);
     cleanupFns.push(() => cancelBtn.removeEventListener('click', cancelHandler));
   }
+
+  // 匿名发布按钮
+  if (anonymousBtn) {
+    const btnHandler = () => handleAnonymousBtnClick();
+    anonymousBtn.addEventListener('click', btnHandler);
+    cleanupFns.push(() => anonymousBtn.removeEventListener('click', btnHandler));
+  }
+}
+
+// 根据当前状态刷新匿名按钮的外观与文案
+function refreshAnonymousButton() {
+  if (!anonymousBtn) return;
+  anonymousBtn.setAttribute('aria-pressed', String(isAnonymous));
+  anonymousBtn.classList.toggle('is-on', isAnonymous);
+  if (isAnonymous) {
+    anonymousBtn.innerHTML = '<ion-icon ios="person-outline" md="person-sharp" aria-hidden="true"></ion-icon><span>实名发布</span>';
+  } else {
+    anonymousBtn.innerHTML = '<ion-icon ios="eye-off-outline" md="eye-off-sharp" aria-hidden="true"></ion-icon><span>匿名发布</span>';
+  }
 }
 
 /**
@@ -190,6 +214,24 @@ function loadUserInfo() {
     };
     updateUserInfo();
   }
+
+  // 异步从后端补全真实头像和用户名
+  (async () => {
+    try {
+      const identity = await resolveUserIdentity();
+      if (identity && (identity.username || identity.avatar_url)) {
+        const API_BASE = getApiBase();
+        currentUser = {
+          id: identity.user_id || (currentUser && currentUser.id) || 'anonymous',
+          name: identity.username || (currentUser && currentUser.name) || '匿名用户',
+          avatar: identity.avatar_url
+            ? (identity.avatar_url.startsWith('http') ? identity.avatar_url : (API_BASE + identity.avatar_url))
+            : (currentUser && currentUser.avatar) || null
+        };
+        updateUserInfo();
+      }
+    } catch (_) {}
+  })();
 }
 
 /**
@@ -197,13 +239,14 @@ function loadUserInfo() {
  */
 function updateUserInfo() {
   if (!currentUser) return;
-  
+  const isAnon = !!isAnonymous;
+
   if (userName) {
-    userName.textContent = currentUser.name;
+    userName.textContent = isAnon ? '匿名用户' : (currentUser.name || '匿名用户');
   }
   
   if (userAvatar) {
-    if (currentUser.avatar) {
+    if (!isAnon && currentUser.avatar) {
       if (avatarImage) {
         avatarImage.src = currentUser.avatar;
         avatarImage.style.display = 'block';
@@ -213,7 +256,8 @@ function updateUserInfo() {
       }
     } else {
       if (avatarInitials) {
-        avatarInitials.textContent = getInitials(currentUser.name);
+        const txt = isAnon ? '匿' : getInitials(currentUser.name);
+        avatarInitials.textContent = txt;
         avatarInitials.style.display = 'flex';
       }
       if (avatarImage) {
@@ -221,6 +265,90 @@ function updateUserInfo() {
       }
     }
   }
+}
+
+function handleAnonymousBtnClick() {
+  isAnonymous = !isAnonymous;
+  refreshAnonymousButton();
+  updateUserInfo();
+}
+
+// 统一获取 API 基础地址
+function getApiBase() {
+  try {
+    const configuredBase = (
+      (squareRoot && squareRoot.ownerDocument && squareRoot.ownerDocument.querySelector('meta[name="api-base"]')?.content) ||
+      window.__API_BASE__ ||
+      window.API_BASE ||
+      ''
+    ).trim();
+    const defaultBase = 'https://app.zdelf.cn';
+    const base = (configuredBase || defaultBase).replace(/\/$/, '');
+    return base;
+  } catch (_) {
+    return 'https://app.zdelf.cn';
+  }
+}
+
+// 解析用户身份：优先本地，其次 /readdata（users）
+async function resolveUserIdentity() {
+  let user_id = '';
+  let username = '';
+  let avatar_url = '';
+
+  // 1) 本地缓存
+  try {
+    user_id = localStorage.getItem('userId') || sessionStorage.getItem('userId') || '';
+  } catch(_) {}
+
+  // 2) 通过 /readdata 查询用户名和头像
+  if (user_id) {
+    try {
+      const API_BASE = getApiBase();
+      const resp = await fetch(API_BASE + '/readdata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table_name: 'users', user_id })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data && data.success && Array.isArray(data.data)) {
+          const rec = data.data[0] || {};
+          username = rec.username || '';
+          avatar_url = rec.avatar_url || '';
+        }
+      }
+    } catch (e) {
+      console.warn('[square] 解析用户身份失败:', e);
+    }
+  }
+
+  return { user_id, username, avatar_url };
+}
+
+// 上传单张图片（dataURL）到服务器，返回完整URL
+async function uploadImageToServer(dataUrl, imageType) {
+  const API_BASE = getApiBase();
+  const payload = {
+    image_data: dataUrl,
+    image_type: imageType || 'square'
+  };
+  // 附加用户信息（若可用）
+  try {
+    const id = localStorage.getItem('userId') || '';
+    if (id) payload.user_id = id;
+  } catch(_) {}
+
+  const res = await fetch(API_BASE + '/upload_image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.message || '图片上传失败');
+  const url = json.data && json.data.image_url;
+  return url && url.startsWith('http') ? url : (API_BASE + url);
 }
 
 /**
@@ -446,70 +574,56 @@ function addImageToUploadArea(imageSrc, fileName) {
  * 处理发布消息
  */
 async function handlePublish() {
-  if (!currentUser) {
-    alert('用户信息加载失败，请刷新页面重试');
+  const identity = await resolveUserIdentity();
+  if (!identity.user_id && !identity.username) {
+    alert('未获取到用户身份，请先登录');
     return;
   }
-  
+
   const text = messageTextarea ? messageTextarea.value.trim() : '';
   const uploadedImageItems = uploadedImages ? uploadedImages.querySelectorAll('.uploaded-image-item') : [];
   const hasImages = uploadedImageItems.length > 0;
-  
   if (!text && !hasImages) {
     alert('请输入消息内容或添加图片');
     return;
   }
-  
+
   try {
-    // 获取所有上传的图片
-    const images = [];
-    uploadedImageItems.forEach(item => {
+    // 1) 上传图片到服务器，得到可访问URL
+    const uploadedUrls = [];
+    for (const item of Array.from(uploadedImageItems)) {
       const img = item.querySelector('img');
-      if (img && img.src) {
-        images.push(img.src);
+      if (img && img.src && img.src.startsWith('data:image')) {
+        const url = await uploadImageToServer(img.src, 'square');
+        uploadedUrls.push(url);
       }
+    }
+
+    // 2) 调用 /square/publish 写入数据库
+    const API_BASE = getApiBase();
+  const isAnon = !!isAnonymous;
+  const payload = {
+    user_id: isAnon ? undefined : (identity.user_id || undefined),
+    username: isAnon ? '匿名用户' : (identity.username || undefined),
+    avatar_url: isAnon ? undefined : (identity.avatar_url || undefined),
+    text: text || undefined,
+    images: uploadedUrls
+  };
+    const resp = await fetch(API_BASE + '/square/publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
     });
-    
-    // 创建消息对象
-    const message = {
-      id: Date.now().toString(),
-      author: currentUser.name,
-      authorId: currentUser.id,
-      avatar: currentUser.avatar,
-      text: text,
-      images: images,
-      timestamp: new Date().toISOString(),
-      likes: 0,
-      comments: 0
-    };
-    
-    // 添加到消息列表
-    messages.unshift(message);
-    
-    // 保存到localStorage
-    saveMessages();
-    
-    // 更新UI
-    updateMessagesList();
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const resJson = await resp.json();
+    if (!resJson.success) throw new Error(resJson.message || '发布失败');
+
+    // 3) 成功后刷新列表并清空表单
     clearPublishForm();
-    
-    // 隐藏发布区域
-    if (publishSection) {
-      publishSection.style.display = 'none';
-    }
-    
-    // 显示触发按钮
-    if (publishTriggerBtn) {
-      publishTriggerBtn.style.display = 'flex';
-    }
-    
-    // 触觉反馈
-    if (window.__hapticImpact__) {
-      window.__hapticImpact__('Medium');
-    }
-    
-    console.log('✅ 消息发布成功');
-    
+    if (publishSection) publishSection.style.display = 'none';
+    if (publishTriggerBtn) publishTriggerBtn.style.display = 'flex';
+    if (window.__hapticImpact__) window.__hapticImpact__('Medium');
+    await loadMessages();
   } catch (error) {
     console.error('发布消息失败:', error);
     alert('发布失败，请重试');
@@ -603,25 +717,39 @@ function handleCancel() {
 /**
  * 加载消息列表
  */
-function loadMessages() {
+async function loadMessages() {
   try {
     showLoading();
-    
-    // 清除旧的缓存数据，强制重新创建示例消息
-    localStorage.removeItem('squareMessages');
-    
-    // 创建一些示例消息
-    messages = createSampleMessages();
-    saveMessages();
-    
-    console.log('📝 创建示例消息:', messages.length, '条');
-    messages.forEach((msg, index) => {
-      console.log(`消息 ${index + 1}: ${msg.author}, 图片数量: ${msg.images ? msg.images.length : 0}`);
+    const API_BASE = getApiBase();
+    const resp = await fetch(API_BASE + '/square/list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ limit: 50 })
     });
-    
-    // 更新UI
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    const list = (data && data.success && Array.isArray(data.data)) ? data.data : [];
+
+    // 归一化为现有渲染结构
+    messages = list.map((it) => {
+      const apiBase = getApiBase();
+      const avatar = it.avatar_url ? (it.avatar_url.startsWith('http') ? it.avatar_url : (apiBase + it.avatar_url)) : null;
+      const imgs = Array.isArray(it.images) ? it.images : (Array.isArray(it.image_urls) ? it.image_urls : []);
+      const normImgs = imgs.map(u => (typeof u === 'string' ? (u.startsWith('http') ? u : (apiBase + u)) : '')).filter(Boolean);
+      return {
+        id: it.id,
+        author: it.username || '匿名用户',
+        authorId: it.user_id || '',
+        avatar: avatar,
+        text: it.text || it.text_content || '',
+        images: normImgs,
+        timestamp: it.created_at || new Date().toISOString(),
+        likes: 0,
+        comments: 0
+      };
+    });
+
     updateMessagesList();
-    
   } catch (error) {
     console.error('加载消息失败:', error);
     showError('加载消息失败');
