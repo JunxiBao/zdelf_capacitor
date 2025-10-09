@@ -617,9 +617,29 @@
       if (finalAvatarImageEl && finalInitialsEl) {
         if (user.avatar_url) {
           console.log("[me] 显示头像图片:", user.avatar_url);
-          finalAvatarImageEl.src = user.avatar_url;
-          finalAvatarImageEl.style.display = "block";
-          finalInitialsEl.style.display = "none";
+          
+          // 强制刷新头像图片
+          finalAvatarImageEl.style.display = "none";
+          finalInitialsEl.style.display = "grid";
+          
+          // 短暂延迟后显示新头像，确保浏览器重新加载图片
+          setTimeout(() => {
+            finalAvatarImageEl.src = user.avatar_url;
+            finalAvatarImageEl.style.display = "block";
+            finalInitialsEl.style.display = "none";
+            
+            // 添加图片加载错误处理
+            finalAvatarImageEl.onerror = function() {
+              console.warn("[me] 头像图片加载失败，显示用户名首字母");
+              finalAvatarImageEl.style.display = "none";
+              finalInitialsEl.style.display = "grid";
+            };
+            
+            // 添加图片加载成功处理
+            finalAvatarImageEl.onload = function() {
+              console.log("[me] 头像图片加载成功");
+            };
+          }, 100);
         } else {
           console.log("[me] 显示用户名首字母");
           finalAvatarImageEl.style.display = "none";
@@ -708,10 +728,15 @@
           console.log("[me] 从数据库获取的头像URL:", avatar_url);
           user = { name: username, age, phone, avatar_url };
           
-          // 确保头像URL是完整的URL
+          // 确保头像URL是完整的URL，并添加时间戳避免缓存
           if (user.avatar_url && !user.avatar_url.startsWith('http')) {
             user.avatar_url = apiBase + user.avatar_url;
-            console.log("[me] 完整头像URL:", user.avatar_url);
+          }
+          // 添加时间戳参数避免缓存
+          if (user.avatar_url) {
+            const separator = user.avatar_url.includes('?') ? '&' : '?';
+            user.avatar_url = user.avatar_url + separator + 't=' + Date.now();
+            console.log("[me] 完整头像URL（带时间戳）:", user.avatar_url);
           }
           
           console.log("[me] 最终用户数据:", user);
@@ -2340,10 +2365,15 @@
         user.avatar_url = result.data.avatar_url;
         console.log("[me] 更新头像URL:", user.avatar_url);
         
-        // 确保头像URL是完整的URL
+        // 确保头像URL是完整的URL，并添加时间戳避免缓存
         if (user.avatar_url && !user.avatar_url.startsWith('http')) {
           user.avatar_url = apiBase + user.avatar_url;
-          console.log("[me] 完整头像URL:", user.avatar_url);
+        }
+        // 添加时间戳参数避免缓存
+        if (user.avatar_url) {
+          const separator = user.avatar_url.includes('?') ? '&' : '?';
+          user.avatar_url = user.avatar_url + separator + 't=' + Date.now();
+          console.log("[me] 完整头像URL（带时间戳）:", user.avatar_url);
         }
         
         renderUser();
