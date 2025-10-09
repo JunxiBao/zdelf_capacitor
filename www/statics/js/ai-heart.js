@@ -160,8 +160,8 @@
   // Listen page change event from the shell
   window.addEventListener('pageChanged', (e) => {
     const index = (e && e.detail && typeof e.detail.index === 'number') ? e.detail.index : 0;
-    // Hide on AI tab (index 2), show otherwise
-    setHeartVisible(index !== 2);
+    // 显示在所有主页面（包含日常、提醒、广场、我的）
+    setHeartVisible(true);
   });
 })();
 

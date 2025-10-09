@@ -50,6 +50,23 @@ function initSquare(shadowRoot) {
   setupEventListeners();
   // 初始化匿名按钮外观
   refreshAnonymousButton();
+
+  // 接入全局动画系统，优化进入时的过渡，避免布局跳动
+  try {
+    if (window.AnimationUtils) {
+      const hostEl = squareRoot && squareRoot.host ? squareRoot.host : null;
+      if (hostEl) {
+        window.AnimationUtils.enableGPUAcceleration(hostEl);
+      }
+      const card = squareRoot.querySelector('.publish-card');
+      if (card) {
+        card.style.opacity = '0';
+        window.AnimationUtils.slideUp(card, 260).then(() => {
+          card.style.opacity = '1';
+        });
+      }
+    }
+  } catch (_) {}
   
   // 加载用户信息
   loadUserInfo();
@@ -719,6 +736,12 @@ function handleCancel() {
  */
 async function loadMessages() {
   try {
+    // 使用全局动画：先保持容器高度，淡出列表区域，避免跳动
+    if (messagesList && window.AnimationUtils) {
+      const h = messagesList.offsetHeight;
+      messagesList.style.minHeight = h ? h + 'px' : '160px';
+      await window.AnimationUtils.fadeOut(messagesList, 150);
+    }
     showLoading();
     const API_BASE = getApiBase();
     const resp = await fetch(API_BASE + '/square/list', {
@@ -750,6 +773,12 @@ async function loadMessages() {
     });
 
     updateMessagesList();
+    // 列表渲染后淡入
+    if (messagesList && window.AnimationUtils) {
+      await window.AnimationUtils.fadeIn(messagesList, 220);
+      // 渐变完成后释放 min-height，避免影响后续布局
+      setTimeout(() => { try { messagesList.style.minHeight = ''; } catch(_) {} }, 50);
+    }
   } catch (error) {
     console.error('加载消息失败:', error);
     showError('加载消息失败');

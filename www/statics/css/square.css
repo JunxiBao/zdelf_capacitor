@@ -78,7 +78,7 @@ body {
   max-width: 680px;
   margin: 0 auto;
   padding: 20px 16px 40px;
-  animation: fadeIn 0.6s ease both;
+  /* 使用全局动画系统统一淡入，这里移除默认动画避免双重动画导致跳动 */
 }
 
 /* Top bar */
