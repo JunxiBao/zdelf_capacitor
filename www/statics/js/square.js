@@ -622,7 +622,7 @@ async function handlePublish() {
     const API_BASE = getApiBase();
   const isAnon = !!isAnonymous;
   const payload = {
-    user_id: isAnon ? undefined : (identity.user_id || undefined),
+    user_id: identity.user_id || undefined, // 匿名时也记录user_id，但前端显示时隐藏
     username: isAnon ? '匿名用户' : (identity.username || undefined),
     avatar_url: isAnon ? undefined : (identity.avatar_url || undefined),
     text: text || undefined,
@@ -643,10 +643,7 @@ async function handlePublish() {
     if (publishTriggerBtn) publishTriggerBtn.style.display = 'flex';
     if (window.__hapticImpact__) window.__hapticImpact__('Medium');
     
-    // 如果是匿名发布，记录消息ID到本地存储
-    if (isAnon && resJson.data && resJson.data.id) {
-      recordAnonymousMessage(resJson.data.id);
-    }
+    // 匿名发布时不再需要本地存储记录，因为后端会记录user_id
     
     await loadMessages();
   } catch (error) {
@@ -752,10 +749,14 @@ async function loadMessages() {
     }
     showLoading();
     const API_BASE = getApiBase();
+    const identity = await resolveUserIdentity();
     const resp = await fetch(API_BASE + '/square/list', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ limit: 50 })
+      body: JSON.stringify({ 
+        limit: 50,
+        current_user_id: identity.user_id || null
+      })
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
@@ -955,10 +956,8 @@ function createMessageElement(message, index) {
   
   // 判断是否是当前用户的消息
   // 1. 实名消息：通过 user_id 匹配
-  // 2. 匿名消息：通过本地存储记录判断
-  const isRealNameUser = currentUser && message.authorId && currentUser.id === message.authorId;
-  const isAnonymousUser = !message.authorId && currentUser && isMyAnonymousMessage(message.id);
-  const isCurrentUser = isRealNameUser || isAnonymousUser;
+  // 2. 匿名消息：也通过 user_id 匹配（后端会记录user_id，但前端显示时保持匿名）
+  const isCurrentUser = currentUser && message.authorId && currentUser.id === message.authorId;
   
   // 调试信息
   console.log('创建消息元素:', message.author, '图片数量:', message.images ? message.images.length : 0, '是否当前用户:', isCurrentUser);
@@ -1087,101 +1086,7 @@ function isWithinDeleteWindow(timestamp) {
   return diffMinutes <= 5;
 }
 
-/**
- * 检查是否是当前用户的匿名消息
- * @param {string} messageId - 消息ID
- * @returns {boolean} 是否是当前用户的匿名消息
- */
-function isMyAnonymousMessage(messageId) {
-  try {
-    const anonymousMessages = JSON.parse(localStorage.getItem('anonymousMessages') || '[]');
-    return anonymousMessages.includes(messageId);
-  } catch (error) {
-    console.error('检查匿名消息失败:', error);
-    return false;
-  }
-}
-
-/**
- * 检查是否是当前用户的匿名评论
- * @param {string} commentId - 评论ID
- * @returns {boolean} 是否是当前用户的匿名评论
- */
-function isMyAnonymousComment(commentId) {
-  try {
-    const anonymousComments = JSON.parse(localStorage.getItem('anonymousComments') || '[]');
-    return anonymousComments.includes(commentId);
-  } catch (error) {
-    console.error('检查匿名评论失败:', error);
-    return false;
-  }
-}
-
-/**
- * 记录匿名消息ID到本地存储
- * @param {string} messageId - 消息ID
- */
-function recordAnonymousMessage(messageId) {
-  try {
-    const anonymousMessages = JSON.parse(localStorage.getItem('anonymousMessages') || '[]');
-    if (!anonymousMessages.includes(messageId)) {
-      anonymousMessages.push(messageId);
-      localStorage.setItem('anonymousMessages', JSON.stringify(anonymousMessages));
-    }
-  } catch (error) {
-    console.error('记录匿名消息失败:', error);
-  }
-}
-
-/**
- * 记录匿名评论ID到本地存储
- * @param {string} commentId - 评论ID
- */
-function recordAnonymousComment(commentId) {
-  try {
-    const anonymousComments = JSON.parse(localStorage.getItem('anonymousComments') || '[]');
-    if (!anonymousComments.includes(commentId)) {
-      anonymousComments.push(commentId);
-      localStorage.setItem('anonymousComments', JSON.stringify(anonymousComments));
-    }
-  } catch (error) {
-    console.error('记录匿名评论失败:', error);
-  }
-}
-
-/**
- * 从本地存储中移除匿名消息ID
- * @param {string} messageId - 消息ID
- */
-function removeAnonymousMessage(messageId) {
-  try {
-    const anonymousMessages = JSON.parse(localStorage.getItem('anonymousMessages') || '[]');
-    const index = anonymousMessages.indexOf(messageId);
-    if (index > -1) {
-      anonymousMessages.splice(index, 1);
-      localStorage.setItem('anonymousMessages', JSON.stringify(anonymousMessages));
-    }
-  } catch (error) {
-    console.error('移除匿名消息失败:', error);
-  }
-}
-
-/**
- * 从本地存储中移除匿名评论ID
- * @param {string} commentId - 评论ID
- */
-function removeAnonymousComment(commentId) {
-  try {
-    const anonymousComments = JSON.parse(localStorage.getItem('anonymousComments') || '[]');
-    const index = anonymousComments.indexOf(commentId);
-    if (index > -1) {
-      anonymousComments.splice(index, 1);
-      localStorage.setItem('anonymousComments', JSON.stringify(anonymousComments));
-    }
-  } catch (error) {
-    console.error('移除匿名评论失败:', error);
-  }
-}
+// 本地存储相关函数已移除，现在统一使用user_id匹配
 
 /**
  * 更新消息计数
@@ -1434,10 +1339,14 @@ function toggleComments(postId) {
 async function loadComments(postId) {
   try {
     const API_BASE = getApiBase();
+    const identity = await resolveUserIdentity();
     const resp = await fetch(API_BASE + '/square/comments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ post_id: postId })
+      body: JSON.stringify({ 
+        post_id: postId,
+        current_user_id: identity.user_id || null
+      })
     });
     
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -1486,10 +1395,8 @@ function createCommentElement(comment) {
   
   // 判断是否是当前用户的评论
   // 1. 实名评论：通过 user_id 匹配
-  // 2. 匿名评论：通过本地存储记录判断
-  const isRealNameUser = currentUser && comment.user_id && currentUser.id === comment.user_id;
-  const isAnonymousUser = !comment.user_id && currentUser && isMyAnonymousComment(comment.id);
-  const isCurrentUser = isRealNameUser || isAnonymousUser;
+  // 2. 匿名评论：也通过 user_id 匹配（后端会记录user_id，但前端显示时保持匿名）
+  const isCurrentUser = currentUser && comment.user_id && currentUser.id === comment.user_id;
   
   return `
     <div class="comment-item">
@@ -1603,7 +1510,7 @@ async function submitComment(postId) {
     const API_BASE = getApiBase();
     const payload = {
       post_id: postId,
-      user_id: identity.user_id || undefined,
+      user_id: identity.user_id || undefined, // 匿名时也记录user_id
       username: identity.username || undefined,
       avatar_url: identity.avatar_url || undefined,
       text: text
@@ -1620,10 +1527,7 @@ async function submitComment(postId) {
     
     if (!data.success) throw new Error(data.message || '评论失败');
     
-    // 如果是匿名评论，记录评论ID到本地存储
-    if (data.data && data.data.id && !identity.user_id) {
-      recordAnonymousComment(data.data.id);
-    }
+    // 匿名评论时不再需要本地存储记录，因为后端会记录user_id
     
     // 清空输入框
     commentInput.value = '';
@@ -1751,7 +1655,8 @@ function toggleCommentMenu(commentId, event) {
  * @param {string} postId - 消息ID
  */
 async function deletePost(postId) {
-  if (!confirm('确定要删除这条消息吗？删除后将无法恢复。')) return;
+  const confirmed = await confirmDialog('确定要删除这条消息吗？删除后将无法恢复。', 'danger');
+  if (!confirmed) return;
   
   try {
     const API_BASE = getApiBase();
@@ -1771,8 +1676,7 @@ async function deletePost(postId) {
       window.__hapticImpact__('Medium');
     }
     
-    // 从本地存储中移除匿名消息ID
-    removeAnonymousMessage(postId);
+    // 不再需要从本地存储中移除，因为统一通过user_id匹配
     
     // 重新加载消息列表
     await loadMessages();
@@ -1787,7 +1691,8 @@ async function deletePost(postId) {
  * @param {string} commentId - 评论ID
  */
 async function deleteCommentWithRefresh(commentId) {
-  if (!confirm('确定要删除这条评论吗？')) return;
+  const confirmed = await confirmDialog('确定要删除这条评论吗？', 'danger');
+  if (!confirmed) return;
   
   try {
     const API_BASE = getApiBase();
@@ -1807,8 +1712,7 @@ async function deleteCommentWithRefresh(commentId) {
       window.__hapticImpact__('Medium');
     }
     
-    // 从本地存储中移除匿名评论ID
-    removeAnonymousComment(commentId);
+    // 不再需要从本地存储中移除，因为统一通过user_id匹配
     
     // 找到评论所属的消息ID并重新加载该消息的评论
     const commentElement = squareRoot.querySelector(`#comment-menu-${commentId}`)?.closest('.comment-item');
@@ -1841,6 +1745,203 @@ function setupGlobalMenuClose() {
   cleanupFns.push(() => squareRoot.removeEventListener('click', handler));
 }
 
+/**
+ * 确保确认弹窗样式已加载
+ */
+function ensureConfirmStyles() {
+  if (document.getElementById("app-confirm-style")) return;
+  const s = document.createElement("style");
+  s.id = "app-confirm-style";
+  s.textContent = `
+    .app-confirm-mask {
+      position: fixed; 
+      inset: 0; 
+      background: color-mix(in srgb, var(--text, #000) 20%, transparent); 
+      backdrop-filter: saturate(120%) blur(2px); 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      opacity: 0; 
+      transition: opacity .18s ease; 
+      z-index: 10000;
+    }
+    .app-confirm-mask.show {
+      opacity: 1;
+    }
+    .app-confirm { 
+      width: min(92vw, 360px); 
+      background: var(--card, #fff); 
+      color: var(--text, #111); 
+      border-radius: 16px; 
+      box-shadow: var(--shadow-2, 0 10px 30px rgba(0,0,0,.15)); 
+      transform: translateY(12px) scale(.98); 
+      opacity: 0; 
+      transition: transform .2s ease, opacity .2s ease; 
+      border: 1px solid var(--divider, rgba(0,0,0,.06));
+    }
+    .app-confirm.show { 
+      transform: translateY(0) scale(1); 
+      opacity: 1; 
+    }
+    .app-confirm__body { 
+      padding: 18px 18px 8px; 
+      font-size: 15px; 
+      line-height: 1.5; 
+    }
+    .app-confirm__footer { 
+      display: flex; 
+      gap: 10px; 
+      justify-content: flex-end; 
+      padding: 0 12px 12px; 
+    }
+    .app-confirm__btn { 
+      appearance: none; 
+      border: 0; 
+      padding: 9px 14px; 
+      border-radius: 12px; 
+      cursor: pointer; 
+      font-size: 14px; 
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+    .app-confirm__btn--ghost { 
+      background: var(--divider, rgba(0,0,0,.04)); 
+      color: var(--text, #111); 
+    }
+    .app-confirm__btn--ghost:hover {
+      background: var(--text-secondary, rgba(0,0,0,.08));
+    }
+    .app-confirm__btn--primary { 
+      background: var(--brand, #6200ea); 
+      color: #fff; 
+    }
+    .app-confirm__btn--primary:hover {
+      background: var(--brand-700, #4b00b5);
+      transform: translateY(-1px);
+    }
+    .app-confirm__btn--danger { 
+      background: var(--danger, #e53935); 
+      color: #fff; 
+    }
+    .app-confirm__btn--danger:hover {
+      background: #d32f2f;
+      transform: translateY(-1px);
+    }
+    .app-confirm__btn:focus { 
+      outline: 2px solid var(--brand, #6200ea); 
+      outline-offset: 2px; 
+    }
+    @media (prefers-color-scheme: dark) { 
+      .app-confirm-mask { 
+        background: color-mix(in srgb, #000 50%, transparent); 
+      }
+      .app-confirm { 
+        background: var(--card, #1e1f22); 
+        color: var(--text, #e6e6e6); 
+        border-color: var(--divider, rgba(255,255,255,.08)); 
+      }
+      .app-confirm__btn--ghost { 
+        background: var(--divider, rgba(255,255,255,.08)); 
+        color: var(--text, #e6e6e6); 
+      }
+      .app-confirm__btn--ghost:hover {
+        background: var(--text-secondary, rgba(255,255,255,.12));
+      }
+    }
+  `;
+  document.head.appendChild(s);
+  cleanupFns.push(() => {
+    if (s.parentNode) s.remove();
+  });
+}
+
+/**
+ * 自定义确认弹窗
+ * @param {string} message - 确认消息
+ * @param {string} type - 弹窗类型 ('danger' | 'warning' | 'info')
+ * @returns {Promise<boolean>} 用户是否确认
+ */
+function confirmDialog(message, type = 'danger') {
+  ensureConfirmStyles();
+  return new Promise((resolve) => {
+    const mask = document.createElement('div');
+    mask.className = 'app-confirm-mask';
+
+    const box = document.createElement('div');
+    box.className = 'app-confirm';
+
+    const body = document.createElement('div');
+    body.className = 'app-confirm__body';
+    body.textContent = message || '确定要执行此操作吗？';
+
+    const footer = document.createElement('div');
+    footer.className = 'app-confirm__footer';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'app-confirm__btn app-confirm__btn--ghost';
+    cancelBtn.textContent = '取消';
+
+    const okBtn = document.createElement('button');
+    okBtn.className = `app-confirm__btn app-confirm__btn--${type}`;
+    okBtn.textContent = '确定';
+
+    footer.append(cancelBtn, okBtn);
+    box.append(body, footer);
+    mask.appendChild(box);
+    document.body.appendChild(mask);
+
+    // 显示动画
+    requestAnimationFrame(() => {
+      mask.classList.add('show');
+      box.classList.add('show');
+    });
+
+    const close = (result) => {
+      box.classList.remove('show');
+      mask.classList.remove('show');
+      const onEnd = () => {
+        mask.removeEventListener('transitionend', onEnd);
+        if (mask.parentNode) mask.remove();
+      };
+      mask.addEventListener('transitionend', onEnd);
+      resolve(result);
+    };
+
+    // 事件处理
+    cancelBtn.addEventListener('click', () => {
+      if (window.__hapticImpact__) {
+        window.__hapticImpact__('Light');
+      }
+      close(false);
+    }, { once: true });
+
+    okBtn.addEventListener('click', () => {
+      if (window.__hapticImpact__) {
+        window.__hapticImpact__('Medium');
+      }
+      close(true);
+    }, { once: true });
+
+    mask.addEventListener('click', (e) => {
+      if (e.target === mask) {
+        close(false);
+      }
+    }, { once: true });
+
+    // ESC键关闭
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        close(false);
+        document.removeEventListener('keydown', handleEsc);
+      }
+    };
+    document.addEventListener('keydown', handleEsc);
+
+    // 聚焦到确定按钮
+    setTimeout(() => okBtn.focus(), 0);
+  });
+}
+
 // -----------------------------
 // Public API / 对外导出
 // -----------------------------
@@ -1856,5 +1957,6 @@ window.toggleMessageMenu = toggleMessageMenu;
 window.toggleCommentMenu = toggleCommentMenu;
 window.deletePost = deletePost;
 window.deleteCommentWithRefresh = deleteCommentWithRefresh;
+window.confirmDialog = confirmDialog;
 
 })();
