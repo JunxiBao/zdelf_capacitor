@@ -20,6 +20,18 @@
       "style": "DARK",
       "backgroundColor": "#ffffff",
       "overlaysWebView": false
+    },
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "App": {
+      "enabled": true
     }
+  },
+  "server": {
+    "allowNavigation": [
+      "https://app.zdelf.cn"
+    ],
+    "cleartext": true
   }
 }
