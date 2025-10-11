@@ -32,6 +32,8 @@ let isAnonymous = false;
 let searchQuery = '';
 let allMessages = []; // 存储所有消息用于搜索
 let searchTimeout = null; // 搜索防抖定时器
+let isDetailView = false; // 是否在详情视图
+let currentDetailPostId = null; // 当前详情视图的帖子ID
 
 /**
  * 初始化广场页面
@@ -106,6 +108,8 @@ function destroySquare() {
   isInitialized = false;
   squareRoot = document;
   searchQuery = '';
+  isDetailView = false;
+  currentDetailPostId = null;
   
   console.log('🧹 destroySquare 清理完成');
 }
@@ -665,7 +669,17 @@ async function handlePublish() {
 
     // 3) 成功后刷新列表并清空表单
     clearPublishForm();
-    if (publishSection) publishSection.style.display = 'none';
+    if (publishSection) {
+      // 取消所有动画
+      try {
+        const animations = publishSection.getAnimations();
+        animations.forEach(anim => anim.cancel());
+      } catch (e) {
+        // 忽略错误
+      }
+      publishSection.style.display = 'none';
+      publishSection.style.opacity = '1';
+    }
     if (publishTriggerBtn) publishTriggerBtn.style.display = 'flex';
     if (window.__hapticImpact__) window.__hapticImpact__('Medium');
     
@@ -781,8 +795,16 @@ function handlePublishTrigger() {
     window.__hapticImpact__('Light');
   }
   
-  // 显示发布区域
+  // 显示发布区域，完全重置所有样式
   if (publishSection) {
+    // 取消所有动画（如果有）
+    const animations = publishSection.getAnimations();
+    animations.forEach(anim => anim.cancel());
+    
+    // 清除所有可能的残留样式，并强制设置可见
+    publishSection.style.opacity = '1';  // 强制设置为1而不是清空
+    publishSection.style.transform = '';
+    publishSection.style.transition = '';
     publishSection.style.display = 'block';
     publishSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -814,7 +836,16 @@ function handleCancel() {
   
   // 隐藏发布区域
   if (publishSection) {
+    // 取消所有动画
+    try {
+      const animations = publishSection.getAnimations();
+      animations.forEach(anim => anim.cancel());
+    } catch (e) {
+      // 忽略错误
+    }
+    
     publishSection.style.display = 'none';
+    publishSection.style.opacity = '1';  // 设置为1以覆盖任何动画状态
   }
   
   // 显示触发按钮
@@ -848,13 +879,17 @@ async function loadMessages() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     const list = (data && data.success && Array.isArray(data.data)) ? data.data : [];
-
+    
     // 归一化为现有渲染结构
     const loadedMessages = list.map((it) => {
       const apiBase = getApiBase();
       const avatar = it.avatar_url ? (it.avatar_url.startsWith('http') ? it.avatar_url : (apiBase + it.avatar_url)) : null;
       const imgs = Array.isArray(it.images) ? it.images : (Array.isArray(it.image_urls) ? it.image_urls : []);
       const normImgs = imgs.map(u => (typeof u === 'string' ? (u.startsWith('http') ? u : (apiBase + u)) : '')).filter(Boolean);
+      
+      // 尝试多种可能的评论计数字段名
+      const commentCount = it.comment_count || it.comments_count || it.num_comments || it.comments || 0;
+      
       return {
         id: it.id,
         author: it.username || '匿名用户',
@@ -864,7 +899,8 @@ async function loadMessages() {
         images: normImgs,
         timestamp: it.created_at || new Date().toISOString(),
         likes: 0,
-        comments: 0
+        comments: 0,
+        comments_count: commentCount
       };
     });
     
@@ -873,6 +909,10 @@ async function loadMessages() {
     messages = [...loadedMessages];
 
     updateMessagesList();
+    
+    // 主动加载所有帖子的实际评论数
+    loadAllCommentCounts(loadedMessages);
+    
     // 列表渲染后淡入
     if (messagesList && window.AnimationUtils) {
       await window.AnimationUtils.fadeIn(messagesList, 220);
@@ -1002,6 +1042,349 @@ function saveMessages() {
 }
 
 /**
+ * 显示帖子详情
+ * @param {string} postId - 帖子ID
+ */
+async function showPostDetail(postId) {
+  console.log('显示帖子详情:', postId);
+  
+  // 触觉反馈
+  if (window.__hapticImpact__) {
+    window.__hapticImpact__('Light');
+  }
+  
+  // 设置详情视图状态
+  isDetailView = true;
+  currentDetailPostId = postId;
+  
+  // 给容器添加详情模式class，减少顶部空白
+  const appContainer = squareRoot.querySelector('.app');
+  if (appContainer) {
+    appContainer.classList.add('detail-view-mode');
+  }
+  
+  // 获取需要操作的元素
+  const allMessageItems = squareRoot.querySelectorAll('.message-item');
+  const searchContainer = squareRoot.querySelector('.search-container');
+  const publishTrigger = squareRoot.querySelector('.publish-trigger-section');
+  const publishSec = squareRoot.querySelector('.publish-section');
+  const commentsSection = squareRoot.getElementById(`comments-${postId}`);
+  const messagesHeader = squareRoot.querySelector('.messages-header');
+  
+  // 收集要淡出的元素
+  const fadeOutElements = [];
+  if (searchContainer) fadeOutElements.push(searchContainer);
+  if (publishTrigger) fadeOutElements.push(publishTrigger);
+  if (publishSec) fadeOutElements.push(publishSec);
+  if (messagesHeader) fadeOutElements.push(messagesHeader);
+  
+  // 找到当前显示的帖子并添加详情模式样式
+  let currentPostElement = null;
+  allMessageItems.forEach(item => {
+    if (item.dataset.postId !== postId) {
+      fadeOutElements.push(item);
+    } else {
+      currentPostElement = item;
+      // 添加详情模式class，让帖子展开显示
+      item.classList.add('detail-mode');
+    }
+  });
+  
+  // 使用全局动画系统并行淡出所有元素
+  if (window.AnimationUtils) {
+    // 启用GPU加速
+    fadeOutElements.forEach(el => {
+      window.AnimationUtils.enableGPUAcceleration(el);
+      window.AnimationUtils.setWillChange(el, 'opacity, transform');
+    });
+    
+    // 并行执行淡出动画
+    await window.AnimationUtils.parallel(
+      fadeOutElements.map(el => () => window.AnimationUtils.fadeOut(el, 250))
+    );
+    
+    // 隐藏元素并完全清理样式
+    fadeOutElements.forEach(el => {
+      // 取消所有Web Animations API的动画
+      try {
+        const animations = el.getAnimations();
+        animations.forEach(anim => anim.cancel());
+      } catch (e) {
+        // 忽略错误
+      }
+      
+      el.style.display = 'none';
+      el.style.opacity = '';
+      el.style.transform = '';
+      el.style.transition = '';
+      window.AnimationUtils.clearWillChange(el);
+    });
+  } else {
+    // 降级处理：使用传统方式
+    fadeOutElements.forEach(el => {
+      el.style.transition = 'opacity 0.25s ease';
+      el.style.opacity = '0';
+    });
+    await new Promise(resolve => setTimeout(resolve, 260));
+    fadeOutElements.forEach(el => {
+      el.style.display = 'none';
+      el.style.opacity = '';
+      el.style.transition = '';
+    });
+  }
+  
+  // 添加返回按钮（带动画）
+  addBackButton();
+  
+  // 准备评论区域
+  if (commentsSection) {
+    commentsSection.style.display = 'block';
+    commentsSection.style.opacity = '0';
+    if (window.AnimationUtils) {
+      window.AnimationUtils.enableGPUAcceleration(commentsSection);
+      window.AnimationUtils.setWillChange(commentsSection, 'opacity, transform');
+    }
+  }
+  
+  // 滚动到顶部
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  
+  // 等待一帧
+  await new Promise(resolve => requestAnimationFrame(resolve));
+  
+  // 加载评论
+  await loadComments(postId);
+  
+  // 淡入评论区域
+  if (commentsSection && window.AnimationUtils) {
+    await window.AnimationUtils.slideUp(commentsSection, 300);
+    window.AnimationUtils.clearWillChange(commentsSection);
+  } else if (commentsSection) {
+    // 降级处理
+    commentsSection.style.transition = 'opacity 0.3s ease';
+    commentsSection.style.opacity = '1';
+    setTimeout(() => {
+      commentsSection.style.transition = '';
+    }, 350);
+  }
+}
+
+/**
+ * 返回列表视图
+ */
+async function backToList() {
+  console.log('返回列表视图');
+  
+  // 触觉反馈
+  if (window.__hapticImpact__) {
+    window.__hapticImpact__('Light');
+  }
+  
+  // 重置详情视图状态
+  const previousPostId = currentDetailPostId;
+  isDetailView = false;
+  currentDetailPostId = null;
+  
+  // 移除容器的详情模式class
+  const appContainer = squareRoot.querySelector('.app');
+  if (appContainer) {
+    appContainer.classList.remove('detail-view-mode');
+  }
+  
+  // 获取需要操作的元素
+  const commentsSection = previousPostId ? squareRoot.getElementById(`comments-${previousPostId}`) : null;
+  const allMessageItems = squareRoot.querySelectorAll('.message-item');
+  const searchContainer = squareRoot.querySelector('.search-container');
+  const publishTrigger = squareRoot.querySelector('.publish-trigger-section');
+  const publishSec = squareRoot.querySelector('.publish-section');
+  const messagesHeader = squareRoot.querySelector('.messages-header');
+  const backButtonContainer = squareRoot.querySelector('.back-button-container');
+  
+  // 使用全局动画系统淡出评论和返回按钮
+  const fadeOutItems = [];
+  if (commentsSection) fadeOutItems.push(commentsSection);
+  if (backButtonContainer) fadeOutItems.push(backButtonContainer);
+  
+  if (window.AnimationUtils && fadeOutItems.length > 0) {
+    // 启用GPU加速
+    fadeOutItems.forEach(el => {
+      window.AnimationUtils.enableGPUAcceleration(el);
+      window.AnimationUtils.setWillChange(el, 'opacity, transform');
+    });
+    
+    // 并行淡出
+    await window.AnimationUtils.parallel(
+      fadeOutItems.map(el => () => window.AnimationUtils.fadeOut(el, 200))
+    );
+    
+    // 清理
+    if (commentsSection) {
+      commentsSection.style.display = 'none';
+      window.AnimationUtils.clearWillChange(commentsSection);
+    }
+    if (backButtonContainer) {
+      removeBackButton();
+    }
+  } else {
+    // 降级处理
+    if (commentsSection) {
+      commentsSection.style.transition = 'opacity 0.2s ease';
+      commentsSection.style.opacity = '0';
+      await new Promise(resolve => setTimeout(resolve, 210));
+      commentsSection.style.display = 'none';
+      commentsSection.style.opacity = '';
+      commentsSection.style.transition = '';
+    }
+    if (backButtonContainer) {
+      backButtonContainer.style.transition = 'opacity 0.2s ease';
+      backButtonContainer.style.opacity = '0';
+      setTimeout(() => removeBackButton(), 210);
+    }
+  }
+  
+  // 直接显示所有元素，不使用淡入动画
+  allMessageItems.forEach(item => {
+    // 移除详情模式class，恢复卡片样式
+    item.classList.remove('detail-mode');
+    
+    if (item.style.display === 'none') {
+      item.style.display = 'block';
+    }
+    // 清除所有可能的内联样式
+    item.style.opacity = '';
+    item.style.transform = '';
+    item.style.transition = '';
+  });
+  
+  if (searchContainer && searchContainer.style.display === 'none') {
+    searchContainer.style.display = 'block';
+  }
+  if (searchContainer) {
+    searchContainer.style.opacity = '';
+    searchContainer.style.transform = '';
+    searchContainer.style.transition = '';
+  }
+  
+  if (publishTrigger && publishTrigger.style.display === 'none') {
+    publishTrigger.style.display = 'flex';
+  }
+  if (publishTrigger) {
+    publishTrigger.style.opacity = '';
+    publishTrigger.style.transform = '';
+    publishTrigger.style.transition = '';
+  }
+  
+  if (messagesHeader && messagesHeader.style.display === 'none') {
+    messagesHeader.style.display = 'flex';
+  }
+  if (messagesHeader) {
+    messagesHeader.style.opacity = '';
+    messagesHeader.style.transform = '';
+    messagesHeader.style.transition = '';
+  }
+  
+  // 重置发布区域状态（确保隐藏并清除所有样式）
+  if (publishSec) {
+    // 取消所有动画
+    try {
+      const animations = publishSec.getAnimations();
+      animations.forEach(anim => anim.cancel());
+    } catch (e) {
+      // 忽略错误
+    }
+    
+    publishSec.style.display = 'none';
+    publishSec.style.opacity = '1';
+    publishSec.style.transform = '';
+    publishSec.style.transition = '';
+  }
+  
+  // 滚动到顶部
+  window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+/**
+ * 添加返回按钮
+ */
+async function addBackButton() {
+  // 如果已经存在返回按钮，不重复添加
+  if (squareRoot.querySelector('.back-button-container')) {
+    return;
+  }
+  
+  const backButtonContainer = document.createElement('div');
+  backButtonContainer.className = 'back-button-container';
+  backButtonContainer.innerHTML = `
+    <button class="back-to-list-btn" onclick="backToList()">
+      <ion-icon ios="close-outline" md="close-sharp" aria-hidden="true"></ion-icon>
+    </button>
+  `;
+  
+  // 插入到 messages-section 前面
+  const messagesSection = squareRoot.querySelector('.messages-section');
+  if (messagesSection && messagesSection.parentNode) {
+    messagesSection.parentNode.insertBefore(backButtonContainer, messagesSection);
+    
+    // 使用全局动画系统
+    if (window.AnimationUtils) {
+      // 初始状态
+      backButtonContainer.style.opacity = '0';
+      backButtonContainer.style.transform = 'scale(0.8)';
+      
+      // 启用GPU加速
+      window.AnimationUtils.enableGPUAcceleration(backButtonContainer);
+      window.AnimationUtils.setWillChange(backButtonContainer, 'opacity, transform');
+      
+      // 等待一帧
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      
+      // 使用Web Animations API
+      const animation = backButtonContainer.animate([
+        { opacity: 0, transform: 'scale(0.8)' },
+        { opacity: 1, transform: 'scale(1)' }
+      ], {
+        duration: window.AnimationUtils.getAdjustedDuration(250),
+        easing: window.AnimationUtils.config.easing.smooth,
+        fill: 'forwards'
+      });
+      
+      animation.addEventListener('finish', () => {
+        backButtonContainer.style.opacity = '';
+        backButtonContainer.style.transform = '';
+        window.AnimationUtils.clearWillChange(backButtonContainer);
+      });
+    } else {
+      // 降级处理
+      backButtonContainer.style.opacity = '0';
+      backButtonContainer.style.transform = 'scale(0.8)';
+      
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          backButtonContainer.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+          backButtonContainer.style.opacity = '1';
+          backButtonContainer.style.transform = 'scale(1)';
+          
+          setTimeout(() => {
+            backButtonContainer.style.transition = '';
+            backButtonContainer.style.transform = '';
+          }, 320);
+        });
+      });
+    }
+  }
+}
+
+/**
+ * 移除返回按钮
+ */
+function removeBackButton() {
+  const backButtonContainer = squareRoot.querySelector('.back-button-container');
+  if (backButtonContainer && backButtonContainer.parentNode) {
+    backButtonContainer.parentNode.removeChild(backButtonContainer);
+  }
+}
+
+/**
  * 更新消息列表显示
  */
 function updateMessagesList() {
@@ -1023,9 +1406,6 @@ function updateMessagesList() {
   messages.forEach((message, index) => {
     const messageElement = createMessageElement(message, index);
     messagesList.appendChild(messageElement);
-    
-    // 自动加载评论
-    loadComments(message.id);
   });
   
   // 更新消息计数
@@ -1042,6 +1422,7 @@ function createMessageElement(message, index) {
   const messageDiv = document.createElement('div');
   messageDiv.className = 'message-item';
   messageDiv.style.animationDelay = `${index * 0.1}s`;
+  messageDiv.dataset.postId = message.id; // 存储帖子ID
   
   const timeAgo = getTimeAgo(message.timestamp);
   
@@ -1085,11 +1466,17 @@ function createMessageElement(message, index) {
       ${message.images && message.images.length > 0 ? 
         `<div class="message-images">
           ${message.images.map((img, imgIndex) => 
-            `<img src="${img}" alt="消息图片" class="message-image" onclick="openImageModal('${img}')" onerror="console.error('图片加载失败:', this.src); this.style.display='none'" onload="console.log('图片加载成功:', this.src)" loading="lazy">`
+            `<img src="${img}" alt="消息图片" class="message-image" onclick="openImageModal('${img}'); event.stopPropagation();" onerror="console.error('图片加载失败:', this.src); this.style.display='none'" onload="console.log('图片加载成功:', this.src)" loading="lazy">`
           ).join('')}
         </div>` : ''}
     </div>
-    <div class="comments-section" id="comments-${message.id}">
+    <div class="message-footer">
+      <div class="comment-count" id="comment-count-${message.id}">
+        <ion-icon ios="chatbubble-outline" md="chatbubble-sharp" aria-hidden="true"></ion-icon>
+        <span class="count-text">${message.comments_count || message.comments || 0}</span>
+      </div>
+    </div>
+    <div class="comments-section" id="comments-${message.id}" style="display: none;">
       <div class="comments-list" id="comments-list-${message.id}">
         <!-- 评论将通过JavaScript动态添加 -->
       </div>
@@ -1120,6 +1507,28 @@ function createMessageElement(message, index) {
       </div>
     </div>
   `;
+  
+  // 添加点击事件来显示帖子详情
+  const messageContent = messageDiv.querySelector('.message-content');
+  const messageHeader = messageDiv.querySelector('.message-header');
+  
+  const clickHandler = (e) => {
+    // 如果点击的是菜单按钮、图片或评论计数，不触发详情视图
+    if (e.target.closest('.menu-btn') || 
+        e.target.closest('.dropdown-menu') || 
+        e.target.closest('.message-image') ||
+        e.target.closest('.comment-count')) {
+      return;
+    }
+    showPostDetail(message.id);
+  };
+  
+  if (messageContent) {
+    messageContent.addEventListener('click', clickHandler);
+  }
+  if (messageHeader) {
+    messageHeader.addEventListener('click', clickHandler);
+  }
   
   return messageDiv;
 }
@@ -1428,6 +1837,44 @@ function toggleComments(postId) {
 }
 
 /**
+ * 批量加载所有帖子的评论数
+ * @param {Array} messages - 帖子数组
+ */
+async function loadAllCommentCounts(messages) {
+  if (!messages || messages.length === 0) return;
+  
+  // 异步加载每个帖子的评论数，不阻塞UI，并分散请求时间
+  messages.forEach((message, index) => {
+    // 每个请求间隔50ms，避免同时发送太多请求
+    setTimeout(async () => {
+      try {
+        const API_BASE = getApiBase();
+        const identity = await resolveUserIdentity();
+        const resp = await fetch(API_BASE + '/square/comments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            post_id: message.id,
+            current_user_id: identity.user_id || null
+          })
+        });
+        
+        if (!resp.ok) return; // 静默失败，不影响用户体验
+        const data = await resp.json();
+        
+        if (data.success && Array.isArray(data.data)) {
+          // 更新评论计数显示
+          updateCommentCount(message.id, data.data.length);
+        }
+      } catch (error) {
+        // 静默失败，不显示错误
+        console.debug(`加载帖子 ${message.id} 的评论数失败:`, error);
+      }
+    }, index * 50); // 每个请求延迟50ms
+  });
+}
+
+/**
  * 加载指定消息的评论
  * @param {string} postId - 消息ID
  */
@@ -1458,6 +1905,21 @@ async function loadComments(postId) {
 }
 
 /**
+ * 更新评论计数
+ * @param {string} postId - 消息ID
+ * @param {number} count - 评论数量
+ */
+function updateCommentCount(postId, count) {
+  const commentCountElement = squareRoot.getElementById(`comment-count-${postId}`);
+  if (commentCountElement) {
+    const countText = commentCountElement.querySelector('.count-text');
+    if (countText) {
+      countText.textContent = count;
+    }
+  }
+}
+
+/**
  * 渲染评论列表
  * @param {string} postId - 消息ID
  * @param {Array} comments - 评论数组
@@ -1469,10 +1931,12 @@ function renderComments(postId, comments) {
   if (comments.length === 0) {
     // 没有评论时不显示任何内容，但保持容器存在
     commentsList.innerHTML = '';
+    updateCommentCount(postId, 0);
     return;
   }
   
   commentsList.innerHTML = comments.map(comment => createCommentElement(comment)).join('');
+  updateCommentCount(postId, comments.length);
 }
 
 /**
@@ -1772,7 +2236,10 @@ async function deletePost(postId) {
       window.__hapticImpact__('Medium');
     }
     
-    // 不再需要从本地存储中移除，因为统一通过user_id匹配
+    // 如果删除的是当前详情视图的帖子，返回列表
+    if (isDetailView && currentDetailPostId === postId) {
+      backToList();
+    }
     
     // 重新加载消息列表
     await loadMessages();
@@ -2054,5 +2521,7 @@ window.toggleCommentMenu = toggleCommentMenu;
 window.deletePost = deletePost;
 window.deleteCommentWithRefresh = deleteCommentWithRefresh;
 window.confirmDialog = confirmDialog;
+window.showPostDetail = showPostDetail;
+window.backToList = backToList;
 
 })();
