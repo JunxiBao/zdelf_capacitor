@@ -886,7 +886,12 @@ body {
 
 .message-item.detail-mode .message-header {
   border-bottom: none;
-  padding: 12px 0 12px;
+  padding: 12px 60px 12px 0; /* 右边留出空间给按钮 */
+}
+
+.message-item.detail-mode .menu-btn {
+  top: 12px;
+  right: 0;
 }
 
 .message-item.detail-mode .message-content {
@@ -935,7 +940,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 20px 24px 16px;
+  padding: 20px 60px 16px 24px; /* 右边留出空间给按钮 */
   border-bottom: 1px solid var(--divider);
   position: relative;
 }
@@ -985,6 +990,7 @@ body {
 
 .message-info {
   flex: 1;
+  min-width: 0; /* 允许内容收缩 */
 }
 
 .message-author {
@@ -992,6 +998,9 @@ body {
   font-size: 16px;
   color: var(--text);
   margin: 0 0 4px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .message-time {
@@ -1207,12 +1216,31 @@ body {
   }
   
   .message-header {
-    padding: 16px 20px 12px;
+    padding: 16px 56px 12px 20px; /* 右边留出空间给按钮 */
   }
   
   .message-content {
     padding: 10px 20px;
     min-height: 70px;
+  }
+  
+  /* 移动端三个点按钮 */
+  .menu-btn {
+    top: 16px;
+    right: 20px;
+    width: 28px;
+    height: 28px;
+  }
+  
+  .menu-btn ion-icon {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .dropdown-menu {
+    right: 16px;
+    min-width: 100px;
+    font-size: 14px;
   }
   
   .message-footer {
@@ -1235,6 +1263,15 @@ body {
   }
   
   /* 移动端详情模式字体调整 */
+  .message-item.detail-mode .message-header {
+    padding: 12px 56px 12px 0; /* 右边留出空间给按钮 */
+  }
+  
+  .message-item.detail-mode .menu-btn {
+    top: 12px;
+    right: 0;
+  }
+  
   .message-item.detail-mode .message-text {
     font-size: 18px;
     line-height: 1.7;
@@ -1319,9 +1356,20 @@ body {
   padding: 3px 0;
   margin-bottom: 0;
   border-bottom: 1px solid var(--divider);
-  height: auto;
+  min-height: auto;
   gap: 10px;
   align-items: flex-start;
+}
+
+/* 详情模式下的评论菜单按钮位置 */
+.message-item.detail-mode .comment-menu-btn {
+  top: 3px; /* 和详情模式的padding对齐 */
+  right: 0;
+}
+
+.message-item.detail-mode .comment-dropdown-menu {
+  top: 3px;
+  right: 36px;
 }
 
 .message-item.detail-mode .comment-item:last-child {
@@ -1425,14 +1473,14 @@ body {
   display: flex;
   gap: 12px;
   margin-bottom: 16px;
-  padding: 16px 20px;
+  padding: 16px 50px 16px 20px; /* 右边留出空间给菜单按钮 */
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.5);
   border: 1px solid rgba(0, 0, 0, 0.05);
   transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   animation: commentSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  align-items: center;
-  height: 72px;
+  align-items: flex-start; /* 改为顶部对齐，让按钮能和用户名对齐 */
+  min-height: 72px; /* 改为最小高度 */
   flex-shrink: 0;
   position: relative;
 }
@@ -1866,14 +1914,33 @@ body {
   }
   
   .comment-item {
-    height: 64px;
-    padding: 14px 16px;
+    min-height: 64px;
+    padding: 14px 46px 14px 16px; /* 右边留出空间给按钮 */
+  }
+  
+  /* 移动端评论菜单按钮位置 */
+  .comment-menu-btn {
+    top: 14px; /* 和移动端padding对齐 */
+  }
+  
+  .comment-dropdown-menu {
+    top: 14px;
   }
   
   /* 移动端详情模式下的评论项 - 覆盖通用样式 */
   .message-item.detail-mode .comment-item {
-    height: auto;
+    min-height: auto;
     padding: 3px 0;
+  }
+  
+  .message-item.detail-mode .comment-menu-btn {
+    top: 3px;
+    right: 0;
+  }
+  
+  .message-item.detail-mode .comment-dropdown-menu {
+    top: 3px;
+    right: 36px;
   }
   
   .comment-submit-btn {
@@ -1911,7 +1978,8 @@ body {
   }
 }
 
-/* 三个点菜单按钮样式 */
+/* ========== 三个点菜单按钮 ========== */
+/* 帖子右上角的三个点按钮 */
 .menu-btn {
   position: absolute;
   top: 20px;
@@ -1927,11 +1995,11 @@ body {
   justify-content: center;
   color: var(--text-secondary);
   transition: all 0.2s ease;
-  z-index: 10;
+  z-index: 5;
 }
 
 .menu-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.06);
   color: var(--text);
 }
 
@@ -1940,11 +2008,12 @@ body {
   height: 20px;
 }
 
-/* 下拉菜单样式 */
+/* 下拉菜单样式 - 显示在按钮下方 */
 .dropdown-menu {
   position: absolute;
-  top: 52px;
-  right: 24px;
+  top: 100%;
+  right: 20px;
+  margin-top: 4px;
   background: var(--card);
   border: 1px solid var(--divider);
   border-radius: 12px;
@@ -1996,9 +2065,8 @@ body {
 /* 评论项中的菜单按钮 */
 .comment-menu-btn {
   position: absolute;
-  top: 50%;
+  top: 16px; /* 和padding对齐，让按钮在用户名那一行 */
   right: 16px;
-  transform: translateY(-50%);
   width: 28px;
   height: 28px;
   background: transparent;
@@ -2016,6 +2084,7 @@ body {
 .comment-menu-btn:hover {
   background: rgba(0, 0, 0, 0.05);
   color: var(--text);
+  transform: scale(1.05);
 }
 
 .comment-menu-btn ion-icon {
@@ -2026,9 +2095,8 @@ body {
 /* 评论的下拉菜单 */
 .comment-dropdown-menu {
   position: absolute;
-  top: 50%;
-  right: 50px;
-  transform: translateY(-50%);
+  top: 16px; /* 和按钮对齐 */
+  right: 50px; /* 在按钮左边显示 */
   background: var(--card);
   border: 1px solid var(--divider);
   border-radius: 12px;
