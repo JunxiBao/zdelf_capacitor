@@ -1884,6 +1884,59 @@
       }
     }
 
+    // 强制清除所有缓存
+    function clearAllCache() {
+      try {
+        console.log('开始清除缓存...');
+        
+        // 清除localStorage中的版本相关缓存
+        const versionCacheKeys = [
+          'version_check_cache',
+          'version_data_cache', 
+          'app_version_cache',
+          'server_version_cache'
+        ];
+        
+        versionCacheKeys.forEach(key => {
+          if (localStorage.getItem(key)) {
+            localStorage.removeItem(key);
+            console.log(`已清除localStorage缓存: ${key}`);
+          }
+        });
+        
+        // 清除sessionStorage中的版本相关缓存
+        versionCacheKeys.forEach(key => {
+          if (sessionStorage.getItem(key)) {
+            sessionStorage.removeItem(key);
+            console.log(`已清除sessionStorage缓存: ${key}`);
+          }
+        });
+        
+        // 尝试清除浏览器缓存（如果支持）
+        if ('caches' in window) {
+          caches.keys().then(cacheNames => {
+            cacheNames.forEach(cacheName => {
+              if (cacheName.includes('version') || cacheName.includes('app')) {
+                caches.delete(cacheName);
+                console.log(`已清除浏览器缓存: ${cacheName}`);
+              }
+            });
+          }).catch(err => {
+            console.log('清除浏览器缓存失败:', err);
+          });
+        }
+        
+        // 强制刷新页面资源（通过添加时间戳参数）
+        const timestamp = Date.now();
+        console.log(`缓存清除完成，时间戳: ${timestamp}`);
+        
+        return timestamp;
+      } catch (error) {
+        console.warn('清除缓存时出错:', error);
+        return Date.now();
+      }
+    }
+
     // 检查版本并显示模态框
     async function checkVersionAndShowModal() {
       // 检查是否启用版本检查
@@ -1893,6 +1946,8 @@
         return;
       }
       
+      // 强制清除缓存
+      const cacheTimestamp = clearAllCache();
       
       // 先获取当前版本号，避免被"检查中..."覆盖
       const currentVersion = getCurrentVersion();
@@ -1901,24 +1956,34 @@
       // 显示加载状态
       const versionNumber = root.querySelector("#versionCard .version-number");
       const originalText = versionNumber.textContent;
+      versionNumber.textContent = "清除缓存中...";
+      
+      // 短暂延迟让用户看到清除缓存的状态
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       versionNumber.textContent = "检查中...";
       
       try {
         console.log('开始检查版本...');
         
-        // 使用配置的服务器URL
+        // 使用配置的服务器URL，添加时间戳参数避免缓存
         const serverUrl = VERSION_CHECK_CONFIG.serverUrl;
-        console.log('使用服务器URL:', serverUrl);
+        const separator = serverUrl.includes('?') ? '&' : '?';
+        const urlWithTimestamp = `${serverUrl}${separator}t=${cacheTimestamp}&_t=${Date.now()}`;
+        console.log('使用服务器URL:', urlWithTimestamp);
         
         // 创建超时控制器
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), VERSION_CHECK_CONFIG.timeout);
         
-        // 获取服务器版本信息
-        const response = await fetch(serverUrl, {
+        // 获取服务器版本信息，添加缓存控制头
+        const response = await fetch(urlWithTimestamp, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
           },
           signal: controller.signal
         });
