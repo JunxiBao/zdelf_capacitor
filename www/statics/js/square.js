@@ -25,9 +25,13 @@ let messages = [];
 let messageTextarea, publishBtn, addImageBtn, imageFileInput, uploadedImages;
 let messagesList, loadingState, emptyState, messageCount, charCount;
 let publishTriggerBtn, publishSection, cancelBtn;
-let userAvatar, avatarImage, avatarInitials, userName, refreshBtn;
+let userAvatar, avatarImage, avatarInitials, userName;
+let searchInput, clearSearchBtn;
 let anonymousBtn;
 let isAnonymous = false;
+let searchQuery = '';
+let allMessages = []; // 存储所有消息用于搜索
+let searchTimeout = null; // 搜索防抖定时器
 
 /**
  * 初始化广场页面
@@ -85,15 +89,23 @@ function initSquare(shadowRoot) {
 function destroySquare() {
   console.log('🏛️ 销毁广场页面');
   
+  // 清除防抖定时器
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+    searchTimeout = null;
+  }
+  
   // 统一执行清理函数
   cleanupFns.forEach(fn => { try { fn(); } catch (_) {} });
   cleanupFns = [];
   
   // 重置状态
   messages = [];
+  allMessages = [];
   currentUser = null;
   isInitialized = false;
   squareRoot = document;
+  searchQuery = '';
   
   console.log('🧹 destroySquare 清理完成');
 }
@@ -116,7 +128,8 @@ function initializeElements() {
   avatarImage = squareRoot.getElementById('avatarImage');
   avatarInitials = squareRoot.getElementById('avatarInitials');
   userName = squareRoot.getElementById('userName');
-  refreshBtn = squareRoot.getElementById('refreshBtn');
+  searchInput = squareRoot.getElementById('searchInput');
+  clearSearchBtn = squareRoot.getElementById('clearSearchBtn');
   publishTriggerBtn = squareRoot.getElementById('publishTriggerBtn');
   publishSection = squareRoot.getElementById('publishSection');
   cancelBtn = squareRoot.getElementById('cancelBtn');
@@ -155,11 +168,24 @@ function setupEventListeners() {
     cleanupFns.push(() => imageFileInput.removeEventListener('change', imageHandler));
   }
   
-  // 刷新按钮
-  if (refreshBtn) {
-    const refreshHandler = () => handleRefresh();
-    refreshBtn.addEventListener('click', refreshHandler);
-    cleanupFns.push(() => refreshBtn.removeEventListener('click', refreshHandler));
+  // 搜索输入框
+  if (searchInput) {
+    const searchInputHandler = (e) => handleSearchInput(e);
+    searchInput.addEventListener('input', searchInputHandler);
+    searchInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        handleSearch();
+      }
+    });
+    cleanupFns.push(() => searchInput.removeEventListener('input', searchInputHandler));
+  }
+  
+  
+  // 清除搜索按钮
+  if (clearSearchBtn) {
+    const clearHandler = () => handleClearSearch();
+    clearSearchBtn.addEventListener('click', clearHandler);
+    cleanupFns.push(() => clearSearchBtn.removeEventListener('click', clearHandler));
   }
 
   // 发布触发按钮
@@ -674,10 +700,71 @@ function clearPublishForm() {
 }
 
 /**
- * 处理刷新
+ * 处理搜索输入
  */
-function handleRefresh() {
-  loadMessages();
+function handleSearchInput(e) {
+  const query = e.target.value.trim();
+  searchQuery = query;
+  
+  // 显示/隐藏清除按钮
+  if (clearSearchBtn) {
+    clearSearchBtn.classList.toggle('hidden', !query);
+  }
+  
+  // 清除之前的定时器
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+  }
+  
+  // 设置防抖，300ms后执行搜索
+  searchTimeout = setTimeout(() => {
+    performSearch(query);
+  }, 300);
+}
+
+
+/**
+ * 执行搜索
+ */
+function performSearch(query) {
+  if (!query || allMessages.length === 0) {
+    messages = [...allMessages];
+    updateMessagesList();
+    return;
+  }
+  
+  // 搜索消息内容和作者名称
+  const filteredMessages = allMessages.filter(message => {
+    const textMatch = message.text && message.text.toLowerCase().includes(query.toLowerCase());
+    const authorMatch = message.author && message.author.toLowerCase().includes(query.toLowerCase());
+    return textMatch || authorMatch;
+  });
+  
+  messages = filteredMessages;
+  updateMessagesList();
+}
+
+/**
+ * 清除搜索
+ */
+function handleClearSearch() {
+  // 清除防抖定时器
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+  }
+  
+  if (searchInput) {
+    searchInput.value = '';
+    searchQuery = '';
+  }
+  
+  if (clearSearchBtn) {
+    clearSearchBtn.classList.add('hidden');
+  }
+  
+  // 显示所有消息
+  messages = [...allMessages];
+  updateMessagesList();
   
   // 触觉反馈
   if (window.__hapticImpact__) {
@@ -763,7 +850,7 @@ async function loadMessages() {
     const list = (data && data.success && Array.isArray(data.data)) ? data.data : [];
 
     // 归一化为现有渲染结构
-    messages = list.map((it) => {
+    const loadedMessages = list.map((it) => {
       const apiBase = getApiBase();
       const avatar = it.avatar_url ? (it.avatar_url.startsWith('http') ? it.avatar_url : (apiBase + it.avatar_url)) : null;
       const imgs = Array.isArray(it.images) ? it.images : (Array.isArray(it.image_urls) ? it.image_urls : []);
@@ -780,6 +867,10 @@ async function loadMessages() {
         comments: 0
       };
     });
+    
+    // 保存到 allMessages 用于搜索
+    allMessages = [...loadedMessages];
+    messages = [...loadedMessages];
 
     updateMessagesList();
     // 列表渲染后淡入
@@ -1093,7 +1184,11 @@ function isWithinDeleteWindow(timestamp) {
  */
 function updateMessageCount() {
   if (messageCount) {
-    messageCount.textContent = `${messages.length} 条消息`;
+    if (searchQuery) {
+      messageCount.textContent = `${messages.length} 条搜索结果`;
+    } else {
+      messageCount.textContent = `${messages.length} 条消息`;
+    }
   }
 }
 
@@ -1372,7 +1467,8 @@ function renderComments(postId, comments) {
   if (!commentsList) return;
   
   if (comments.length === 0) {
-    commentsList.innerHTML = '<div class="no-comments">还没有评论，来抢沙发吧！</div>';
+    // 没有评论时不显示任何内容，但保持容器存在
+    commentsList.innerHTML = '';
     return;
   }
   
