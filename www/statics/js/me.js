@@ -16,7 +16,10 @@
   
   // ==================== 应用版本配置 ====================
   // 在这里修改应用版本号 - 格式: "主版本.次版本.修订版本.构建版本"
-  const APP_VERSION = "1.2.3.0";
+  const APP_VERSION = "1.3.0.0";
+  
+  // 构建时间戳 - 用于强制刷新缓存
+  const BUILD_TIMESTAMP = Date.now();
   
   // 版本检查配置
   const VERSION_CHECK_CONFIG = {
@@ -390,6 +393,7 @@
         
         versionElement.textContent = `v${version}`;
         console.log('更新版本显示为:', version);
+        console.log('构建时间戳:', BUILD_TIMESTAMP);
       } catch (error) {
         console.warn('更新版本显示失败:', error);
         const versionElement = root.querySelector("#versionCard .version-number");
@@ -1871,6 +1875,8 @@
         }
         
         console.log('从配置获取版本:', APP_VERSION);
+        console.log('构建时间戳:', BUILD_TIMESTAMP);
+        console.log('当前时间:', new Date().toISOString());
         return APP_VERSION;
       } catch (error) {
         console.warn('获取版本信息失败:', error);
