@@ -1449,17 +1449,28 @@ function createMessageElement(message, index) {
         <div class="message-author">${escapeHtml(message.author)}</div>
         <div class="message-time">${timeAgo}</div>
       </div>
-      ${isCurrentUser ? `
-        <button class="menu-btn" onclick="toggleMessageMenu('${message.id}', event)">
-          <ion-icon ios="ellipsis-horizontal-outline" md="ellipsis-horizontal-sharp" aria-hidden="true"></ion-icon>
-        </button>
-        <div class="dropdown-menu" id="message-menu-${message.id}" style="display: none;">
+      <button class="menu-btn" onclick="toggleMessageMenu('${message.id}', event)">
+        <ion-icon ios="ellipsis-horizontal-outline" md="ellipsis-horizontal-sharp" aria-hidden="true"></ion-icon>
+      </button>
+      <div class="dropdown-menu" id="message-menu-${message.id}" style="display: none;">
+        ${isCurrentUser ? `
           <button class="dropdown-menu-item" onclick="deletePost('${message.id}')">
             <ion-icon ios="trash-outline" md="trash-sharp" aria-hidden="true"></ion-icon>
             <span>删除</span>
           </button>
-        </div>
-      ` : ''}
+        ` : `
+          <button class="dropdown-menu-item" onclick="reportContent('post', '${message.id}', '${message.authorId || ''}')">
+            <ion-icon ios="flag-outline" md="flag-sharp" aria-hidden="true"></ion-icon>
+            <span>举报</span>
+          </button>
+          ${message.authorId && message.author !== '匿名用户' ? `
+            <button class="dropdown-menu-item dropdown-menu-item-danger" onclick="blockUser('${message.authorId}', '${escapeHtml(message.author)}')">
+              <ion-icon ios="ban-outline" md="ban-sharp" aria-hidden="true"></ion-icon>
+              <span>屏蔽用户</span>
+            </button>
+          ` : ''}
+        `}
+      </div>
     </div>
     <div class="message-content">
       ${message.text ? `<div class="message-text">${escapeHtml(message.text)}</div>` : ''}
@@ -1973,17 +1984,28 @@ function createCommentElement(comment) {
         </div>
         <div class="comment-text">${escapeHtml(comment.text)}</div>
       </div>
-      ${isCurrentUser ? `
-        <button class="comment-menu-btn" onclick="toggleCommentMenu('${comment.id}', event)">
-          <ion-icon ios="ellipsis-horizontal-outline" md="ellipsis-horizontal-sharp" aria-hidden="true"></ion-icon>
-        </button>
-        <div class="comment-dropdown-menu" id="comment-menu-${comment.id}" style="display: none;">
+      <button class="comment-menu-btn" onclick="toggleCommentMenu('${comment.id}', event)">
+        <ion-icon ios="ellipsis-horizontal-outline" md="ellipsis-horizontal-sharp" aria-hidden="true"></ion-icon>
+      </button>
+      <div class="comment-dropdown-menu" id="comment-menu-${comment.id}" style="display: none;">
+        ${isCurrentUser ? `
           <button class="dropdown-menu-item" onclick="deleteCommentWithRefresh('${comment.id}')">
             <ion-icon ios="trash-outline" md="trash-sharp" aria-hidden="true"></ion-icon>
             <span>删除</span>
           </button>
-        </div>
-      ` : ''}
+        ` : `
+          <button class="dropdown-menu-item" onclick="reportContent('comment', '${comment.id}', '${comment.user_id || ''}')">
+            <ion-icon ios="flag-outline" md="flag-sharp" aria-hidden="true"></ion-icon>
+            <span>举报</span>
+          </button>
+          ${comment.user_id && comment.username !== '匿名用户' ? `
+            <button class="dropdown-menu-item dropdown-menu-item-danger" onclick="blockUser('${comment.user_id}', '${escapeHtml(comment.username)}')">
+              <ion-icon ios="ban-outline" md="ban-sharp" aria-hidden="true"></ion-icon>
+              <span>屏蔽用户</span>
+            </button>
+          ` : ''}
+        `}
+      </div>
     </div>
   `;
 }
@@ -2505,6 +2527,454 @@ function confirmDialog(message, type = 'danger') {
   });
 }
 
+/**
+ * 举报内容
+ * @param {string} contentType - 'post' or 'comment'
+ * @param {string} contentId - 内容ID
+ * @param {string} reportedUserId - 被举报用户ID
+ */
+async function reportContent(contentType, contentId, reportedUserId) {
+  // 触觉反馈
+  if (window.__hapticImpact__) {
+    window.__hapticImpact__('Light');
+  }
+  
+  // 关闭菜单
+  const allMenus = squareRoot.querySelectorAll('.dropdown-menu, .comment-dropdown-menu');
+  allMenus.forEach(menu => menu.style.display = 'none');
+  
+  // 显示举报原因选择对话框
+  const reason = await showReportDialog();
+  if (!reason) return;
+  
+  try {
+    const identity = await resolveUserIdentity();
+    if (!identity.user_id) {
+      showToast('请先登录');
+      return;
+    }
+    
+    const API_BASE = getApiBase();
+    const payload = {
+      reporter_id: identity.user_id,
+      content_type: contentType,
+      content_id: contentId,
+      reported_user_id: reportedUserId || undefined,
+      reason: reason.value,
+      details: reason.details || undefined
+    };
+    
+    const resp = await fetch(API_BASE + '/report/content', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    
+    if (!data.success) throw new Error(data.message || '举报失败');
+    
+    showToast('举报已提交，感谢您的反馈');
+    
+    // 触觉反馈
+    if (window.__hapticImpact__) {
+      window.__hapticImpact__('Medium');
+    }
+  } catch (error) {
+    console.error('举报失败:', error);
+    showToast(error.message || '举报失败，请重试');
+  }
+}
+
+/**
+ * 屏蔽用户
+ * @param {string} blockedId - 被屏蔽用户ID
+ * @param {string} blockedName - 被屏蔽用户名
+ */
+async function blockUser(blockedId, blockedName) {
+  // 触觉反馈
+  if (window.__hapticImpact__) {
+    window.__hapticImpact__('Light');
+  }
+  
+  // 关闭菜单
+  const allMenus = squareRoot.querySelectorAll('.dropdown-menu, .comment-dropdown-menu');
+  allMenus.forEach(menu => menu.style.display = 'none');
+  
+  const confirmed = await confirmDialog(
+    `确定要屏蔽用户"${blockedName}"吗？屏蔽后将不会看到该用户的任何内容。`,
+    'danger'
+  );
+  if (!confirmed) return;
+  
+  try {
+    const identity = await resolveUserIdentity();
+    if (!identity.user_id) {
+      showToast('请先登录');
+      return;
+    }
+    
+    const API_BASE = getApiBase();
+    const payload = {
+      blocker_id: identity.user_id,
+      blocked_id: blockedId
+    };
+    
+    const resp = await fetch(API_BASE + '/block/user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    
+    if (!data.success) throw new Error(data.message || '屏蔽失败');
+    
+    showToast('已屏蔽该用户');
+    
+    // 触觉反馈
+    if (window.__hapticImpact__) {
+      window.__hapticImpact__('Medium');
+    }
+    
+    // 重新加载消息列表以过滤被屏蔽用户的内容
+    await loadMessages();
+  } catch (error) {
+    console.error('屏蔽用户失败:', error);
+    showToast(error.message || '屏蔽失败，请重试');
+  }
+}
+
+/**
+ * 显示举报原因选择对话框
+ * @returns {Promise<Object|null>} 返回选择的原因和详情，或null
+ */
+function showReportDialog() {
+  ensureReportDialogStyles();
+  
+  return new Promise((resolve) => {
+    const mask = document.createElement('div');
+    mask.className = 'report-dialog-mask';
+    
+    const dialog = document.createElement('div');
+    dialog.className = 'report-dialog';
+    
+    const title = document.createElement('h3');
+    title.className = 'report-dialog-title';
+    title.textContent = '举报原因';
+    
+    const reasons = [
+      { value: 'spam', label: '垃圾广告', icon: 'megaphone' },
+      { value: 'harassment', label: '骚扰辱骂', icon: 'sad' },
+      { value: 'hate_speech', label: '仇恨言论', icon: 'warning' },
+      { value: 'violence', label: '暴力内容', icon: 'alert-circle' },
+      { value: 'adult_content', label: '色情内容', icon: 'eye-off' },
+      { value: 'misleading', label: '虚假误导', icon: 'help-circle' },
+      { value: 'privacy_violation', label: '侵犯隐私', icon: 'lock-closed' },
+      { value: 'other', label: '其他', icon: 'ellipsis-horizontal-circle' }
+    ];
+    
+    const reasonsList = document.createElement('div');
+    reasonsList.className = 'report-reasons-list';
+    
+    let selectedReason = null;
+    
+    reasons.forEach(reason => {
+      const item = document.createElement('button');
+      item.className = 'report-reason-item';
+      item.innerHTML = `
+        <ion-icon ios="${reason.icon}-outline" md="${reason.icon}-sharp"></ion-icon>
+        <span>${reason.label}</span>
+      `;
+      
+      item.addEventListener('click', () => {
+        // 移除其他选中状态
+        reasonsList.querySelectorAll('.report-reason-item').forEach(i => {
+          i.classList.remove('selected');
+        });
+        // 设置当前选中
+        item.classList.add('selected');
+        selectedReason = reason.value;
+        submitBtn.disabled = false;
+      });
+      
+      reasonsList.appendChild(item);
+    });
+    
+    const detailsLabel = document.createElement('label');
+    detailsLabel.className = 'report-details-label';
+    detailsLabel.textContent = '补充说明（可选）';
+    
+    const detailsTextarea = document.createElement('textarea');
+    detailsTextarea.className = 'report-details-textarea';
+    detailsTextarea.placeholder = '请详细描述问题...';
+    detailsTextarea.maxLength = 500;
+    
+    const footer = document.createElement('div');
+    footer.className = 'report-dialog-footer';
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'report-dialog-btn report-dialog-btn-cancel';
+    cancelBtn.textContent = '取消';
+    
+    const submitBtn = document.createElement('button');
+    submitBtn.className = 'report-dialog-btn report-dialog-btn-submit';
+    submitBtn.textContent = '提交举报';
+    submitBtn.disabled = true;
+    
+    footer.append(cancelBtn, submitBtn);
+    dialog.append(title, reasonsList, detailsLabel, detailsTextarea, footer);
+    mask.appendChild(dialog);
+    document.body.appendChild(mask);
+    
+    // 显示动画
+    requestAnimationFrame(() => {
+      mask.classList.add('show');
+      dialog.classList.add('show');
+    });
+    
+    const close = (result) => {
+      dialog.classList.remove('show');
+      mask.classList.remove('show');
+      setTimeout(() => {
+        if (mask.parentNode) mask.remove();
+      }, 200);
+      resolve(result);
+    };
+    
+    cancelBtn.addEventListener('click', () => {
+      if (window.__hapticImpact__) window.__hapticImpact__('Light');
+      close(null);
+    });
+    
+    submitBtn.addEventListener('click', () => {
+      if (window.__hapticImpact__) window.__hapticImpact__('Medium');
+      if (selectedReason) {
+        close({
+          value: selectedReason,
+          details: detailsTextarea.value.trim() || null
+        });
+      }
+    });
+    
+    mask.addEventListener('click', (e) => {
+      if (e.target === mask) close(null);
+    });
+  });
+}
+
+/**
+ * 确保举报对话框样式已加载
+ */
+function ensureReportDialogStyles() {
+  if (document.getElementById('report-dialog-style')) return;
+  
+  const style = document.createElement('style');
+  style.id = 'report-dialog-style';
+  style.textContent = `
+    .report-dialog-mask {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10001;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    
+    .report-dialog-mask.show {
+      opacity: 1;
+    }
+    
+    .report-dialog {
+      width: min(90vw, 420px);
+      max-height: 80vh;
+      background: var(--card, #fff);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      transform: translateY(20px) scale(0.95);
+      opacity: 0;
+      transition: all 0.2s ease;
+      overflow-y: auto;
+    }
+    
+    .report-dialog.show {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+    
+    .report-dialog-title {
+      margin: 0 0 16px 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text, #111);
+    }
+    
+    .report-reasons-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    
+    .report-reason-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 16px 8px;
+      border: 2px solid var(--divider, #e0e0e0);
+      border-radius: 12px;
+      background: var(--card, #fff);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 13px;
+      color: var(--text-secondary, #666);
+    }
+    
+    .report-reason-item ion-icon {
+      font-size: 24px;
+      color: var(--text-secondary, #666);
+    }
+    
+    .report-reason-item:hover {
+      border-color: var(--brand, #6200ea);
+      background: var(--brand-light, #f3e5f5);
+    }
+    
+    .report-reason-item.selected {
+      border-color: var(--brand, #6200ea);
+      background: var(--brand-light, #f3e5f5);
+      color: var(--brand, #6200ea);
+    }
+    
+    .report-reason-item.selected ion-icon {
+      color: var(--brand, #6200ea);
+    }
+    
+    .report-details-label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text, #111);
+    }
+    
+    .report-details-textarea {
+      width: 100%;
+      min-height: 80px;
+      padding: 12px;
+      border: 1px solid var(--divider, #e0e0e0);
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: vertical;
+      margin-bottom: 16px;
+      background: var(--card, #fff);
+      color: var(--text, #111);
+    }
+    
+    .report-details-textarea:focus {
+      outline: none;
+      border-color: var(--brand, #6200ea);
+    }
+    
+    .report-dialog-footer {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    
+    .report-dialog-btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .report-dialog-btn-cancel {
+      background: var(--divider, #e0e0e0);
+      color: var(--text, #111);
+    }
+    
+    .report-dialog-btn-cancel:hover {
+      background: var(--divider-dark, #bdbdbd);
+    }
+    
+    .report-dialog-btn-submit {
+      background: var(--brand, #6200ea);
+      color: #fff;
+    }
+    
+    .report-dialog-btn-submit:hover:not(:disabled) {
+      background: var(--brand-700, #4b00b5);
+      transform: translateY(-1px);
+    }
+    
+    .report-dialog-btn-submit:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    @media (prefers-color-scheme: dark) {
+      .report-dialog {
+        background: var(--card, #1e1f22);
+      }
+      
+      .report-dialog-title {
+        color: var(--text, #e6e6e6);
+      }
+      
+      .report-reason-item {
+        background: var(--card, #2b2d31);
+        border-color: var(--divider, #3a3c42);
+        color: var(--text-secondary, #b0b3b8);
+      }
+      
+      .report-reason-item ion-icon {
+        color: var(--text-secondary, #b0b3b8);
+      }
+      
+      .report-reason-item:hover {
+        background: var(--brand-dark, #2a0066);
+      }
+      
+      .report-reason-item.selected {
+        background: var(--brand-dark, #2a0066);
+      }
+      
+      .report-details-label {
+        color: var(--text, #e6e6e6);
+      }
+      
+      .report-details-textarea {
+        background: var(--card, #2b2d31);
+        border-color: var(--divider, #3a3c42);
+        color: var(--text, #e6e6e6);
+      }
+      
+      .report-dialog-btn-cancel {
+        background: var(--divider, #3a3c42);
+        color: var(--text, #e6e6e6);
+      }
+    }
+  `;
+  
+  document.head.appendChild(style);
+  cleanupFns.push(() => {
+    if (style.parentNode) style.remove();
+  });
+}
+
 // -----------------------------
 // Public API / 对外导出
 // -----------------------------
@@ -2523,5 +2993,7 @@ window.deleteCommentWithRefresh = deleteCommentWithRefresh;
 window.confirmDialog = confirmDialog;
 window.showPostDetail = showPostDetail;
 window.backToList = backToList;
+window.reportContent = reportContent;
+window.blockUser = blockUser;
 
 })();
