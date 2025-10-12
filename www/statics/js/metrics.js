@@ -78,7 +78,6 @@ function initMetricsPage() {
     
     // 初始化出血点图片上传功能
     initBleedingImageUpload();
-    
 
     // 初始化自我评分滑块功能
     initSelfRatingSlider();
@@ -764,8 +763,8 @@ function fillFormData(type, data) {
 
 // 初始化出血点选择功能
 function initBleedingPointSelection() {
-    // 添加第一个出血点项目
-    addBleedingPoint();
+    // 添加第一个出血点项目（初始化，不震动）
+    addBleedingPoint('', '', 0);  // 传入 index=0 表示初始化
     
     // 初始化添加按钮和图片上传状态
     validateBleedingPointControls();
@@ -785,10 +784,13 @@ function addBleedingPoint(selectedValue = '', otherDescription = '', index = nul
         }, 300);
     }
     
-    // 添加按钮点击时的震动反馈
-    try {
-        window.__hapticImpact__ && window.__hapticImpact__('Medium');
-    } catch(_) {}
+    // 🔧 修复：只在用户主动点击时震动，初始化时不震动
+    // index === null 表示是用户点击添加，不是初始化加载
+    if (index === null) {
+        try {
+            window.__hapticImpact__ && window.__hapticImpact__('Medium');
+        } catch(_) {}
+    }
     
     const itemIndex = index !== null ? index : container.children.length;
     
@@ -897,10 +899,7 @@ function addBleedingPoint(selectedValue = '', otherDescription = '', index = nul
     // 更新删除按钮显示状态
     updateBleedingPointRemoveButtons();
     
-    // 添加震动反馈
-    try {
-        window.__hapticImpact__ && window.__hapticImpact__('Heavy');
-    } catch(_) {}
+    // 🔧 移除重复的震动反馈（已在函数开头根据 index 条件判断）
 }
 
 // 删除出血点项目
@@ -2187,38 +2186,12 @@ function addUrinalysisItem(selectedItem = '', value = '', index = null) {
         } catch(_) {}
     });
     
-    const valueInput = itemDiv.querySelector('.urinalysis-value');
-    let inputTimer;
+    // 🔧 修复：移除手动添加的事件监听器
+    // InputEnhancement 已经自动处理了所有输入框的 focus/input/blur 事件
+    // 手动添加会导致重复监听，造成双重震动和焦点问题
     
-    valueInput.addEventListener('input', function() {
-        // 清除之前的定时器
-        if (inputTimer) {
-            clearTimeout(inputTimer);
-        }
-        
-        // 防抖处理，避免过于频繁的震动
-        inputTimer = setTimeout(() => {
-            try {
-                window.__hapticImpact__ && window.__hapticImpact__('Light');
-            } catch(_) {}
-        }, 200);
-    });
-    
-    // 输入框聚焦时的震动
-    valueInput.addEventListener('focus', function() {
-        try {
-            window.__hapticImpact__ && window.__hapticImpact__('Light');
-        } catch(_) {}
-    });
-    
-    // 输入框失去焦点时的震动（输入完成）
-    valueInput.addEventListener('blur', function() {
-        if (this.value.trim()) {
-            try {
-                window.__hapticImpact__ && window.__hapticImpact__('Medium');
-            } catch(_) {}
-        }
-    });
+    // 注意：不需要手动为输入框添加任何事件监听器
+    // InputEnhancement 的 MutationObserver 会自动检测并增强新添加的输入框
     
     // 更新删除按钮显示状态
     updateRemoveButtons();

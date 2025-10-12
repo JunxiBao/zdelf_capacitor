@@ -95,7 +95,7 @@ function initDietPage() {
         console.warn('饮食记录 - InputEnhancement 模块未加载');
     }
 
-    console.log('食物记录页面初始化完成');
+    console.log('饮食记录页面初始化完成');
 }
 
 // 为第一个餐次设置默认时间
@@ -122,10 +122,14 @@ function goBack() {
 }
 
 // 添加新餐次
-function addNewMeal() {
-    try {
-        window.__hapticImpact__ && window.__hapticImpact__('Light');
-    } catch(_) {}
+// silent: true = 静默模式（加载数据时），不触发震动
+function addNewMeal(silent = false) {
+    // 🔧 修复：只在用户主动点击时震动，加载数据时不震动
+    if (!silent) {
+        try {
+            window.__hapticImpact__ && window.__hapticImpact__('Light');
+        } catch(_) {}
+    }
 
     mealCounter++;
     const mealId = mealCounter;
@@ -429,7 +433,7 @@ async function saveAllMeals() {
 // =========== 图片上传相关（与 metrics 保持一致的流程） ==========
 
 function initDietImageUploadForMeal(mealId) {
-    try { window.__hapticImpact__ && window.__hapticImpact__('Light'); } catch(_) {}
+    // 🔧 移除初始化时的震动（只应在点击时震动）
     const btn = document.getElementById(`dietImageUploadBtn-${mealId}`);
     if (!btn) return;
     btn.addEventListener('click', async function() {
@@ -679,8 +683,8 @@ function loadDietData() {
                     // 更新第一个餐次
                     fillMealData(1, mealData);
                 } else {
-                    // 添加新的餐次
-                    addNewMeal();
+                    // 添加新的餐次（静默模式，不震动）
+                    addNewMeal(true);
                     fillMealData(mealData.mealId, mealData);
                 }
             });

@@ -38,13 +38,24 @@
 
     // 优化后的focus处理
     const handleFocus = function(e) {
+      console.log('[InputEnhancement] focus事件触发', element);
+      
+      // 🔧 修复：只在用户主动交互后才触发震动
+      // 初始化阶段如果元素自动获得焦点，不应该震动
+      if (!hasInteracted) {
+        console.log('[InputEnhancement] 初始化阶段，跳过震动');
+        return;
+      }
+      
       // 确保键盘能够正常弹出
       requestAnimationFrame(() => {
         // 延迟震动，不干扰键盘弹出
         setTimeout(() => {
           if (document.activeElement === element) {
+            console.log('[InputEnhancement] 延迟后验证焦点成功，触发震动');
             triggerHaptic('Light', 'input-focus');
-            hasInteracted = true;
+          } else {
+            console.warn('[InputEnhancement] 延迟后焦点丢失！当前焦点:', document.activeElement);
           }
         }, opts.hapticDelay);
       });
@@ -71,21 +82,44 @@
     const handleBlur = function(e) {
       if (!opts.hapticOnBlur) return;
       
-      // 输入完成，有内容时给予确认反馈
-      if (element.value && element.value.trim()) {
-        triggerHaptic('Medium', 'input-complete');
-      }
+      // 输入完成时给予确认反馈
+      // 无论是否有内容都给予反馈，让用户知道焦点已离开
+      triggerHaptic('Light', 'input-blur');
     };
 
     // 阻止可能的双击问题
     const handleTouchStart = function(e) {
+      // 🔧 标记为用户交互
+      hasInteracted = true;
+      
       // 如果已经有焦点，不做处理
       if (document.activeElement === element) {
+        console.log('[InputEnhancement] touchstart: 已有焦点，跳过');
         return;
       }
       
+      console.log('[InputEnhancement] touchstart: 主动聚焦', element);
+      
       // 主动聚焦（某些设备需要）
-      element.focus();
+      // 使用 try-catch 捕获可能的错误
+      try {
+        element.focus();
+        
+        // 验证是否真的聚焦成功
+        requestAnimationFrame(() => {
+          if (document.activeElement === element) {
+            console.log('[InputEnhancement] ✅ 聚焦成功');
+          } else {
+            console.warn('[InputEnhancement] ⚠️ 聚焦失败，当前焦点:', document.activeElement);
+            // 重试一次
+            setTimeout(() => {
+              element.focus();
+            }, 50);
+          }
+        });
+      } catch (err) {
+        console.error('[InputEnhancement] 聚焦出错:', err);
+      }
     };
 
     // 添加事件监听器
@@ -165,32 +199,54 @@
   }
 
   function doAutoEnhance(options) {
-    // 自动增强常见的输入框
+    // 自动增强常见的输入框 - 增加了日期、时间等类型
     const selectors = [
       'input[type="text"]',
       'input[type="number"]',
       'input[type="tel"]',
       'input[type="email"]',
       'input[type="search"]',
-      'textarea'
+      'input[type="date"]',      // 🔧 新增：日期选择器
+      'input[type="time"]',      // 🔧 新增：时间选择器
+      'input[type="datetime-local"]',
+      'textarea',
+      '.time-input',             // 自定义 class
+      '.form-input'              // 自定义 class
     ];
 
     const selector = selectors.join(', ');
+    
+    // 首次增强所有输入框
     enhanceInputs(selector, options);
+    console.log('[InputEnhancement] 已增强现有输入框');
 
     // 观察DOM变化，自动增强新添加的输入框
     if (window.MutationObserver) {
+      // 用于跟踪已增强的元素，避免重复增强
+      const enhancedElements = new WeakSet();
+      
       const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
           mutation.addedNodes.forEach((node) => {
             if (node.nodeType === 1) { // Element node
+              // 检查节点本身
               if (node.matches && node.matches(selector)) {
-                enhanceInput(node, options);
+                if (!enhancedElements.has(node)) {
+                  enhanceInput(node, options);
+                  enhancedElements.add(node);
+                  console.log('[InputEnhancement] 增强新添加的输入框:', node);
+                }
               }
-              // 也检查子元素
+              // 检查子元素
               const inputs = node.querySelectorAll && node.querySelectorAll(selector);
               if (inputs && inputs.length > 0) {
-                enhanceInputs(inputs, options);
+                inputs.forEach(input => {
+                  if (!enhancedElements.has(input)) {
+                    enhanceInput(input, options);
+                    enhancedElements.add(input);
+                    console.log('[InputEnhancement] 增强子元素输入框:', input);
+                  }
+                });
               }
             }
           });
@@ -201,6 +257,8 @@
         childList: true,
         subtree: true
       });
+      
+      console.log('[InputEnhancement] MutationObserver 已启动');
     }
   }
 
