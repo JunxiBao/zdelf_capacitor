@@ -821,7 +821,6 @@ function addBleedingPoint(selectedValue = '', otherDescription = '', index = nul
         <div class="other-bleeding-input" style="display: none;">
             <div class="other-input-wrapper">
                 <input type="text" class="other-bleeding-text other-text-input" placeholder="请描述其他出血部位...">
-                <div class="input-icon">✏️</div>
             </div>
         </div>
     `;
@@ -2307,34 +2306,55 @@ let bloodTestItemIndex = 0;
 // 切换自定义输入框显示/隐藏
 function toggleCustomInput(selectElement) {
     const itemDiv = selectElement.closest('.blood-test-item, .urinalysis-item, .symptoms-item');
-    if (!itemDiv) return;
+    if (!itemDiv) return null;
     
     const customWrapper = itemDiv.querySelector('.custom-input-wrapper');
     const itemInput = itemDiv.querySelector('.item-input');
     const symptomsDetailWrapper = itemDiv.querySelector('.symptoms-detail-wrapper');
     const selectedValue = selectElement.value;
     
+    let inputToFocus = null; // 🔧 记录需要聚焦的输入框
+    
     // 对于血常规和尿常规，控制数值输入框的显示
     if (itemDiv.classList.contains('blood-test-item') || itemDiv.classList.contains('urinalysis-item')) {
         if (itemInput) {
             if (selectedValue && selectedValue !== '') {
                 itemInput.style.display = 'flex';
-                // 添加动画效果
-                itemInput.style.opacity = '0';
-                itemInput.style.transform = 'translateY(-10px)';
-                setTimeout(() => {
-                    itemInput.style.transition = 'all 0.3s ease';
-                    itemInput.style.opacity = '1';
-                    itemInput.style.transform = 'translateY(0)';
-                    
-                    // 注意：InputEnhancement的MutationObserver已经在元素创建时自动增强了
-                    // 不需要手动调用enhance()，否则会重复添加事件监听器
-                    
-                    // 也不需要自动聚焦，因为：
-                    // 1. 移动端浏览器对异步focus()有限制
-                    // 2. 自动弹出键盘可能会干扰用户选择其他项目
-                    // 3. InputEnhancement已经优化了点击体验，第一次点击就能正常输入
-                }, 10);
+                
+                // 🔧 关键修复：移除动画，直接显示
+                // 动画期间的 reflow/repaint 可能导致iOS WebView强制移除焦点
+                itemInput.style.opacity = '1';
+                itemInput.style.transform = 'translateY(0)';
+                
+                // 🔧 关键修复：禁用select的tabindex，防止它重新获得焦点
+                // 这样可以避免iOS在input和select之间的焦点来回跳转
+                selectElement.setAttribute('tabindex', '-1');
+                if (document.activeElement === selectElement) {
+                    selectElement.blur();
+                }
+                console.log('[DEBUG] 已禁用select焦点并让其失去焦点');
+                
+                // 🔧 输入框变为可见后，立即增强它
+                // 在元素可见时添加事件监听器，iOS才会正确识别焦点
+                const input = itemInput.querySelector('input');
+                console.log('[DEBUG] 输入框变为可见', {
+                    hasInput: !!input,
+                    hasEnhancement: !!window.InputEnhancement,
+                    isEnhanced: input?._inputEnhanced,
+                    isVisible: input?.offsetParent !== null,
+                    display: input ? window.getComputedStyle(input).display : 'N/A',
+                    selectHasFocus: document.activeElement === selectElement
+                });
+                
+                if (input && window.InputEnhancement && !input._inputEnhanced) {
+                    console.log('[DEBUG] 准备增强输入框');
+                    window.InputEnhancement.enhance(input, {
+                        hapticDelay: 50,
+                        hapticOnBlur: false,  // 🔧 禁用blur震动，避免与iOS焦点机制冲突
+                        hapticOnInput: false
+                    });
+                    console.log('[DEBUG] 增强完成，input._inputEnhanced =', input._inputEnhanced);
+                }
             } else {
                 itemInput.style.display = 'none';
                 // 清除数值输入框的值
@@ -2392,6 +2412,9 @@ function toggleCustomInput(selectElement) {
             }
         }
     }
+    
+    // 🔧 返回需要聚焦的输入框（如果有）
+    return inputToFocus;
 }
 
 // 添加血常规检测项目

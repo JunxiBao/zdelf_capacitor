@@ -31,6 +31,22 @@
    */
   function enhanceInput(element, options = {}) {
     if (!element) return;
+    
+    // 🔧 跳过隐藏的输入框（display: none 或不在渲染树中）
+    // 这样可以避免iOS WebView对隐藏元素焦点管理的限制
+    const isVisible = element.offsetParent !== null && 
+                      window.getComputedStyle(element).display !== 'none';
+    if (!isVisible) {
+      console.log('[InputEnhancement] 跳过隐藏的输入框:', element);
+      return;
+    }
+    
+    // 🔧 防止重复增强：检查元素是否已经被增强过
+    if (element._inputEnhanced) {
+      console.log('[InputEnhancement] 元素已增强，跳过:', element);
+      return;
+    }
+    element._inputEnhanced = true;
 
     const opts = { ...config, ...options };
     let inputTimer = null;
@@ -38,7 +54,9 @@
 
     // 优化后的focus处理
     const handleFocus = function(e) {
-      console.log('[InputEnhancement] focus事件触发', element);
+      const timeStamp = Date.now();
+      const focusType = e.isTrusted ? '用户触发' : '程序触发';
+      console.log(`[InputEnhancement] focus事件触发 [${focusType}] [时间:${timeStamp}] hasInteracted=${hasInteracted}`, element);
       
       // 🔧 修复：只在用户主动交互后才触发震动
       // 初始化阶段如果元素自动获得焦点，不应该震动
@@ -80,6 +98,32 @@
 
     // 优化后的blur处理
     const handleBlur = function(e) {
+      const timeStamp = Date.now();
+      const blurType = e.isTrusted ? '用户触发' : '程序触发';
+      const relatedTarget = e.relatedTarget;
+      
+      // 🔧 关键修复：检测 relatedTarget 是否为 select/dropdown 元素
+      // 如果焦点转移到 select，说明这是动态输入框的焦点流转，应该忽略
+      const isSelectElement = relatedTarget && (
+        relatedTarget.tagName === 'SELECT' ||
+        relatedTarget.classList?.contains('form-select') ||
+        relatedTarget.classList?.contains('dropdown')
+      );
+      
+      console.log(`[InputEnhancement] blur事件触发 [${blurType}] [时间:${timeStamp}]`, {
+        element: element,
+        relatedTarget: relatedTarget,
+        relatedTagName: relatedTarget?.tagName,
+        isSelectElement: isSelectElement,
+        activeElement: document.activeElement
+      });
+      
+      // 如果焦点转移到 select，忽略此次 blur（这是正常的UI流程）
+      if (isSelectElement) {
+        console.log('[InputEnhancement] blur事件被忽略：焦点转移到select元素');
+        return;
+      }
+      
       if (!opts.hapticOnBlur) return;
       
       // 输入完成时给予确认反馈
@@ -89,37 +133,18 @@
 
     // 阻止可能的双击问题
     const handleTouchStart = function(e) {
+      const timeStamp = Date.now();
+      const touchType = e.isTrusted ? '用户触发' : '程序触发';
+      console.log(`[InputEnhancement] touchstart事件触发 [${touchType}] [时间:${timeStamp}]`, element);
+      
       // 🔧 标记为用户交互
       hasInteracted = true;
+      console.log('[InputEnhancement] 已标记为用户交互 hasInteracted=true');
       
-      // 如果已经有焦点，不做处理
-      if (document.activeElement === element) {
-        console.log('[InputEnhancement] touchstart: 已有焦点，跳过');
-        return;
-      }
-      
-      console.log('[InputEnhancement] touchstart: 主动聚焦', element);
-      
-      // 主动聚焦（某些设备需要）
-      // 使用 try-catch 捕获可能的错误
-      try {
-        element.focus();
-        
-        // 验证是否真的聚焦成功
-        requestAnimationFrame(() => {
-          if (document.activeElement === element) {
-            console.log('[InputEnhancement] ✅ 聚焦成功');
-          } else {
-            console.warn('[InputEnhancement] ⚠️ 聚焦失败，当前焦点:', document.activeElement);
-            // 重试一次
-            setTimeout(() => {
-              element.focus();
-            }, 50);
-          }
-        });
-      } catch (err) {
-        console.error('[InputEnhancement] 聚焦出错:', err);
-      }
+      // 🔧 关键修复：不手动调用 focus()！
+      // 让浏览器自然处理 touch → focus 的流程
+      // 手动 focus() 会导致与iOS焦点保持机制冲突，造成键盘跳动
+      console.log('[InputEnhancement] touchstart: 让浏览器自然处理焦点，不手动调用focus()');
     };
 
     // 添加事件监听器
