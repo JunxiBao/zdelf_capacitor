@@ -61,15 +61,18 @@ def _ensure_table(conn):
     CREATE TABLE IF NOT EXISTS square_comments (
         id VARCHAR(64) PRIMARY KEY,
         post_id VARCHAR(64) NOT NULL,
+        parent_comment_id VARCHAR(64) NULL,
         user_id VARCHAR(128) NULL,
         username VARCHAR(128) NULL,
         avatar_url VARCHAR(500) NULL,
         text_content VARCHAR(500) NOT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_post_id (post_id),
+        INDEX idx_parent_comment_id (parent_comment_id),
         INDEX idx_user_id (user_id),
         INDEX idx_created_at (created_at),
-        FOREIGN KEY (post_id) REFERENCES square_posts(id) ON DELETE CASCADE
+        FOREIGN KEY (post_id) REFERENCES square_posts(id) ON DELETE CASCADE,
+        FOREIGN KEY (parent_comment_id) REFERENCES square_comments(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """
     
@@ -77,6 +80,17 @@ def _ensure_table(conn):
     try:
         cur.execute(posts_ddl)
         cur.execute(comments_ddl)
+        
+        # 检查并添加parent_comment_id字段（如果不存在）
+        try:
+            cur.execute("ALTER TABLE square_comments ADD COLUMN parent_comment_id VARCHAR(64) NULL")
+            cur.execute("ALTER TABLE square_comments ADD INDEX idx_parent_comment_id (parent_comment_id)")
+            cur.execute("ALTER TABLE square_comments ADD FOREIGN KEY (parent_comment_id) REFERENCES square_comments(id) ON DELETE CASCADE")
+        except mysql_errors.ProgrammingError as e:
+            # 字段已存在，忽略错误
+            if "Duplicate column name" not in str(e) and "Duplicate key name" not in str(e):
+                raise
+        
         conn.commit()
     finally:
         try:
@@ -270,7 +284,7 @@ def list_comments():
                 if current_user_id:
                     cur.execute(
                         """
-                        SELECT c.id, c.user_id, c.username, c.avatar_url, c.text_content, c.created_at
+                        SELECT c.id, c.parent_comment_id, c.user_id, c.username, c.avatar_url, c.text_content, c.created_at
                         FROM square_comments c
                         LEFT JOIN blocked_users b ON b.blocker_id = %s AND b.blocked_id = c.user_id
                         WHERE c.post_id = %s AND b.id IS NULL
@@ -281,7 +295,7 @@ def list_comments():
                 else:
                     cur.execute(
                         """
-                        SELECT id, user_id, username, avatar_url, text_content, created_at
+                        SELECT id, parent_comment_id, user_id, username, avatar_url, text_content, created_at
                         FROM square_comments
                         WHERE post_id = %s
                         ORDER BY created_at ASC
@@ -308,6 +322,7 @@ def list_comments():
             
             comments.append({
                 "id": r.get("id"),
+                "parent_comment_id": r.get("parent_comment_id"),
                 "user_id": user_id,  # 匿名评论且非当前用户时返回None
                 "username": r.get("username"),
                 "avatar_url": r.get("avatar_url"),
@@ -338,6 +353,7 @@ def add_comment():
         logger.info("/square/comment body_keys=%s", list(body.keys()))
 
         post_id = (body.get("post_id") or "").strip()
+        parent_comment_id = (body.get("parent_comment_id") or "").strip() or None
         user_id = (body.get("user_id") or "").strip() or None
         username = (body.get("username") or "").strip() or None
         avatar_url = (body.get("avatar_url") or "").strip() or None
@@ -361,10 +377,10 @@ def add_comment():
             try:
                 cur.execute(
                     """
-                    INSERT INTO square_comments (id, post_id, user_id, username, avatar_url, text_content)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO square_comments (id, post_id, parent_comment_id, user_id, username, avatar_url, text_content)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (comment_id, post_id, user_id, username, avatar_url, text_content),
+                    (comment_id, post_id, parent_comment_id, user_id, username, avatar_url, text_content),
                 )
                 conn.commit()
             finally:
@@ -404,6 +420,8 @@ def delete_post(post_id):
             cur = conn.cursor()
             try:
                 # 删除消息（评论会因为外键级联删除自动删除）
+                # 由于外键约束：FOREIGN KEY (post_id) REFERENCES square_posts(id) ON DELETE CASCADE
+                # 删除帖子时会自动删除所有相关的主评论和子评论
                 cur.execute(
                     "DELETE FROM square_posts WHERE id = %s",
                     (post_id,),
@@ -448,6 +466,9 @@ def delete_comment(comment_id):
             _ensure_table(conn)
             cur = conn.cursor()
             try:
+                # 删除评论（子评论会因为外键级联删除自动删除）
+                # 由于外键约束：FOREIGN KEY (parent_comment_id) REFERENCES square_comments(id) ON DELETE CASCADE
+                # 删除主评论时会自动删除所有相关的子评论
                 cur.execute(
                     "DELETE FROM square_comments WHERE id = %s",
                     (comment_id,),

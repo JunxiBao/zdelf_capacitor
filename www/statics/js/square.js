@@ -1833,6 +1833,11 @@ function compressWithQuality(canvas, mimeType, maxSizeKB, callback, quality = nu
  * @param {string} postId - 消息ID
  */
 function toggleComments(postId) {
+  // 添加震动反馈
+  if (window.__hapticImpact__) {
+    window.__hapticImpact__('Light');
+  }
+  
   const commentsSection = squareRoot.getElementById(`comments-${postId}`);
   const commentBtn = squareRoot.querySelector(`button[onclick="toggleComments('${postId}')"]`);
   if (!commentsSection || !commentBtn) return;
@@ -1847,11 +1852,6 @@ function toggleComments(postId) {
     // 显示评论区域
     commentsSection.style.display = 'block';
     commentBtn.innerHTML = '<ion-icon ios="chevron-up-outline" md="chevron-up-sharp" aria-hidden="true"></ion-icon><span>收起</span>';
-  }
-  
-  // 触觉反馈
-  if (window.__hapticImpact__) {
-    window.__hapticImpact__('Light');
   }
 }
 
@@ -1899,6 +1899,7 @@ async function loadAllCommentCounts(messages) {
  */
 async function loadComments(postId) {
   try {
+    console.log('开始加载评论:', postId);
     const API_BASE = getApiBase();
     const identity = await resolveUserIdentity();
     const resp = await fetch(API_BASE + '/square/comments', {
@@ -1916,9 +1917,13 @@ async function loadComments(postId) {
     if (!data.success) throw new Error(data.message || '加载评论失败');
     
     const comments = data.data || [];
+    console.log('加载到评论数量:', comments.length);
+    console.log('评论数据:', comments);
     renderComments(postId, comments);
+    console.log('评论渲染完成');
   } catch (error) {
     console.error('加载评论失败:', error);
+    console.error('错误详情:', error.message, error.stack);
     showToast('加载评论失败');
   }
 }
@@ -1954,13 +1959,296 @@ function renderComments(postId, comments) {
     return;
   }
   
-  commentsList.innerHTML = comments.map(comment => createCommentElement(comment)).join('');
-  updateCommentCount(postId, comments.length);
-  
-  // 为每个评论创建菜单（放在主容器中）
+  // 创建评论映射，方便查找父评论
+  const commentMap = {};
   comments.forEach(comment => {
-    createCommentMenu(comment);
+    commentMap[comment.id] = comment;
   });
+  
+  // 为每个评论添加父评论信息
+  const commentsWithParent = comments.map(comment => {
+    if (comment.parent_comment_id && commentMap[comment.parent_comment_id]) {
+      comment.parentComment = commentMap[comment.parent_comment_id];
+    }
+    return comment;
+  });
+  
+  // 分离主评论和回复评论
+  const mainComments = commentsWithParent.filter(comment => !comment.parent_comment_id);
+  const replyComments = commentsWithParent.filter(comment => comment.parent_comment_id);
+  
+  // 创建回复评论映射
+  const repliesByParent = {};
+  replyComments.forEach(reply => {
+    if (!repliesByParent[reply.parent_comment_id]) {
+      repliesByParent[reply.parent_comment_id] = [];
+    }
+    repliesByParent[reply.parent_comment_id].push(reply);
+  });
+  
+  // 渲染主评论，每个主评论后面跟着它的回复
+  let html = '';
+  try {
+    mainComments.forEach(comment => {
+      html += createCommentElement(comment);
+      // 先添加该评论的所有回复（默认折叠）
+      if (repliesByParent[comment.id]) {
+        const replyCount = repliesByParent[comment.id].length;
+        html += createRepliesSection(comment.id, repliesByParent[comment.id], replyCount);
+      }
+      // 然后添加回复输入框（只在主评论后显示）
+      html += createReplyInputSection(comment.id, comment.username);
+    });
+    
+    commentsList.innerHTML = html;
+    updateCommentCount(postId, comments.length);
+    
+    // 为每个评论创建菜单（放在主容器中）
+    commentsWithParent.forEach(comment => {
+      createCommentMenu(comment);
+    });
+    
+    // 为每个回复也创建菜单
+    replyComments.forEach(reply => {
+      createCommentMenu(reply);
+    });
+  } catch (error) {
+    console.error('渲染评论时出错:', error);
+    // 如果渲染失败，尝试简单的渲染方式
+    commentsList.innerHTML = commentsWithParent.map(comment => createCommentElement(comment)).join('');
+    updateCommentCount(postId, comments.length);
+    commentsWithParent.forEach(comment => {
+      createCommentMenu(comment);
+    });
+  }
+}
+
+/**
+ * 创建回复区域容器（包含折叠/展开功能）
+ * @param {string} commentId - 评论ID
+ * @param {Array} replies - 回复数组
+ * @param {number} replyCount - 回复数量
+ * @returns {string} 回复区域HTML
+ */
+function createRepliesSection(commentId, replies, replyCount) {
+  const repliesHtml = replies.map(reply => createReplyElement(reply)).join('');
+  
+  return `
+    <div class="replies-section" data-comment-id="${commentId}">
+      <div class="replies-toggle" onclick="toggleReplies('${commentId}')">
+        <div class="replies-toggle-content">
+          <ion-icon name="chevron-down-outline" class="replies-chevron"></ion-icon>
+          <span class="replies-count">${replyCount} 条回复</span>
+        </div>
+      </div>
+      <div class="replies-list" id="replies-list-${commentId}" style="display: none;">
+        ${repliesHtml}
+      </div>
+    </div>
+  `;
+}
+
+
+/**
+ * 创建回复输入框
+ * @param {string} commentId - 评论ID
+ * @param {string} username - 被回复的用户名
+ * @returns {string} 回复输入框HTML
+ */
+function createReplyInputSection(commentId, username) {
+  return `
+    <div class="reply-input-section" id="reply-input-section-${commentId}" style="display: none;">
+      <div class="reply-input-wrapper">
+        <div class="reply-input-header">
+          <span class="reply-input-label">回复 ${escapeHtml(username)}</span>
+          <button class="reply-close-btn" onclick="hideReplyInput('${commentId}')">
+            <ion-icon ios="close-outline" md="close-sharp" aria-hidden="true"></ion-icon>
+          </button>
+        </div>
+        <div class="reply-input-container">
+          <textarea 
+            class="reply-input" 
+            id="reply-input-${commentId}"
+            placeholder="写下你的回复..."
+            maxlength="500"
+            rows="3"
+          ></textarea>
+          <div class="reply-actions">
+            <div class="reply-char-count">
+              <span id="reply-char-count-${commentId}">0</span>/500
+            </div>
+            <button class="reply-submit-btn" onclick="submitReply('${commentId}')">
+              <ion-icon ios="send-outline" md="send-sharp" aria-hidden="true"></ion-icon>
+              <span>发送</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * 处理评论点击事件
+ * @param {string} commentId - 评论ID
+ * @param {Event} event - 点击事件
+ */
+function handleCommentClick(commentId, event) {
+  // 如果点击的是菜单按钮，不处理评论点击
+  if (event.target.closest('.comment-menu-btn')) {
+    return;
+  }
+  
+  // 添加震动反馈
+  if (window.__hapticImpact__) {
+    window.__hapticImpact__('Light');
+  }
+  
+  // 显示回复输入框
+  toggleReplyInput(commentId);
+}
+
+/**
+ * 切换回复列表显示状态
+ * @param {string} commentId - 评论ID
+ */
+function toggleReplies(commentId) {
+  // 添加震动反馈
+  if (window.__hapticImpact__) {
+    window.__hapticImpact__('Light');
+  }
+  
+  const repliesList = squareRoot.getElementById(`replies-list-${commentId}`);
+  const chevron = squareRoot.querySelector(`[data-comment-id="${commentId}"] .replies-chevron`);
+  
+  if (!repliesList || !chevron) {
+    console.error('未找到回复列表或箭头图标');
+    return;
+  }
+  
+  const isVisible = repliesList.style.display !== 'none';
+  
+  if (isVisible) {
+    // 隐藏回复列表
+    repliesList.style.display = 'none';
+    chevron.name = 'chevron-down-outline';
+  } else {
+    // 显示回复列表
+    repliesList.style.display = 'block';
+    chevron.name = 'chevron-up-outline';
+  }
+}
+
+/**
+ * 切换回复输入框显示状态
+ * @param {string} commentId - 评论ID
+ */
+function toggleReplyInput(commentId) {
+  console.log('点击回复按钮:', commentId);
+  
+  // 添加震动反馈
+  if (window.__hapticImpact__) {
+    window.__hapticImpact__('Light');
+  }
+  
+  // 确保 squareRoot 可用
+  const root = squareRoot || document;
+  const replySection = root.getElementById(`reply-input-section-${commentId}`);
+  
+  console.log('查找回复输入框:', replySection);
+  
+  if (replySection) {
+    const isVisible = replySection.style.display !== 'none';
+    console.log('当前显示状态:', isVisible);
+    
+    replySection.style.display = isVisible ? 'none' : 'block';
+    
+    if (!isVisible) {
+      // 显示时聚焦到输入框
+      const textarea = replySection.querySelector('.reply-input');
+      if (textarea) {
+        console.log('聚焦到输入框');
+        setTimeout(() => textarea.focus(), 100);
+      } else {
+        console.log('未找到输入框');
+      }
+    }
+  } else {
+    console.error('未找到回复输入框:', `reply-input-section-${commentId}`);
+    // 尝试在全局文档中查找
+    const globalReplySection = document.getElementById(`reply-input-section-${commentId}`);
+    if (globalReplySection) {
+      console.log('在全局文档中找到回复输入框');
+      const isVisible = globalReplySection.style.display !== 'none';
+      globalReplySection.style.display = isVisible ? 'none' : 'block';
+      
+      if (!isVisible) {
+        const textarea = globalReplySection.querySelector('.reply-input');
+        if (textarea) {
+          setTimeout(() => textarea.focus(), 100);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * 隐藏回复输入框
+ * @param {string} commentId - 评论ID
+ */
+function hideReplyInput(commentId) {
+  console.log('隐藏回复输入框:', commentId);
+  
+  // 添加震动反馈
+  if (window.__hapticImpact__) {
+    window.__hapticImpact__('Light');
+  }
+  
+  // 确保 squareRoot 可用
+  const root = squareRoot || document;
+  const replySection = root.getElementById(`reply-input-section-${commentId}`);
+  
+  if (replySection) {
+    replySection.style.display = 'none';
+    console.log('回复输入框已隐藏');
+  } else {
+    console.error('未找到回复输入框:', `reply-input-section-${commentId}`);
+    // 尝试在全局文档中查找
+    const globalReplySection = document.getElementById(`reply-input-section-${commentId}`);
+    if (globalReplySection) {
+      globalReplySection.style.display = 'none';
+      console.log('在全局文档中隐藏回复输入框');
+    }
+  }
+}
+
+/**
+ * 创建回复元素（简化版，显示在父评论下方）
+ * @param {Object} reply - 回复对象
+ * @returns {string} 回复HTML
+ */
+function createReplyElement(reply) {
+  try {
+    const timeAgo = getTimeAgo(reply.created_at);
+    
+    return `
+      <div class="reply-item" data-comment-id="${reply.id}" data-parent-comment-id="${reply.parent_comment_id}">
+        <div class="reply-content">
+          <div class="reply-header">
+            <span class="reply-username">${escapeHtml(reply.username || '匿名用户')}</span>
+            <span class="reply-time">${timeAgo}</span>
+          </div>
+          <div class="reply-text">${escapeHtml(reply.text || '')}</div>
+        </div>
+        <button class="comment-menu-btn reply-menu-btn" onclick="toggleCommentMenu('${reply.id}', event)" data-comment-id="${reply.id}">
+          <ion-icon ios="ellipsis-horizontal-outline" md="ellipsis-horizontal-sharp" aria-hidden="true"></ion-icon>
+        </button>
+      </div>
+    `;
+  } catch (error) {
+    console.error('创建回复元素时出错:', error, reply);
+    return `<div class="reply-item">回复加载失败</div>`;
+  }
 }
 
 /**
@@ -1969,22 +2257,25 @@ function renderComments(postId, comments) {
  * @returns {string} 评论HTML
  */
 function createCommentElement(comment) {
-  const timeAgo = getTimeAgo(comment.created_at);
+  try {
+    const timeAgo = getTimeAgo(comment.created_at);
+    
+    // 处理头像URL，确保是完整的URL
+    const apiBase = getApiBase();
+    const avatarUrl = comment.avatar_url ? 
+      (comment.avatar_url.startsWith('http') ? comment.avatar_url : (apiBase + comment.avatar_url)) : 
+      null;
+    
+    // 判断是否是当前用户的评论
+    // 1. 实名评论：通过 user_id 匹配
+    // 2. 匿名评论：也通过 user_id 匹配（后端会记录user_id，但前端显示时保持匿名）
+    const isCurrentUser = currentUser && comment.user_id && currentUser.id === comment.user_id;
   
-  // 处理头像URL，确保是完整的URL
-  const apiBase = getApiBase();
-  const avatarUrl = comment.avatar_url ? 
-    (comment.avatar_url.startsWith('http') ? comment.avatar_url : (apiBase + comment.avatar_url)) : 
-    null;
-  
-  // 判断是否是当前用户的评论
-  // 1. 实名评论：通过 user_id 匹配
-  // 2. 匿名评论：也通过 user_id 匹配（后端会记录user_id，但前端显示时保持匿名）
-  const isCurrentUser = currentUser && comment.user_id && currentUser.id === comment.user_id;
+  // 主评论不需要显示回复信息，因为回复会显示在下方
   
   // 菜单现在不放在评论容器内，而是放到页面主容器
   return `
-    <div class="comment-item" data-comment-id="${comment.id}">
+    <div class="comment-item" data-comment-id="${comment.id}" data-parent-comment-id="${comment.parent_comment_id || ''}" onclick="handleCommentClick('${comment.id}', event)">
       <div class="comment-avatar">
         ${avatarUrl ? 
           `<img src="${avatarUrl}" alt="${comment.username}" class="avatar-image">` :
@@ -2003,6 +2294,10 @@ function createCommentElement(comment) {
       </button>
     </div>
   `;
+  } catch (error) {
+    console.error('创建评论元素时出错:', error, comment);
+    return `<div class="comment-item">评论加载失败</div>`;
+  }
 }
 
 /**
@@ -2182,6 +2477,139 @@ async function submitComment(postId) {
 }
 
 /**
+ * 显示回复输入框
+ * @param {string} commentId - 评论ID
+ */
+function showReplyInput(commentId) {
+  const replySection = squareRoot.getElementById(`reply-input-section-${commentId}`);
+  const replyBtn = squareRoot.querySelector(`button[onclick="showReplyInput('${commentId}')"]`);
+  
+  if (replySection && replyBtn) {
+    // 隐藏回复按钮
+    replyBtn.style.display = 'none';
+    
+    // 显示回复输入框
+    replySection.style.display = 'block';
+    
+    // 聚焦到输入框并设置字符计数
+    const textarea = squareRoot.getElementById(`reply-input-${commentId}`);
+    const charCount = squareRoot.getElementById(`reply-char-count-${commentId}`);
+    if (textarea) {
+      setTimeout(() => {
+        textarea.focus();
+      }, 100);
+      
+      // 添加字符计数监听
+      const updateCharCount = () => {
+        if (charCount) {
+          charCount.textContent = textarea.value.length;
+        }
+      };
+      
+      textarea.addEventListener('input', updateCharCount);
+      // 清理函数
+      const cleanup = () => {
+        textarea.removeEventListener('input', updateCharCount);
+      };
+      cleanupFns.push(cleanup);
+    }
+    
+    // 触觉反馈
+    if (window.__hapticImpact__) {
+      window.__hapticImpact__('Light');
+    }
+  }
+}
+
+/**
+ * 隐藏回复输入框
+ * @param {string} commentId - 评论ID
+ */
+
+/**
+ * 提交回复
+ * @param {string} commentId - 评论ID
+ */
+async function submitReply(commentId) {
+  const replyInput = squareRoot.getElementById(`reply-input-${commentId}`);
+  if (!replyInput) return;
+  
+  const text = replyInput.value.trim();
+  if (!text) {
+    showToast('请输入回复内容');
+    return;
+  }
+  
+  // 添加震动反馈
+  if (window.__hapticImpact__) {
+    window.__hapticImpact__('Medium');
+  }
+  
+  try {
+    const identity = await resolveUserIdentity();
+    if (!identity.user_id && !identity.username) {
+      alert('未获取到用户身份，请先登录');
+      return;
+    }
+    
+    // 获取帖子ID
+    const commentElement = squareRoot.querySelector(`[data-comment-id="${commentId}"]`);
+    if (!commentElement) {
+      showToast('找不到评论信息');
+      return;
+    }
+    
+    // 从评论元素向上查找帖子ID
+    const commentsSection = commentElement.closest('.comments-section');
+    if (!commentsSection) {
+      showToast('找不到帖子信息');
+      return;
+    }
+    const postId = commentsSection.id.replace('comments-', '');
+    
+    const API_BASE = getApiBase();
+    const payload = {
+      post_id: postId,
+      parent_comment_id: commentId, // 设置父评论ID
+      user_id: identity.user_id || undefined,
+      username: identity.username || undefined,
+      avatar_url: identity.avatar_url || undefined,
+      text: text
+    };
+    
+    const resp = await fetch(API_BASE + '/square/comment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    
+    if (!data.success) throw new Error(data.message || '回复失败');
+    
+    // 清空输入框
+    replyInput.value = '';
+    
+    // 隐藏回复输入框，显示回复按钮
+    hideReplyInput(commentId);
+    
+    // 重新加载评论
+    await loadComments(postId);
+    
+    // 触觉反馈
+    if (window.__hapticImpact__) {
+      window.__hapticImpact__('Medium');
+    }
+    
+    showToast('回复成功');
+  } catch (error) {
+    console.error('回复失败:', error);
+    showToast('回复失败，请重试');
+  }
+}
+
+/**
  * 删除评论
  * @param {string} commentId - 评论ID
  */
@@ -2330,11 +2758,13 @@ async function deletePost(postId) {
  * @param {string} commentId - 评论ID
  */
 async function deleteCommentWithRefresh(commentId) {
+  console.log('开始删除评论:', commentId);
   const confirmed = await confirmDialog('确定要删除这条评论吗？', 'danger');
   if (!confirmed) return;
   
   try {
     const API_BASE = getApiBase();
+    console.log('发送删除请求到:', API_BASE + `/square/comment/${commentId}`);
     const resp = await fetch(API_BASE + `/square/comment/${commentId}`, {
       method: 'DELETE'
     });
@@ -2344,6 +2774,7 @@ async function deleteCommentWithRefresh(commentId) {
     
     if (!data.success) throw new Error(data.message || '删除失败');
     
+    console.log('删除成功，开始刷新评论');
     showToast('删除成功');
     
     // 触觉反馈
@@ -2354,14 +2785,31 @@ async function deleteCommentWithRefresh(commentId) {
     // 不再需要从本地存储中移除，因为统一通过user_id匹配
     
     // 找到评论所属的消息ID并重新加载该消息的评论
-    const commentElement = squareRoot.querySelector(`#comment-menu-${commentId}`)?.closest('.comment-item');
+    // 使用更可靠的方法：通过data-comment-id属性查找
+    const commentElement = squareRoot.querySelector(`[data-comment-id="${commentId}"]`);
     if (commentElement) {
       const commentsSection = commentElement.closest('.comments-section');
       if (commentsSection) {
         const postId = commentsSection.id.replace('comments-', '');
+        console.log('删除评论后刷新帖子评论:', postId);
         await loadComments(postId);
+        return; // 成功刷新后直接返回，避免重复刷新
       }
     }
+    
+    // 如果找不到特定评论元素，刷新所有可见的评论列表（只执行一次）
+    console.log('未找到评论元素，刷新所有评论列表');
+    const allCommentsSections = squareRoot.querySelectorAll('.comments-section');
+    const refreshPromises = [];
+    for (const section of allCommentsSections) {
+      const postId = section.id.replace('comments-', '');
+      if (postId) {
+        console.log('刷新帖子评论:', postId);
+        refreshPromises.push(loadComments(postId));
+      }
+    }
+    // 并行刷新所有评论列表，提高效率
+    await Promise.all(refreshPromises);
   } catch (error) {
     console.error('删除评论失败:', error);
     showToast('删除失败，请重试');
@@ -3049,5 +3497,11 @@ window.showPostDetail = showPostDetail;
 window.backToList = backToList;
 window.reportContent = reportContent;
 window.blockUser = blockUser;
+window.showReplyInput = showReplyInput;
+window.hideReplyInput = hideReplyInput;
+window.submitReply = submitReply;
+window.toggleReplyInput = toggleReplyInput;
+window.toggleReplies = toggleReplies;
+window.handleCommentClick = handleCommentClick;
 
 })();
