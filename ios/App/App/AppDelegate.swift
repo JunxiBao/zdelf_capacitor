@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import StoreKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -9,6 +10,31 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
         return true
+    }
+    
+    // MARK: - StoreKit Rating Support
+    @objc func showStoreKitReview() {
+        DispatchQueue.main.async {
+            if #available(iOS 14.0, *) {
+                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                    SKStoreReviewController.requestReview(in: windowScene)
+                } else {
+                    SKStoreReviewController.requestReview()
+                }
+            } else {
+                SKStoreReviewController.requestReview()
+            }
+        }
+    }
+    
+    // 全局方法，供JavaScript调用
+    @objc func requestNativeReview() {
+        showStoreKitReview()
+    }
+    
+    // 通过Capacitor桥接调用的原生方法
+    @objc func callNativeStoreKit() {
+        showStoreKitReview()
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
