@@ -1,4 +1,13 @@
 {
+  "name": "zdelf-capacitor",
+  "version": "1.0.0",
+  "description": "紫癜精灵 - Capacitor应用",
+  "scripts": {
+    "copy-ionicons": "node scripts/copy-ionicons.js",
+    "build": "npm run copy-ionicons && npx cap sync",
+    "build:android": "npm run copy-ionicons && npx cap sync android && npx cap build android",
+    "build:ios": "npm run copy-ionicons && npx cap sync ios && npx cap build ios"
+  },
   "dependencies": {
     "@capacitor-community/in-app-review": "^7.0.1",
     "@capacitor/action-sheet": "^7.0.2",
@@ -11,6 +20,7 @@
     "@capacitor/haptics": "^7.0.2",
     "@capacitor/ios": "7.4.3",
     "@capacitor/local-notifications": "^7.0.3",
-    "@capacitor/status-bar": "^7.0.2"
+    "@capacitor/status-bar": "^7.0.2",
+    "ionicons": "^7.1.2"
   }
 }

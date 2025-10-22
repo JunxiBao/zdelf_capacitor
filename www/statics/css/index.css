@@ -64,6 +64,8 @@ html {
   background: var(--color-surface);
   /* 为状态栏区域设置背景色 */
   padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
   background-color: var(--color-surface);
 }
 
@@ -91,7 +93,7 @@ body {
   top: 0;
   left: 0;
   right: 0;
-  bottom: calc(var(--nav-h, 80px) + env(safe-area-inset-bottom));
+  bottom: calc(var(--nav-h, 80px) + max(env(safe-area-inset-bottom), 20px));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch; /* smooth iOS momentum */
   contain: content;
@@ -101,6 +103,55 @@ body {
 /* Fixed nav stays pinned and respects safe area */
 .nav-container {
   padding-bottom: env(safe-area-inset-bottom);
+  /* Android底部导航栏适配 */
+  padding-bottom: max(env(safe-area-inset-bottom), 20px);
+}
+
+/* Android底部导航栏特殊适配 */
+@supports (padding: max(0px)) {
+  .nav-container {
+    padding-bottom: max(env(safe-area-inset-bottom), 20px);
+  }
+}
+
+/* 针对Android设备的额外适配 */
+@media screen and (max-width: 768px) {
+  .nav-container {
+    /* 确保在Android设备上有足够的底部间距 */
+    padding-bottom: max(env(safe-area-inset-bottom), 24px);
+    /* 添加最小高度确保不被遮挡 */
+    min-height: calc(80px + max(env(safe-area-inset-bottom), 24px));
+  }
+}
+
+/* iOS和Android通用安全区适配 */
+@supports (padding: max(0px)) {
+  /* 确保在所有设备上都有最小安全间距 */
+  .nav-container {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+  
+  .content {
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+  }
+}
+
+/* 针对不同设备的特殊适配 */
+@media screen and (max-width: 414px) {
+  /* 小屏设备适配 */
+  .nav-container {
+    padding-bottom: max(env(safe-area-inset-bottom), 16px);
+  }
+}
+
+@media screen and (min-width: 768px) {
+  /* 大屏设备适配 */
+  .nav-container {
+    padding-bottom: max(env(safe-area-inset-bottom), 32px);
+  }
 }
 /* Ensure modal still covers viewport without enabling body scroll */
 .modal {
