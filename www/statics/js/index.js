@@ -512,7 +512,8 @@ centerBtn.addEventListener("click", () => {
   // 记录用户重要操作
   trackUserAction('center_button_click');
   
-  window.location.href = "src/options.html";
+  // 使用URL工具函数跳转到选项页面
+  window.navigateTo("src/options.html");
 });
 
 // Click outside (backdrop) closes the modal
