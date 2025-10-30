@@ -382,6 +382,60 @@ body {
   font-size: 20px;
 }
 
+/* 次级图标行（位于发布按钮下方，右对齐） */
+.secondary-icon-row {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.feedback-icon-btn {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+  cursor: pointer;
+  box-shadow: var(--shadow-1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.feedback-icon-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-2);
+  color: var(--brand);
+  background: linear-gradient(135deg, rgba(98,0,234,0.06) 0%, rgba(98,0,234,0.03) 100%);
+  border-color: rgba(98, 0, 234, 0.25);
+}
+
+.feedback-icon-btn:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-1);
+}
+
+.feedback-icon-btn ion-icon { width: 22px; height: 22px; display: block; }
+
+.feedback-icon-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(98, 0, 234, 0.14), var(--shadow-2);
+  border-color: rgba(98, 0, 234, 0.28);
+}
+
+@media (prefers-color-scheme: dark) {
+  .feedback-icon-btn {
+    background: rgba(255,255,255,0.03);
+    border-color: var(--divider);
+  }
+  .feedback-icon-btn:hover {
+    background: rgba(255,255,255,0.08);
+  }
+}
+
 /* Publish section */
 .publish-section {
   margin-bottom: 24px;

@@ -1274,7 +1274,8 @@ async function backToList() {
   }
   
   if (publishTrigger && publishTrigger.style.display === 'none') {
-    publishTrigger.style.display = 'flex';
+    // section容器应为块级，避免将按钮与右侧小图标行并排挤压
+    publishTrigger.style.display = 'block';
   }
   if (publishTrigger) {
     publishTrigger.style.opacity = '';
