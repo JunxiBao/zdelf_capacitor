@@ -48,7 +48,10 @@
     const empty = document.getElementById('relatedEmpty');
     skeleton.style.display = 'none';
     list.innerHTML = '';
-    document.getElementById('relatedCount').textContent = items ? items.length : 0;
+    try {
+      const c = document.getElementById('relatedCount');
+      if (c) c.textContent = items ? items.length : 0;
+    } catch(_) {}
     if (!items || !items.length) {
       empty.style.display = '';
       return;
@@ -87,6 +90,35 @@
           </div>
         </div>
       `;
+      // 点击打开对应帖子（通过壳页动态加载再定位）
+      div.addEventListener('click', () => {
+        addHapticFeedback('Light');
+        try {
+          localStorage.setItem('open_square_post_id', String(it.post_id || ''));
+          localStorage.setItem('global_loading', '1');
+        } catch(_) {}
+        // 显示本页全屏加载覆盖，避免中间过程闪烁
+        try {
+          const ov = document.createElement('div');
+          ov.id = 'route-loading-overlay';
+          ov.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;';
+          ov.innerHTML = `
+            <style>
+              #route-loading-overlay{background:#ffffff}
+              #route-loading-overlay .spinner{width:44px;height:44px;border:3px solid rgba(98,0,234,0.18);border-top-color:#7c4dff;border-radius:50%;animation:spin .8s linear infinite}
+              @media (prefers-color-scheme: dark){
+                #route-loading-overlay{background:#0f1115}
+                #route-loading-overlay .spinner{border-color:rgba(167,139,250,0.22);border-top-color:#a78bfa}
+              }
+              @keyframes spin{to{transform:rotate(360deg)}}
+            </style>
+            <div class="spinner"></div>
+          `;
+          document.body.appendChild(ov);
+        } catch(_) {}
+        // 返回到壳页，由 index.js 负责切换到广场并打开帖子
+        window.location.href = '../index.html';
+      });
       list.appendChild(div);
     });
 
@@ -134,15 +166,7 @@
       console.error('[related] load error', err);
     });
 
-    document.getElementById('refreshBtn')?.addEventListener('click', () => {
-      addHapticFeedback('Medium');
-      const app = document.querySelector('main.app');
-      if (app) app.classList.add('refreshing');
-      document.getElementById('relatedEmpty').style.display = 'none';
-      document.getElementById('relatedList').innerHTML = '';
-      document.getElementById('relatedSkeleton').style.display = '';
-      refresh().finally(() => { if (app) app.classList.remove('refreshing'); });
-    });
+    // no refresh button on this page anymore
 
     // Back button haptic feedback (align with calendar)
     const backBtn = document.querySelector('.back-btn');

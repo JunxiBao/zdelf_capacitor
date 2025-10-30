@@ -10,7 +10,7 @@ html, body {
   z-index: 5;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   padding: 8px 6px 6px;
   margin-top: 8px; /* 顶部留出一点空隙 */
   backdrop-filter: none;
@@ -29,13 +29,16 @@ html, body {
   color: var(--text-secondary);
 }
 
-.header-actions { display: flex; gap: 8px; }
+.header-actions { display: flex; gap: 8px; position: absolute; left: 8px; }
 
 .related-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  margin-top: 12px; /* 与左上返回按钮错开一些 */
 }
+
+.related-list .related-item:first-child { margin-top: 14px; }
 
 .related-item {
   background: var(--card);
@@ -46,7 +49,7 @@ html, body {
   transform: translateY(6px);
   opacity: 0;
   will-change: transform, opacity, box-shadow;
-  cursor: default;
+  cursor: pointer;
 }
 
 .related-item .row {
@@ -95,13 +98,29 @@ html, body {
 }
 
 .back-btn {
-  padding: 8px 12px;
-  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
   background: var(--card);
-  border: 1px solid var(--divider);
-  color: var(--text);
+  border-radius: 12px;
   cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-1);
 }
+
+.back-btn:hover {
+  background: var(--divider);
+  transform: translateX(-4px) scale(1.05);
+}
+
+.back-btn:active {
+  transform: translateX(-2px) scale(0.95);
+}
+
+.back-btn ion-icon { width: 24px; height: 24px; color: var(--text); }
 
 .refresh-btn {
   width: 40px;
@@ -163,9 +182,7 @@ html, body {
 @keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 
 @media (prefers-color-scheme: dark) {
-  .back-btn {
-    background: rgba(255,255,255,0.04);
-  }
+  .back-btn { background: rgba(255,255,255,0.04); }
   .refresh-btn { background: rgba(255,255,255,0.04); }
   .related-header { background: transparent; }
 }

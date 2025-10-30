@@ -184,8 +184,10 @@ function setupEventListeners() {
   if (searchInput) {
     const searchInputHandler = (e) => handleSearchInput(e);
     searchInput.addEventListener('input', searchInputHandler);
+    searchInput.addEventListener('focus', () => { try { window.__hapticImpact__ && window.__hapticImpact__('Light'); } catch(_) {} });
     searchInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
+        try { window.__hapticImpact__ && window.__hapticImpact__('Light'); } catch(_) {}
         handleSearch();
       }
     });
@@ -195,7 +197,7 @@ function setupEventListeners() {
   
   // 清除搜索按钮
   if (clearSearchBtn) {
-    const clearHandler = () => handleClearSearch();
+    const clearHandler = () => { try { window.__hapticImpact__ && window.__hapticImpact__('Light'); } catch(_) {} ; handleClearSearch(); };
     clearSearchBtn.addEventListener('click', clearHandler);
     cleanupFns.push(() => clearSearchBtn.removeEventListener('click', clearHandler));
   }
@@ -927,6 +929,19 @@ async function loadMessages() {
       // 渐变完成后释放 min-height，避免影响后续布局
       setTimeout(() => { try { messagesList.style.minHeight = ''; } catch(_) {} }, 50);
     }
+
+    // Deep-link: open specific post if requested
+    try {
+      const targetId = window.__OPEN_SQUARE_POST_ID || null;
+      if (targetId && messages.some(m => m.id === targetId)) {
+        // 等一帧确保DOM已就绪
+        await new Promise(r => requestAnimationFrame(r));
+        await showPostDetail(targetId);
+        try { window.dispatchEvent(new Event('globalLoadingDone')); } catch(_) {}
+      }
+      // 清理
+      window.__OPEN_SQUARE_POST_ID = null;
+    } catch (_) {}
   } catch (error) {
     console.error('加载消息失败:', error);
     showError('加载消息失败');
