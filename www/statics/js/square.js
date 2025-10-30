@@ -1980,6 +1980,20 @@ function renderComments(postId, comments) {
   // 创建回复评论映射
   const repliesByParent = {};
   replyComments.forEach(reply => {
+    // 如果缺少 reply_to_username，尽量从多种后端字段推导“被回复者”
+    try {
+      if (!reply.reply_to_username) {
+        const possibleId = reply.reply_to_comment_id || reply.reply_id || reply.reply_to_id || reply.reply_comment_id;
+        if (possibleId && commentMap[possibleId]) {
+          reply.reply_to_username = commentMap[possibleId].username || '';
+        } else if (reply.reply_to_user_id) {
+          // 兜底：通过 user_id 在同批评论里找一个用户名
+          const target = commentsWithParent.find(c => c.user_id && c.user_id === reply.reply_to_user_id);
+          if (target) reply.reply_to_username = target.username || '';
+        }
+      }
+    } catch (_) {}
+
     if (!repliesByParent[reply.parent_comment_id]) {
       repliesByParent[reply.parent_comment_id] = [];
     }
@@ -2031,7 +2045,22 @@ function renderComments(postId, comments) {
  * @returns {string} 回复区域HTML
  */
 function createRepliesSection(commentId, replies, replyCount) {
-  const repliesHtml = replies.map(reply => createReplyElement(reply)).join('');
+  // 复制并按时间排序，便于基于“上一条回复”做兜底推断
+  const orderedReplies = Array.isArray(replies) ? [...replies].sort((a, b) => {
+    const at = new Date(a.created_at || 0).getTime();
+    const bt = new Date(b.created_at || 0).getTime();
+    return at - bt;
+  }) : [];
+
+  // 兜底：若仍缺少 reply_to_username，则默认把目标设为“同一父评论里上一条回复的作者”
+  for (let i = 0; i < orderedReplies.length; i++) {
+    const r = orderedReplies[i];
+    if (!r.reply_to_username && !r.reply_to_comment_id && i > 0) {
+      r.reply_to_username = orderedReplies[i - 1]?.username || '';
+    }
+  }
+
+  const repliesHtml = orderedReplies.map(reply => createReplyElement(reply)).join('');
   
   return `
     <div class="replies-section" data-comment-id="${commentId}">
@@ -2104,8 +2133,25 @@ function handleCommentClick(commentId, event) {
     window.__hapticImpact__('Light');
   }
   
-  // 显示回复输入框
+  // 显示回复输入框，并重置为“回复主评论作者”模式（不显示回复谁）
   toggleReplyInput(commentId);
+
+  try {
+    const replySection = (squareRoot || document).getElementById(`reply-input-section-${commentId}`);
+    if (replySection) {
+      // 清除任何已选择的“回复目标”（只在点击紫色回复时才会设置）
+      delete replySection.dataset.replyTargetId;
+      delete replySection.dataset.replyTargetUsername;
+
+      // 将标签重置为主评论作者
+      const commentEl = (squareRoot || document).querySelector(`.comment-item[data-comment-id="${commentId}"]`);
+      const author = commentEl ? (commentEl.querySelector('.comment-author')?.textContent || '') : '';
+      const label = replySection.querySelector('.reply-input-label');
+      if (label) {
+        label.textContent = author ? `回复 ${author}` : '回复';
+      }
+    }
+  } catch (_) {}
 }
 
 /**
@@ -2231,11 +2277,15 @@ function createReplyElement(reply) {
   try {
     const timeAgo = getTimeAgo(reply.created_at);
     
+    const displayName = reply.reply_to_username && reply.reply_to_username !== ''
+      ? `${escapeHtml(reply.username || '匿名用户')} 回复 ${escapeHtml(reply.reply_to_username)}`
+      : `${escapeHtml(reply.username || '匿名用户')}`;
+
     return `
-      <div class="reply-item" data-comment-id="${reply.id}" data-parent-comment-id="${reply.parent_comment_id}">
+      <div class="reply-item" data-comment-id="${reply.id}" data-parent-comment-id="${reply.parent_comment_id}" onclick="handleReplyClick('${reply.id}', '${escapeHtml(reply.username || '匿名用户')}', '${reply.parent_comment_id}')">
         <div class="reply-content">
           <div class="reply-header">
-            <span class="reply-username">${escapeHtml(reply.username || '匿名用户')}</span>
+            <span class="reply-username">${displayName}</span>
             <span class="reply-time">${timeAgo}</span>
           </div>
           <div class="reply-text">${escapeHtml(reply.text || '')}</div>
@@ -2567,10 +2617,17 @@ async function submitReply(commentId) {
     }
     const postId = commentsSection.id.replace('comments-', '');
     
+    // 检查是否是在回复某个“紫色方框”的回复
+    const replySection = squareRoot.getElementById(`reply-input-section-${commentId}`);
+    const replyTargetId = replySection && replySection.dataset.replyTargetId ? replySection.dataset.replyTargetId : null;
+    const replyTargetUsername = replySection && replySection.dataset.replyTargetUsername ? replySection.dataset.replyTargetUsername : null;
+
     const API_BASE = getApiBase();
     const payload = {
       post_id: postId,
-      parent_comment_id: commentId, // 设置父评论ID
+      parent_comment_id: commentId, // 一律挂在主评论ID下
+      reply_to_comment_id: replyTargetId || undefined,
+      reply_to_username: replyTargetUsername || undefined,
       user_id: identity.user_id || undefined,
       username: identity.username || undefined,
       avatar_url: identity.avatar_url || undefined,
@@ -2593,6 +2650,11 @@ async function submitReply(commentId) {
     
     // 隐藏回复输入框，显示回复按钮
     hideReplyInput(commentId);
+    // 清理回复目标
+    if (replySection) {
+      delete replySection.dataset.replyTargetId;
+      delete replySection.dataset.replyTargetUsername;
+    }
     
     // 重新加载评论
     await loadComments(postId);
@@ -2606,6 +2668,47 @@ async function submitReply(commentId) {
   } catch (error) {
     console.error('回复失败:', error);
     showToast('回复失败，请重试');
+  }
+}
+
+/**
+ * 点击某条“紫色方框”的回复时，打开对应主评论的回复输入框，且显示“回复 谁”
+ * @param {string} replyId - 被回复的回复ID
+ * @param {string} replyUsername - 被回复的用户名
+ * @param {string} parentCommentId - 该回复所属的主评论ID
+ */
+function handleReplyClick(replyId, replyUsername, parentCommentId) {
+  try {
+    const root = squareRoot || document;
+    const sectionId = `reply-input-section-${parentCommentId}`;
+    const replySection = root.getElementById(sectionId);
+    if (!replySection) return;
+
+    // 显示该输入框
+    if (replySection.style.display === 'none') {
+      replySection.style.display = 'block';
+    }
+
+    // 标记回复目标，仅在回复“紫色方框”时显示“回复 谁”
+    replySection.dataset.replyTargetId = replyId;
+    replySection.dataset.replyTargetUsername = replyUsername || '';
+
+    const label = replySection.querySelector('.reply-input-label');
+    if (label) {
+      label.textContent = replyUsername ? `回复 ${replyUsername}` : '回复';
+    }
+
+    // 聚焦输入框
+    const textarea = replySection.querySelector('.reply-input');
+    if (textarea) {
+      setTimeout(() => textarea.focus(), 80);
+    }
+
+    if (window.__hapticImpact__) {
+      window.__hapticImpact__('Light');
+    }
+  } catch (error) {
+    console.error('处理回复点击失败:', error);
   }
 }
 
@@ -3503,5 +3606,6 @@ window.submitReply = submitReply;
 window.toggleReplyInput = toggleReplyInput;
 window.toggleReplies = toggleReplies;
 window.handleCommentClick = handleCommentClick;
+window.handleReplyClick = handleReplyClick;
 
 })();

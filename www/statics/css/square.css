@@ -1516,7 +1516,8 @@ body {
 
 /* 回复区域容器 */
 .replies-section {
-  margin: 4px 0 8px 48px; /* 减少上边距，让回复区域更贴近主评论 */
+  /* 与上方主评论左侧对齐 */
+  margin: 4px 0 8px 14px; /* 与评论内头像左边缘对齐（comment-item 左内边距为14px） */
 }
 
 /* 回复切换按钮 */
@@ -1557,13 +1558,15 @@ body {
 /* 回复列表 */
 .replies-list {
   margin-top: 8px;
-  border-left: 2px solid rgba(98, 0, 234, 0.1);
+  /* 去掉左侧紫色竖线 */
+  border-left: none;
 }
 
 
 /* 回复元素样式 - 显示在父评论下方 */
 .reply-item {
-  margin: 8px 0 8px 48px; /* 左边距与评论内容对齐 */
+  /* 与上方主评论左侧对齐 */
+  margin: 8px 0 8px 14px; /* 与评论内头像左边缘对齐 */
   padding: 8px 12px;
   background: rgba(98, 0, 234, 0.03);
   border-left: 2px solid rgba(98, 0, 234, 0.2);
@@ -2305,7 +2308,8 @@ body {
   
   /* 移动端回复区域样式 */
   .replies-section {
-    margin: 2px 0 6px 32px; /* 移动端进一步减少间距和缩进 */
+    /* 移动端同样与主评论左对齐 */
+    margin: 2px 0 6px 12px; /* 移动端 comment-item 左内边距更紧凑，这里用12px */
   }
   
   .replies-toggle {
@@ -2449,7 +2453,7 @@ body {
   }
   
   .reply-item {
-    margin: 6px 0 6px 40px; /* 移动端调整左边距 */
+    margin: 6px 0 6px 12px;
     padding: 6px 10px;
   }
   
