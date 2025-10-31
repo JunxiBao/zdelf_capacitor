@@ -82,6 +82,81 @@ function initSquare(shadowRoot) {
   // 加载消息列表
   loadMessages();
   
+  // 检查 relate 页面更新（延迟执行，确保 DOM 已准备好）
+  // 使用 requestAnimationFrame + setTimeout 确保 DOM 已渲染
+  // 由于是动态加载，需要等待 Shadow DOM 内容完全挂载
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      // 再次检查元素是否存在，如果不存在则延迟重试
+      const checkAndRun = (retries = 3) => {
+        const feedbackBtn = squareRoot.getElementById('feedbackIconBtn');
+        if (feedbackBtn || retries === 0) {
+          checkRelatedUpdates();
+        } else {
+          setTimeout(() => checkAndRun(retries - 1), 100);
+        }
+      };
+      checkAndRun();
+    }, 150);
+  });
+  
+  // 监听页面可见性变化（从 relate 页面返回时会触发）
+  // 当页面变为可见时，重新检查更新
+  try {
+    let lastHiddenTime = document.hidden ? Date.now() : 0;
+    const visibilityHandler = () => {
+      if (document.hidden) {
+        lastHiddenTime = Date.now();
+      } else if (isInitialized && lastHiddenTime > 0) {
+        // 页面从隐藏变为可见，且之前确实隐藏过，可能是从其他页面返回
+        const hiddenDuration = Date.now() - lastHiddenTime;
+        // 如果隐藏时间超过 100ms，才认为是切换页面后返回
+        if (hiddenDuration > 100) {
+          setTimeout(() => {
+            checkRelatedUpdates();
+          }, 300);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', visibilityHandler);
+    cleanupFns.push(() => {
+      document.removeEventListener('visibilitychange', visibilityHandler);
+    });
+  } catch (_) {}
+  
+  // 监听 focus 事件（从其他页面返回时可能触发）
+  try {
+    const focusHandler = () => {
+      if (isInitialized) {
+        // 页面获得焦点时，延迟检查更新
+        // 使用较短的延迟，因为 focus 事件通常意味着用户刚刚返回
+        setTimeout(() => {
+          checkRelatedUpdates();
+        }, 200);
+      }
+    };
+    window.addEventListener('focus', focusHandler);
+    cleanupFns.push(() => {
+      window.removeEventListener('focus', focusHandler);
+    });
+  } catch (_) {}
+  
+  // 监听页面显示事件（适用于某些移动端场景）
+  try {
+    const pageshowHandler = (e) => {
+      // e.persisted 为 true 表示页面从缓存恢复（前进/后退）
+      if (isInitialized && e.persisted) {
+        setTimeout(() => {
+          checkRelatedUpdates();
+        }, 300);
+      }
+    };
+    window.addEventListener('pageshow', pageshowHandler);
+    cleanupFns.push(() => {
+      window.removeEventListener('pageshow', pageshowHandler);
+    });
+  } catch (_) {}
+  
   isInitialized = true;
 }
 
@@ -104,6 +179,12 @@ function destroySquare() {
       menu.parentNode.removeChild(menu);
     }
   });
+  
+  // 清理 relate 更新提示圆圈
+  const badge = squareRoot.getElementById('relatedUpdateBadge');
+  if (badge && badge.parentNode) {
+    badge.parentNode.removeChild(badge);
+  }
   
   // 统一执行清理函数
   cleanupFns.forEach(fn => { try { fn(); } catch (_) {} });
@@ -146,6 +227,8 @@ function initializeElements() {
   publishSection = squareRoot.getElementById('publishSection');
   cancelBtn = squareRoot.getElementById('cancelBtn');
   anonymousBtn = squareRoot.getElementById('anonymousBtn');
+  // feedbackIconBtn 用于显示 relate 更新提示
+  // 注意：这个元素在 square.html 中，需要通过 squareRoot 获取
 }
 
 /**
@@ -945,6 +1028,168 @@ async function loadMessages() {
   } catch (error) {
     console.error('加载消息失败:', error);
     showError('加载消息失败');
+  }
+}
+
+/**
+ * 检查 relate 页面更新
+ * 调用相关 API 检查是否有新更新，并在 feedbackIconBtn 上方显示红色圆圈和数字
+ */
+async function checkRelatedUpdates() {
+  try {
+    const API_BASE = getApiBase();
+    const identity = await resolveUserIdentity();
+    const user_id = identity.user_id || '';
+    
+    if (!user_id) {
+      // 如果没有用户ID，隐藏更新提示
+      hideRelatedUpdateBadge();
+      return;
+    }
+    
+    // 调用 /square/related API 获取相关更新（和 related.js 中的逻辑一样）
+    const resp = await fetch(API_BASE + '/square/related', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current_user_id: user_id, limit: 500 })
+    });
+    
+    if (!resp.ok) {
+      console.error('检查 relate 更新失败: HTTP', resp.status);
+      hideRelatedUpdateBadge();
+      return;
+    }
+    
+    const json = await resp.json();
+    if (!json.success) {
+      console.error('检查 relate 更新失败:', json.message || '未知错误');
+      hideRelatedUpdateBadge();
+      return;
+    }
+    
+    // 过滤"自己回复自己"，并按时间倒序（最新在上）
+    const rows = Array.isArray(json.data) ? json.data
+      .filter(it => it && it.user_id !== user_id)
+      .sort((a, b) => {
+        const ta = a && a.created_at ? Date.parse(a.created_at) : 0;
+        const tb = b && b.created_at ? Date.parse(b.created_at) : 0;
+        return tb - ta;
+      }) : [];
+    
+    if (rows.length === 0) {
+      hideRelatedUpdateBadge();
+      return;
+    }
+    
+    // 获取缓存中的上次查看时间
+    let lastViewTime = null;
+    try {
+      const cachedTime = localStorage.getItem('related_last_view_time');
+      if (cachedTime) {
+        lastViewTime = parseInt(cachedTime, 10);
+      }
+    } catch (_) {}
+    
+    // 找到最新的更新时间
+    const latestTime = rows[0] && rows[0].created_at ? Date.parse(rows[0].created_at) : null;
+    
+    if (!latestTime) {
+      hideRelatedUpdateBadge();
+      return;
+    }
+    
+    // 如果没有上次查看时间，显示所有更新（首次使用）
+    if (!lastViewTime) {
+      if (rows.length > 0) {
+        showRelatedUpdateBadge(rows.length);
+      } else {
+        hideRelatedUpdateBadge();
+      }
+      return;
+    }
+    
+    // 如果有上次查看时间，只显示比它新的更新
+    // latestTime <= lastViewTime 表示没有新更新，隐藏红点
+    if (latestTime <= lastViewTime) {
+      hideRelatedUpdateBadge();
+      return;
+    }
+    
+    // 计算新更新的数量（只统计比 lastViewTime 新的更新）
+    const newUpdateCount = rows.filter(it => {
+      const itemTime = it && it.created_at ? Date.parse(it.created_at) : 0;
+      return itemTime > lastViewTime;
+    }).length;
+    
+    if (newUpdateCount > 0) {
+      showRelatedUpdateBadge(newUpdateCount);
+    } else {
+      hideRelatedUpdateBadge();
+    }
+  } catch (error) {
+    console.error('检查 relate 更新出错:', error);
+    hideRelatedUpdateBadge();
+  }
+}
+
+/**
+ * 显示 relate 更新提示圆圈
+ * @param {number} count - 更新数量
+ */
+function showRelatedUpdateBadge(count) {
+  // 确保在 ShadowRoot 中查找元素
+  const feedbackIconBtn = squareRoot.getElementById('feedbackIconBtn');
+  if (!feedbackIconBtn) {
+    // 如果元素不存在，可能是动态加载还没完成，延迟重试
+    console.warn('feedbackIconBtn 未找到，延迟重试显示更新提示');
+    setTimeout(() => {
+      const retryBtn = squareRoot.getElementById('feedbackIconBtn');
+      if (retryBtn) {
+        showRelatedUpdateBadge(count);
+      }
+    }, 200);
+    return;
+  }
+  
+  // 检查是否已经存在提示圆圈
+  let badge = squareRoot.getElementById('relatedUpdateBadge');
+  if (!badge) {
+    try {
+      // 在 ShadowRoot 中，需要通过 ownerDocument 或 document 创建元素
+      // ShadowRoot 本身不支持 createElement
+      const doc = squareRoot.ownerDocument || document;
+      badge = doc.createElement('div');
+      
+      badge.id = 'relatedUpdateBadge';
+      badge.className = 'related-update-badge';
+      
+      // 确保按钮有相对定位
+      const btnStyle = window.getComputedStyle(feedbackIconBtn);
+      if (btnStyle.position === 'static') {
+        feedbackIconBtn.style.position = 'relative';
+      }
+      
+      // 将提示圆圈添加到按钮上（作为子元素）
+      // 在 ShadowRoot 中，可以直接 appendChild 到已存在的元素
+      feedbackIconBtn.appendChild(badge);
+    } catch (err) {
+      console.error('创建更新提示圆圈失败:', err);
+      return;
+    }
+  }
+  
+  // 更新数字
+  badge.textContent = count > 99 ? '99+' : String(count);
+  badge.style.display = 'flex';
+}
+
+/**
+ * 隐藏 relate 更新提示圆圈
+ */
+function hideRelatedUpdateBadge() {
+  const badge = squareRoot.getElementById('relatedUpdateBadge');
+  if (badge) {
+    badge.style.display = 'none';
   }
 }
 

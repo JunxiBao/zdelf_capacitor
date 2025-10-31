@@ -144,7 +144,7 @@
     });
     const json = await resp.json();
     if (!json.success) throw new Error(json.message || '加载失败');
-    // 过滤“自己回复自己”，并按时间倒序（最新在上）
+    // 过滤"自己回复自己"，并按时间倒序（最新在上）
     const rows = Array.isArray(json.data) ? json.data
       .filter(it => it && it.user_id !== user_id)
       .sort((a, b) => {
@@ -153,6 +153,29 @@
         return tb - ta;
       }) : [];
     render(rows, user_id);
+    
+    // 保存最新查看时间到缓存
+    // 如果有数据，保存最新数据的时间戳
+    // 如果没有数据，保存当前时间，表示用户已查看（虽然没有更新）
+    try {
+      let timeToSave = null;
+      if (rows.length > 0 && rows[0].created_at) {
+        const latestTime = Date.parse(rows[0].created_at);
+        if (!isNaN(latestTime)) {
+          timeToSave = latestTime;
+        }
+      } else {
+        // 如果没有数据，保存当前时间，表示用户已查看
+        timeToSave = Date.now();
+      }
+      
+      if (timeToSave !== null) {
+        localStorage.setItem('related_last_view_time', String(timeToSave));
+        console.log('已保存 relate 页面最新查看时间:', new Date(timeToSave).toLocaleString());
+      }
+    } catch (err) {
+      console.error('保存 relate 查看时间失败:', err);
+    }
   }
 
   document.addEventListener('DOMContentLoaded', () => {
