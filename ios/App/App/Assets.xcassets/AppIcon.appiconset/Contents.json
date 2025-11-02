@@ -1,14 +1,38 @@
 {
-  "images": [
+  "images" : [
     {
-      "idiom": "universal",
-      "size": "1024x1024",
-      "filename": "AppIcon-512@2x.png",
-      "platform": "ios"
+      "filename" : "91d27fcb-8162-412a-a42c-4de51be64aeb.jpg",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
+    },
+    {
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ],
+      "filename" : "c32dceac-b7d9-4351-96f5-ecb2933a6bbc.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
+    },
+    {
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "tinted"
+        }
+      ],
+      "filename" : "image.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
     }
   ],
-  "info": {
-    "author": "xcode",
-    "version": 1
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
   }
 }
