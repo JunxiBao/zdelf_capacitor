@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<!--
+  logs.html — 日志监视器
+  功能:
+  - 列出后端生成的日志文件
+  - 读取选中文件尾部内容（tail）
+  - 搜索过滤、等级颜色区分、自动刷新与置底
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="theme-color" content="#ffffff" />
+    <title>日志监视器</title>
+    <!-- 页面样式 -->
+    <link rel="stylesheet" href="../statics/css/logs.css" />
+  </head>
+  <body>
+    <main class="app" aria-label="日志监视器">
+      <!-- 顶部栏 -->
+      <header class="header">
+        <h1 class="header-title">日志监视器</h1>
+        <div class="header-spacer"></div>
+      </header>
+
+      <div class="layout">
+        <!-- 桌面端侧栏（移动端隐藏） -->
+        <aside class="sidebar" aria-label="日志文件列表">
+          <div class="sidebar-header">日志文件</div>
+          <ul id="fileList" class="file-list"></ul>
+        </aside>
+        <!-- 右侧主面板 -->
+        <section class="main-panel">
+      <!-- 控制区 -->
+      <section class="controls">
+        <div class="controls-summary">
+          <button id="toggleControls" class="btn btn-ghost" title="展开/折叠工具栏">工具栏 ▾</button>
+          <div class="summary-meta">
+            <span id="summaryFile" class="summary-item"></span>
+            <span id="summaryTail" class="summary-item"></span>
+            <span id="summaryAuto" class="summary-item"></span>
+          </div>
+        </div>
+        <div class="row">
+          <label class="control">
+            <span>文件</span>
+            <select id="fileSelect" aria-label="日志文件"></select>
+          </label>
+          <label class="control">
+            <span>尾行数</span>
+            <select id="tailSelect" aria-label="尾部行数">
+              <option value="200">200</option>
+              <option value="500">500</option>
+              <option value="1000" selected>1000</option>
+              <option value="2000">2000</option>
+              <option value="5000">5000</option>
+            </select>
+          </label>
+          <div class="btns">
+            <button id="refreshBtn" class="btn" title="刷新">
+              ⟳ 刷新
+            </button>
+            <label class="toggle" title="自动刷新">
+              <input type="checkbox" id="autoRefresh" checked />
+              <span>自动刷新</span>
+            </label>
+            <label class="toggle" title="始终滚动到底部">
+              <input type="checkbox" id="stickBottom" checked />
+              <span>置底</span>
+            </label>
+            <label class="toggle" title="显示行号">
+              <input type="checkbox" id="showLineNumbers" />
+              <span>行号</span>
+            </label>
+          </div>
+        </div>
+        <div class="row">
+          <label class="search">
+            <span class="search-icon">🔍</span>
+            <input id="searchInput" type="text" placeholder="搜索关键字（支持实时过滤与高亮）" />
+            <button id="clearSearch" class="icon-btn" title="清除搜索">
+              ✖
+            </button>
+          </label>
+          <label class="toggle" title="正则">
+            <input type="checkbox" id="useRegex" />
+            <span>正则</span>
+          </label>
+          <label class="toggle" title="区分大小写">
+            <input type="checkbox" id="caseSensitive" />
+            <span>大小写</span>
+          </label>
+          <div class="btns">
+            <button class="btn btn-ghost" id="prevMatch" title="上一个">↑</button>
+            <button class="btn btn-ghost" id="nextMatch" title="下一个">↓</button>
+            <span class="match-count" id="matchCount">0</span>
+          </div>
+          <div class="btns right">
+            <button class="btn btn-ghost" id="copyVisible" title="复制当前可见">复制</button>
+            <button class="btn btn-ghost" id="downloadFile" title="下载当前文件">下载</button>
+            <button class="btn btn-ghost" id="jumpBottom" title="滚动到底部">到底</button>
+          </div>
+          <div class="levels">
+            <label><input type="checkbox" data-level="DEBUG" checked /> DEBUG</label>
+            <label><input type="checkbox" data-level="INFO" checked /> INFO</label>
+            <label><input type="checkbox" data-level="WARNING" checked /> WARN</label>
+            <label><input type="checkbox" data-level="ERROR" checked /> ERROR</label>
+            <label><input type="checkbox" data-level="CRITICAL" checked /> CRITICAL</label>
+          </div>
+        </div>
+      </section>
+
+      <!-- 内容区 -->
+      <section class="viewer" id="viewer" aria-live="polite" aria-busy="false">
+        <div class="loading" id="loading" hidden>
+          <div class="spinner"></div>
+          <span>加载中...</span>
+        </div>
+        <div id="logContent" class="log-content" tabindex="0" role="log" aria-label="日志内容"></div>
+      </section>
+        </section>
+      </div>
+    </main>
+
+    <!-- 震动反馈（可选） -->
+    <script src="../statics/js/haptic-manager.js"></script>
+    <!-- 页面脚本 -->
+    <script src="../statics/js/logs.js"></script>
+  </body>
+  </html>
+
